@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		FBF2FC532F1B260C00CC2213 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = FBF2FC522F1B260C00CC2213 /* Lottie */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		FBF2FC062F1ADC7F00CC2213 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -29,9 +33,22 @@
 		FBF2FC0F2F1ADC7F00CC2213 /* cstatiWarehouseUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = cstatiWarehouseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FBF2FC502F1B02F000CC2213 /* Exceptions for "cstatiWarehouse" folder in "cstatiWarehouse" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = FBF2FBF72F1ADC7E00CC2213 /* cstatiWarehouse */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FBF2FBFA2F1ADC7E00CC2213 /* cstatiWarehouse */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FBF2FC502F1B02F000CC2213 /* Exceptions for "cstatiWarehouse" folder in "cstatiWarehouse" target */,
+			);
 			path = cstatiWarehouse;
 			sourceTree = "<group>";
 		};
@@ -52,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FBF2FC532F1B260C00CC2213 /* Lottie in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +130,7 @@
 			);
 			name = cstatiWarehouse;
 			packageProductDependencies = (
+				FBF2FC522F1B260C00CC2213 /* Lottie */,
 			);
 			productName = cstatiWarehouse;
 			productReference = FBF2FBF82F1ADC7E00CC2213 /* cstatiWarehouse.app */;
@@ -195,6 +214,9 @@
 			);
 			mainGroup = FBF2FBEF2F1ADC7D00CC2213;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				FBF2FC512F1B260C00CC2213 /* XCRemoteSwiftPackageReference "lottie-ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FBF2FBF92F1ADC7E00CC2213 /* Products */;
 			projectDirPath = "";
@@ -400,10 +422,12 @@
 				DEVELOPMENT_TEAM = NWMHAK8G97;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = cstatiWarehouse/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = "#1C1C2E";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDarkContent;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -438,10 +462,12 @@
 				DEVELOPMENT_TEAM = NWMHAK8G97;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = cstatiWarehouse/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = "#1C1C2E";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDarkContent;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -590,6 +616,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		FBF2FC512F1B260C00CC2213 /* XCRemoteSwiftPackageReference "lottie-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FBF2FC522F1B260C00CC2213 /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FBF2FC512F1B260C00CC2213 /* XCRemoteSwiftPackageReference "lottie-ios" */;
+			productName = Lottie;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = FBF2FBF02F1ADC7D00CC2213 /* Project object */;
 }

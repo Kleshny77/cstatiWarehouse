@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>CenturyGothicBlack.ttf</string>
+		<string>CenturyGothicBlackItalic.ttf</string>
+		<string>CenturyGothicBold.ttf</string>
+		<string>CenturyGothicBoldItalic.ttf</string>
+		<string>CenturyGothicExtraBold.ttf</string>
+		<string>CenturyGothicExtraBoldItalic.ttf</string>
+		<string>CenturyGothicItalic.ttf</string>
+		<string>CenturyGothicLight.ttf</string>
+		<string>CenturyGothicLightItalic.ttf</string>
+		<string>CenturyGothicRegular.ttf</string>
+		<string>CenturyGothicRegularItalic.ttf</string>
+		<string>CenturyGothicSemiBold.ttf</string>
+		<string>CenturyGothicSemiBoldItalic.ttf</string>
+		<string>CenturyGothicThin.ttf</string>
+		<string>CenturyGothicThinItalic.ttf</string>
+	</array>
+</dict>
+</plist>
