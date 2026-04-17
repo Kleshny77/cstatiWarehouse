@@ -20,7 +20,7 @@ struct ItemEditPresenterTests {
         #expect(sut.draft.categoryName == "напитки")
         #expect(sut.draft.quantity == 1)
         #expect(sut.draft.hasShelfLife == false)
-        #expect(sut.screenTitle == "Новая позиция")
+        #expect(sut.screenTitle == "Новая п озиция")
     }
     
     @Test
