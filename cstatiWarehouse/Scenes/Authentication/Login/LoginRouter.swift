@@ -8,22 +8,22 @@
 import SwiftUI
 
 protocol LoginRouterProtocol: AnyObject {
-  func navigateToMain()
-  func navigateToRegister()
+    func navigateToMain()
+    func navigateToRegister()
 }
 
 final class LoginRouter: LoginRouterProtocol {
-  private weak var appCoordinator: AppCoordinatorProtocol?
-  
-  init(appCoordinator: AppCoordinatorProtocol) {
-    self.appCoordinator = appCoordinator
-  }
-  
-  func navigateToMain() {
-    appCoordinator?.navigate(to: .main)
-  }
-  
-  func navigateToRegister() {
-    appCoordinator?.navigate(to: .register)
-  }
+    private weak var appCoordinator: AppCoordinatorProtocol?
+    
+    init(appCoordinator: AppCoordinatorProtocol) {
+        self.appCoordinator = appCoordinator
+    }
+    
+    func navigateToMain() {
+        appCoordinator?.navigate(to: .main)
+    }
+    
+    func navigateToRegister() {
+        appCoordinator?.navigate(to: .register)
+    }
 }

@@ -7,36 +7,38 @@
 
 import SwiftUI
 
-struct TabBar: View {
+struct TabBarView: View {
+    let appCoordinator: AppCoordinatorProtocol
+    
     var body: some View {
         TabView {
-          MockView()
-            .tabItem {
-              Image(systemName: "shippingbox")
-              Text("Мой склад")
-            }
-          MockView()
-            .tabItem {
-                Image(systemName: "cancel")
-                Text("Организация")
-            }
-          MockView()
-            .tabItem {
-                Image(systemName: "pencil")
-                Text("Настройки")
-            }
+            MyWarehouseAssembly.assemble(appCoordinator: appCoordinator)
+                .tabItem {
+                    Image(systemName: "shippingbox")
+                    Text("Мой склад")
+                }
+            MockView()
+                .tabItem {
+                    Image(systemName: "cancel")
+                    Text("Организация")
+                }
+            MockView()
+                .tabItem {
+                    Image(systemName: "pencil")
+                    Text("Настройки")
+                }
         }
-        .background(.gray)
     }
 }
 
 // MARK: - Мок для оставшихся экранов
+
 struct MockView: View {
     var body: some View {
-        Text("Some view")
+        GradientBackground()
     }
 }
 
-#Preview() {
-  TabBar()
+#Preview {
+    TabBarView(appCoordinator: AppCoordinator())
 }

@@ -9,37 +9,37 @@ import Foundation
 import SwiftUI
 
 protocol LoginPresenterProtocol: AnyObject {
-  func viewDidLoad()
-  func loginButtonTapped(email: String, password: String)
-  func registerButtonTapped()
+    func viewDidLoad()
+    func loginButtonTapped(email: String, password: String)
+    func registerButtonTapped()
 }
 
 @Observable
 final class LoginPresenter: LoginPresenterProtocol {
-  var interactor: LoginInteractorInputProtocol?
-  var router: LoginRouterProtocol?
-  
-  var errorMessage: String?
-  
-  func viewDidLoad() {
+    var interactor: LoginInteractorInputProtocol?
+    var router: LoginRouterProtocol?
     
-  }
-  
-  func loginButtonTapped(email: String, password: String) {
-    interactor?.login(email: email, password: password)
-  }
-  
-  func registerButtonTapped() {
-    router?.navigateToRegister()
-  }
+    var errorMessage: String?
+    
+    func viewDidLoad() {
+        
+    }
+    
+    func loginButtonTapped(email: String, password: String) {
+        interactor?.login(email: email, password: password)
+    }
+    
+    func registerButtonTapped() {
+        router?.navigateToRegister()
+    }
 }
 
 extension LoginPresenter: LoginInteractorOutputProtocol {
-  func loginSuccess() {
-    router?.navigateToMain()
-  }
-  
-  func loginFailure(error: String) {
-    errorMessage = error
-  }
+    func loginSuccess() {
+        router?.navigateToMain()
+    }
+    
+    func loginFailure(error: String) {
+        errorMessage = error
+    }
 }

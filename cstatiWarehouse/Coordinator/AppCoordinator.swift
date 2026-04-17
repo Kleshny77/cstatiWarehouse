@@ -8,32 +8,32 @@
 import SwiftUI
 
 enum AppRoute: Hashable {
-  case login
-  case main
-  case register
+    case login
+    case register
+    case main
 }
 
 protocol AppCoordinatorProtocol: AnyObject {
-  func navigate(to route: AppRoute)
-  func pop()
-  func popToRoot()
+    func navigate(to route: AppRoute)
+    func pop()
+    func popToRoot()
 }
 
 @Observable
 final class AppCoordinator: AppCoordinatorProtocol {
-  var path: NavigationPath = NavigationPath()
-  
-  func navigate(to route: AppRoute) {
-    path.append(route)
-  }
-  
-  func pop() {
-    if !path.isEmpty {
-      path.removeLast()
+    var path: NavigationPath = NavigationPath()
+    
+    func navigate(to route: AppRoute) {
+        path.append(route)
     }
-  }
-  
-  func popToRoot() {
-    path = NavigationPath()
-  }
+    
+    func pop() {
+        if !path.isEmpty {
+            path.removeLast()
+        }
+    }
+    
+    func popToRoot() {
+        path = NavigationPath()
+    }
 }

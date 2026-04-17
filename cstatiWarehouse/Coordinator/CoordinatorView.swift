@@ -8,33 +8,37 @@
 import SwiftUI
 
 struct CoordinatorView: View {
-  @State private var coordinator = AppCoordinator()
-  
-  var body: some View {
-    NavigationStack(path: $coordinator.path) {
-      LoginAssembly.assemble(appCoordinator: coordinator)
-        .navigationDestination(for: AppRoute.self) { route in
-          destinationView(for: route)
+    @State private var coordinator = AppCoordinator()
+    
+    var body: some View {
+        NavigationStack(path: $coordinator.path) {
+            LoginAssembly.assemble(appCoordinator: coordinator)
+                .navigationDestination(for: AppRoute.self) { route in
+                    destinationView(for: route)
+                }
         }
     }
-  }
-  
-  @ViewBuilder
-  private func destinationView(for route: AppRoute) -> some View {
-    switch route {
-    case .login:
-      LoginAssembly.assemble(appCoordinator: coordinator)
-    case .main:
-      MainView()
-    case .register:
-      RegisterAssembly.assemble(appCoordinator: coordinator)
+    
+    @ViewBuilder
+    private func destinationView(for route: AppRoute) -> some View {
+        switch route {
+        case .login:
+            LoginAssembly.assemble(appCoordinator: coordinator)
+        case .main:
+            TabBarView(appCoordinator: coordinator)
+        case .register:
+            RegisterAssembly.assemble(appCoordinator: coordinator)
+        }
     }
-  }
 }
 
 struct MainView: View {
-  var body: some View {
-    Text("Main View")
-      .navigationTitle("Главная")
-  }
+    var body: some View {
+        Text("Main View")
+            .navigationTitle("Главная")
+    }
+}
+
+#Preview() {
+    CoordinatorView()
 }

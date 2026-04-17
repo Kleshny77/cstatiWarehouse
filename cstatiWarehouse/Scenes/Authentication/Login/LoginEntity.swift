@@ -8,6 +8,6 @@
 import Foundation
 
 struct LoginEntity {
-  let email: String
-  let password: String
+    let email: String
+    let password: String
 }

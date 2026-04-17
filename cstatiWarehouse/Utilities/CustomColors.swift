@@ -40,6 +40,10 @@ extension Color {
     static let buttonSecondary = Color.adaptive(light: "#3A3A3C", dark: "#2C2C2E")
     static let buttonDisabled = Color.adaptive(light: "#2C2C2E", dark: "#1C1C1E")
     
+    /// Фиолетовый градиент для круглых иконок (шапка и т.п.)
+    static let iconVioletGradientStart = Color.adaptive(light: "#8479FB", dark: "#8479FB")
+    static let iconVioletGradientEnd = Color.adaptive(light: "#6148DC", dark: "#6148DC")
+    
     @available(*, deprecated, renamed: "brandPrimary")
     static let feldgrauApp = Color.brandPrimary
     
@@ -65,7 +69,7 @@ extension Color {
     init(hex: String, alpha: Double = 1) {
         var cString: String = hex.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if cString.hasPrefix("#") { cString.remove(at: cString.startIndex) }
-
+        
         let scanner = Scanner(string: cString)
         scanner.currentIndex = scanner.string.startIndex
         var rgbValue: UInt64 = 0
@@ -146,6 +150,16 @@ extension UIColor {
             green: min(green + percentage, 1.0),
             blue: min(blue + percentage, 1.0),
             alpha: alpha
+        )
+    }
+}
+
+extension LinearGradient {
+    static var iconViolet: LinearGradient {
+        LinearGradient(
+            colors: [Color.iconVioletGradientStart, Color.iconVioletGradientEnd],
+            startPoint: .topTrailing,
+            endPoint: .bottomLeading
         )
     }
 }
