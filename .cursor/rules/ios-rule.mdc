@@ -1,4 +1,5 @@
 ---
+description: 
 alwaysApply: true
 ---
 
@@ -8,6 +9,8 @@ Project identity
 - In file headers, always use exactly `cstatiWarehouse` as the project name.
 - User-facing UI text and date formatting must be in Russian.
 - Prefer `ru_RU` locale for user-visible date formatting unless the existing code explicitly requires something else.
+
+---
 
 File header
 
@@ -25,6 +28,8 @@ File header
 - Keep the exact spacing and line breaks.
 - When substantially editing an existing file with an outdated header, normalize it to this format.
 
+---
+
 Architecture
 
 - Feature scenes must follow this structure:
@@ -33,17 +38,21 @@ Architecture
   - Interactor
   - Router
   - SwiftUI View
-- Entity may live next to the scene when it is tightly related to that scene.
 
-- New scenes should follow the same folder and file structure pattern as Login / Register.
-- Keep scene structure consistent across the project.
+- Entity may live next to the scene if tightly related.
+
+- New scenes must follow the same structure and folder pattern as Login / Register.
+
+---
 
 Navigation
 
 - Navigation is allowed only through Router + AppCoordinatorProtocol.
-- Do not introduce an alternative navigation path directly from View.
-- Do not create a second navigation mechanism for the same flow.
-- New root-level navigation decisions must stay aligned with RootView / coordinator flow.
+- Do not introduce alternative navigation paths from View.
+- Do not duplicate navigation logic.
+- Keep navigation aligned with RootView / coordinator flow.
+
+---
 
 App shell
 
@@ -52,190 +61,187 @@ App shell
   - RootView
   - splash flow
   - CoordinatorView with NavigationStack and AppCoordinator
-- Do not replace this flow with a separate WindowGroup-based root approach unless explicitly required.
+
+- Do not replace this flow with a separate WindowGroup root.
+
+---
 
 SwiftUI / Observation
 
 - Use `@Observable` Presenter for screen logic.
 - Use `@Bindable` in View.
-- Do not mix this with a different state management style without a strong reason.
-- Keep screen state minimal, explicit, and predictable.
+- Do not mix with other state management approaches without strong reason.
+- Keep state minimal and predictable.
+
+---
 
 Scene conventions
 
-- Presenter startup must follow the existing LoginAssembly pattern:
-  - trigger `presenter.viewDidLoad()` from the assembled View’s `.onAppear`
-  - do not move that startup logic into View init.
+- Presenter startup:
+  - call `presenter.viewDidLoad()` from `.onAppear`
+  - do not move it into init
 
-- Interactor should keep:
-  - `weak var presenter` where applicable
-  - `[weak self]` in service callbacks where needed to avoid retain cycles.
+- Interactor:
+  - keep `weak var presenter`
+  - use `[weak self]` in async callbacks
 
-- Boundary protocol naming must stay consistent with existing scenes:
+- Protocol naming:
   - `...InteractorInputProtocol`
   - `...InteractorOutputProtocol`
   - `...PresenterProtocol`
   - `...RouterProtocol`
 
+---
+
 Layer responsibilities
 
-- View:
-  - UI rendering only
-  - binds to Presenter
-  - no navigation logic except through Router/coordinator flow
-  - no business logic
+- View → UI only, binds to Presenter
+- Presenter → state + formatting
+- Interactor → business logic + services
+- Router → navigation only
+- Assembly → dependency wiring
 
-- Presenter:
-  - screen state
-  - presentation logic
-  - formatting for View
-  - may coordinate UI-triggered flow
-  - no networking
-  - no direct navigation bypassing Router
+- Do not bypass layers.
 
-- Interactor:
-  - business logic
-  - service calls
-  - data fetching / mutations
-  - no UI code
-
-- Router:
-  - navigation only
-  - uses AppCoordinatorProtocol
-  - no business logic
-  - no UI formatting logic
-
-- Assembly:
-  - wires dependencies
-  - builds the scene
-  - keeps dependency graph explicit
+---
 
 Data layers
 
-- API request/response DTO models and auth-related API errors should live next to the service contract where that pattern already exists.
-- Do not move DTOs into Entity/ without a clear reason.
-- Domain models in `Entity/` must stay separate from API DTOs.
-- Do not merge domain model and API DTO into one type without explicit mapping.
-- Keep explicit mapping between DTOs and domain entities when both layers exist.
+- DTO models live near service contracts.
+- Do not move DTOs into Entity without reason.
+- Domain models (Entity/) must be separate from DTOs.
+- Always use explicit mapping between DTO and domain.
+
+---
 
 Services
 
-- Follow the existing service pattern:
-  - protocol
-  - mock implementation
-  - real API implementation
-- Example pattern:
-  - `AuthServiceProtocol`
-  - `MockAuthService`
-  - `ApiAuthService`
-- New services should follow the same structure.
+- Follow pattern:
+  - Protocol
+  - Mock
+  - API implementation
+
+Example:
+- AuthServiceProtocol
+- MockAuthService
+- ApiAuthService
+
+---
 
 Concurrency
 
-- Current services may use completion handlers.
-- When implementing or extending services, make main-thread delivery explicit.
-- One of these must be clearly guaranteed:
-  - completion is called on main thread
-  - or Presenter/UI update path is explicitly isolated to main thread
-- Any update of user-visible Presenter state or navigation-triggering state must happen safely on main thread.
-- Avoid implicit thread assumptions that may cause SwiftUI update warnings or glitches.
+- Make main-thread delivery explicit.
+- Either:
+  - completion on main thread
+  - or Presenter ensures main thread
 
-UIKit ↔ SwiftUI bridges
+- UI updates must always be safe for SwiftUI.
 
-- If bridging UIKit into SwiftUI, follow the existing pattern used for Lottie:
-  - small dedicated wrapper type
-  - `UIViewRepresentable`
-  - minimal logic inside `makeUIView` / `updateUIView`
-- Do not place business logic inside representable wrappers.
+---
+
+UIKit ↔ SwiftUI
+
+- Use small wrapper via `UIViewRepresentable`.
+- No business logic inside wrappers.
+
+---
 
 Visual style
 
-- Do not introduce a third visual style if the project already has an established one.
-- For auth screens, follow the existing style:
-  - `AnimatedGradientBackground`
-  - `GlassTextField`
-  - glass-style buttons
-  - typography via `CustomFonts` / font extensions
-- For other screens and cards, prefer the existing background/styling approach already used in the project.
-- Prefer `CustomColors`, `Color.adaptive`, or shared color helpers from `CustomColors.swift`.
-- Do not introduce arbitrary new hex colors in each file unless there is a clear design exception.
-- Do not default to `.system` fonts/colors if the existing screen style uses custom typography/colors.
-- Keep new screens visually consistent with existing app patterns.
+- Do not introduce a third visual style.
+
+Auth screens:
+- AnimatedGradientBackground
+- GlassTextField
+- glassEffect buttons
+- CustomFonts
+
+General:
+- Prefer CustomColors / Color.adaptive
+- Avoid random hex usage
+- Do not default to `.system` if custom style exists
+
+---
 
 Preview
 
-- For component previews, prefer a readable background consistent with the project’s visual style.
-- For scene previews that require coordinator wiring, follow the existing assembly-based preview style with a local `AppCoordinator()`.
+- Use readable background.
+- For scenes:
+  - use Assembly + local AppCoordinator()
 
-Tab / placeholders
+---
 
-- In tab flows, prefer replacing an existing placeholder with a real screen rather than creating a second tab or duplicate mock flow unnecessarily.
-- Keep placeholder usage explicit and temporary.
+Tabs / placeholders
+
+- Replace placeholders instead of duplicating tabs.
+- Keep mocks temporary.
+
+---
 
 File organization
 
 - Prefer one primary type per file.
-- If a file contains only one main type, do not add a MARK above that type itself.
-- If a file contains multiple top-level entities, separate them with:
-  - `// MARK: - SectionName`
-- Closely related domain types may live in one file, but then MARK separation between top-level entities is required.
 
-Top-level file order
+- If multiple top-level entities:
+  - use `// MARK: -`
 
-- Prefer this order inside a file:
-  1. Primary type
-  2. Closely related helper types
-  3. Extensions for protocol conformances
+- If single entity:
+  - no MARK above it
+
+---
+
+Top-level order
+
+1. Primary type
+2. Helper types
+3. Extensions
+
+---
 
 MARK rules
 
-- Inside a single type or extension, use:
-  - `// MARK: SectionName`
-- Between top-level entities in one file, use:
-  - `// MARK: - SectionName`
-- Keep MARK naming concise and consistent.
-- Do not create empty MARK sections.
-- Remove unused sections.
+- `// MARK: SectionName` → inside type
+- `// MARK: - SectionName` → between entities
+
+- No empty MARKs
+- Keep consistent naming
+
+---
 
 Type member ordering
 
-Inside a type, use this order:
-
 1. Nested types
-- enums
-- structs
-- typealiases
-
 2. Properties
-- dependencies
-- state
-- UI properties
-- computed properties
-
 3. Lifecycle
-
 4. Public Methods
-
 5. Private Methods
-
 6. Actions
-
 7. UI Configuration
+
+---
 
 Properties
 
-- Prefer `private` by default.
-- Use `private(set)` when external read access is needed.
-- Do not broaden access level without a clear reason.
-- Group properties by responsibility, not randomly.
+Order:
+1. Dependencies
+2. State
+3. UI
+4. Computed
+
+- Prefer private by default
+- Use private(set) if needed
+
+---
 
 Lifecycle
 
-- Prefer lifecycle methods over heavy init logic where applicable.
-- Keep lifecycle methods short and focused.
-- For SwiftUI-based scene flow, respect the existing `.onAppear` startup pattern instead of moving startup behavior into init.
+- Prefer lifecycle over init
+- Keep short and clean
+- Use `.onAppear` pattern for startup
 
-Standard MARK layout for scene/view-oriented types
+---
+
+Standard MARK layout
 
 // MARK: Properties
 // MARK: Lifecycle
@@ -244,56 +250,94 @@ Standard MARK layout for scene/view-oriented types
 // MARK: Actions
 // MARK: UI Configuration
 
-Interactor / Presenter / Router / Service layout
+---
+
+Interactor / Presenter / Router / Service
 
 // MARK: Properties
 // MARK: Public Methods
 // MARK: Private Methods
 
+---
+
 Methods
 
-- Prefer top-down readability:
-  - entry points first
-  - high-level flow next
-  - low-level helpers later
-- In Public Methods, place the main API first.
-- In Private Methods, place methods used by lifecycle/public methods first.
+- Top-down readability
+- High-level → low-level
+
+---
 
 Actions
 
-- Actions are only UI event handlers.
-- Keep them thin.
-- Do not place business logic directly inside actions.
-- Delegate real work to Presenter / Interactor / private helper methods according to layer responsibility.
+- UI handlers only
+- Must be thin
+- No business logic inside
+
+---
 
 UI Configuration
 
-- Group UI setup logic under UI Configuration.
-- Prefer this order where applicable:
-  1. `setupViews()`
-  2. `setupHierarchy()`
-  3. `setupConstraints()`
-  4. `setupAppearance()`
-  5. `setupBindings()`
+Order:
+1. setupViews()
+2. setupHierarchy()
+3. setupConstraints()
+4. setupAppearance()
+5. setupBindings()
+
+---
 
 Extensions
 
-- Use extensions primarily for protocol conformances.
-- Prefer one protocol conformance per extension when reasonable.
-- Do not group unrelated protocols into one extension.
-- Keep extension order logical:
-  1. architecture protocols
-  2. SwiftUI / UIKit protocols
-  3. other supporting protocols
+- Protocol conformances only
+- Prefer one protocol per extension
+
+Order:
+1. Architecture
+2. UIKit / SwiftUI
+3. Other
+
+---
 
 Formatting
 
-- Use 4 spaces for indentation in new and modified code.
-- When editing files with mixed indentation, normalize touched areas toward 4 spaces.
-- Keep formatting consistent within the touched file.
+- 4 spaces indentation
+- Normalize touched code
 
-Consistency rules
+---
 
-- Prefer consistency with the existing project/module structure over introducing a new pattern.
-- Do not refactor unrelated code just to match a preferred style.
-- When the repository already has an established local convention, prefer extending that convention instead of inventing a parallel one.
+Testing
+
+- Cover meaningful logic with tests.
+
+Unit tests:
+- Interactor
+- Presenter
+- Services (with mocks)
+
+- Cover edge cases
+- No UI dependency
+
+UI tests:
+- Critical flows only
+- Do not test trivial UI
+
+Integration:
+- Test layer interaction when needed
+- Avoid heavy end-to-end tests
+
+Rules:
+- Tests must be stable
+- No flaky tests
+- Prefer simple readable tests
+
+- When changing logic:
+  - update tests
+
+- When adding feature:
+  - cover core logic
+
+- Respect architecture in tests
+
+Final testing rule:
+
+- Prefer meaningful tests over blind coverage.
