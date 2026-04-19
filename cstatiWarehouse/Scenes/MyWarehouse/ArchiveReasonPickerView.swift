@@ -65,7 +65,7 @@ struct ArchiveReasonPickerView: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(.clear)
-        .animation(.snappy, value: selectedReason)
+        .appAnimation(AppAnimation.smooth, value: selectedReason)
     }
 
     // MARK: UI Configuration
@@ -98,7 +98,10 @@ struct ArchiveReasonPickerView: View {
 
             HStack(spacing: 12) {
                 stepperButton(symbol: "minus", isEnabled: quantity > 1) {
-                    if quantity > 1 { quantity -= 1 }
+                    if quantity > 1 {
+                        AppHaptics.selection()
+                        quantity -= 1
+                    }
                 }
 
                 Text("\(quantity)")
@@ -106,10 +109,13 @@ struct ArchiveReasonPickerView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .contentTransition(.numericText())
-                    .animation(.snappy, value: quantity)
+                    .appAnimation(AppAnimation.snap, value: quantity)
 
                 stepperButton(symbol: "plus", isEnabled: quantity < availableQuantity) {
-                    if quantity < availableQuantity { quantity += 1 }
+                    if quantity < availableQuantity {
+                        AppHaptics.selection()
+                        quantity += 1
+                    }
                 }
             }
             .frame(height: 56)
@@ -147,6 +153,7 @@ struct ArchiveReasonPickerView: View {
     private func reasonRow(_ reason: ArchiveReason) -> some View {
         let isSelected = reason == selectedReason
         return Button {
+            AppHaptics.selection()
             selectedReason = reason
             if !reason.requiresDetail {
                 detail = ""
@@ -166,6 +173,7 @@ struct ArchiveReasonPickerView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.white.opacity(0.9))
                         .font(.system(size: 18, weight: .semibold))
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 18)
@@ -201,7 +209,7 @@ struct ArchiveReasonPickerView: View {
             .appGlass()
             .autocapitalization(.sentences)
         }
-        .transition(.opacity.combined(with: .move(edge: .top)))
+        .transition(.opacity)
     }
 
     private var actions: some View {
@@ -255,6 +263,7 @@ struct ArchiveReasonPickerView: View {
 
     private func submit() {
         guard canSubmit else { return }
+        AppHaptics.impact(.medium)
         onConfirm(
             ArchiveDecision(
                 quantity: quantity,

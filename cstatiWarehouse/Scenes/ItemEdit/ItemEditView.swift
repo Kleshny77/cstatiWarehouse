@@ -194,7 +194,7 @@ struct ItemEditView: View {
                         .fill(isSelected ? Color.white.opacity(0.22) : Color.clear)
                 )
                 .appGlass(in: Capsule())
-                .animation(.snappy, value: isSelected)
+                .appAnimation(AppAnimation.snap, value: isSelected)
         }
         .buttonStyle(.pressable)
     }
@@ -208,6 +208,7 @@ struct ItemEditView: View {
             HStack(spacing: 12) {
                 Button {
                     if presenter.draft.quantity > 1 {
+                        AppHaptics.selection()
                         presenter.draft.quantity -= 1
                     }
                 } label: {
@@ -224,9 +225,10 @@ struct ItemEditView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .contentTransition(.numericText())
-                    .animation(.snappy, value: presenter.draft.quantity)
+                    .appAnimation(AppAnimation.snap, value: presenter.draft.quantity)
                 
                 Button {
+                    AppHaptics.selection()
                     presenter.draft.quantity += 1
                 } label: {
                     Image(systemName: "plus")
@@ -266,10 +268,10 @@ struct ItemEditView: View {
                 .padding(.vertical, 10)
                 .frame(width: formWidth)
                 .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.opacity)
             }
         }
-        .animation(.snappy, value: presenter.draft.hasShelfLife)
+        .appAnimation(AppAnimation.smooth, value: presenter.draft.hasShelfLife)
     }
     
     private var footer: some View {
@@ -287,7 +289,7 @@ struct ItemEditView: View {
                         .font(font: .bold, size: 16)
                 }
                 .frame(width: formWidth, height: 50)
-                .animation(.snappy, value: presenter.isSaving)
+                .appAnimation(AppAnimation.snap, value: presenter.isSaving)
             }
             .disabled(presenter.isSaving)
             .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))

@@ -101,7 +101,7 @@ struct MyWarehouseView: View {
                     .font(font: .semiBold, size: 20)
                     .secondaryTextStyle()
                     .contentTransition(.numericText())
-                    .animation(.snappy, value: presenter.totalItemsCount)
+                    .appAnimation(AppAnimation.snap, value: presenter.totalItemsCount)
             }
             .padding(.horizontal, 10)
             
@@ -126,6 +126,7 @@ struct MyWarehouseView: View {
     
     private var addButton: some View {
         Button {
+            AppHaptics.impact(.light)
             presenter.addButtonTapped()
         } label: {
             Image(systemName: "plus")
@@ -165,6 +166,7 @@ struct MyWarehouseView: View {
     
     private var filterButton: some View {
         Button {
+            AppHaptics.selection()
             presenter.filterButtonTapped()
         } label: {
             Image(systemName: presenter.isFiltersActive
@@ -172,6 +174,7 @@ struct MyWarehouseView: View {
                   : "line.3.horizontal.decrease.circle")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(.white.opacity(0.9))
+                .contentTransition(.symbolEffect(.replace.downUp))
                 .frame(width: 50, height: 50)
                 .appGlass(in: Circle())
         }
@@ -199,12 +202,14 @@ struct MyWarehouseView: View {
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button {
+                                    AppHaptics.impact(.medium)
                                     presenter.archiveItemRequested(item)
                                 } label: {
                                     Label("Списать", systemImage: "archivebox")
                                 }
                                 .tint(.red)
                                 Button {
+                                    AppHaptics.selection()
                                     presenter.editItemRequested(item)
                                 } label: {
                                     Label("Изменить", systemImage: "pencil")
@@ -220,7 +225,7 @@ struct MyWarehouseView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .navigationTitle("Склад")
-        .animation(.snappy, value: presenter.sections)
+        .appAnimation(AppAnimation.smooth, value: presenter.sections)
     }
     
     @ViewBuilder
@@ -234,7 +239,7 @@ struct MyWarehouseView: View {
                 .font(font: .regular, size: 20)
                 .secondaryTextStyle()
                 .contentTransition(.numericText())
-                .animation(.snappy, value: section.items.count)
+                .appAnimation(AppAnimation.snap, value: section.items.count)
         }
     }
     

@@ -24,8 +24,7 @@ struct AnimatedGradientBackground: View {
         .ignoresSafeArea()
         .onAppear {
             withAnimation(
-                .easeInOut(duration: 3)
-                .repeatForever(autoreverses: true)
+                AppAnimation.ambient.repeatForever(autoreverses: true)
             ) {
                 animateGradient.toggle()
             }

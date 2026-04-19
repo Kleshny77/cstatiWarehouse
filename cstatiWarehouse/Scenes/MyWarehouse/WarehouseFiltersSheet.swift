@@ -125,6 +125,7 @@ struct WarehouseFiltersSheet: View {
     private var actions: some View {
         VStack(spacing: 10) {
             Button {
+                AppHaptics.impact(.light)
                 onApply(draft)
             } label: {
                 Text("Применить")
@@ -137,6 +138,7 @@ struct WarehouseFiltersSheet: View {
             .buttonStyle(.pressable)
 
             Button {
+                AppHaptics.selection()
                 draft = .none
                 onReset()
             } label: {
@@ -155,6 +157,7 @@ struct WarehouseFiltersSheet: View {
     // MARK: Private Methods
 
     private func toggleCategory(_ name: String) {
+        AppHaptics.selection()
         if draft.selectedCategories.contains(name) {
             draft.selectedCategories.remove(name)
         } else {
@@ -163,6 +166,7 @@ struct WarehouseFiltersSheet: View {
     }
 
     private func toggleExpiration(_ filter: ExpirationFilter) {
+        AppHaptics.selection()
         if draft.expirationSet.contains(filter) {
             draft.expirationSet.remove(filter)
         } else {
@@ -181,7 +185,10 @@ struct WarehouseFiltersSheet: View {
     }
 
     private func selectableRow(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            AppHaptics.selection()
+            action()
+        } label: {
             HStack {
                 Text(title)
                     .foregroundStyle(.white.opacity(0.95))
@@ -191,6 +198,7 @@ struct WarehouseFiltersSheet: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.9))
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 18)
@@ -203,6 +211,7 @@ struct WarehouseFiltersSheet: View {
             .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.pressable)
+        .appAnimation(AppAnimation.snap, value: isSelected)
     }
 
     private func chip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
@@ -219,6 +228,7 @@ struct WarehouseFiltersSheet: View {
                 .appGlass(in: Capsule())
         }
         .buttonStyle(.pressable)
+        .appAnimation(AppAnimation.snap, value: isSelected)
     }
 
     @ViewBuilder

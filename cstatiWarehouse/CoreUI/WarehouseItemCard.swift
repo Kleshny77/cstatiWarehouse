@@ -66,6 +66,8 @@ struct WarehouseItemCard: View {
                             .padding(3)
                     )
                     .offset(x: 8, y: -8)
+                    .contentTransition(.numericText())
+                    .appAnimation(AppAnimation.snap, value: item.quantity)
             }
         }
     }

@@ -40,7 +40,7 @@ struct TelegramLoginButton: View {
         .appGlass()
         .buttonStyle(.pressable)
         .disabled(isLoading)
-        .animation(.snappy, value: isLoading)
+        .appAnimation(AppAnimation.smooth, value: isLoading)
     }
 }
 

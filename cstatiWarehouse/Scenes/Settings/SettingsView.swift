@@ -55,6 +55,12 @@ struct SettingsView: View {
         } message: {
             if let message = presenter.successMessage { Text(message) }
         }
+        .onChange(of: presenter.successMessage) { _, newValue in
+            if newValue != nil { AppHaptics.success() }
+        }
+        .onChange(of: presenter.errorMessage) { _, newValue in
+            if newValue != nil { AppHaptics.error() }
+        }
     }
 
     // MARK: UI Configuration
@@ -174,6 +180,8 @@ struct SettingsView: View {
         .buttonStyle(.pressable)
         .disabled(!presenter.hasPendingChanges || presenter.isSaving)
         .opacity(presenter.hasPendingChanges ? 1 : 0.5)
+        .appAnimation(AppAnimation.smooth, value: presenter.hasPendingChanges)
+        .appAnimation(AppAnimation.snap, value: presenter.isSaving)
     }
 
     private var logoutButton: some View {

@@ -76,6 +76,11 @@ struct GlassConfirmationSheet: View {
     private var buttons: some View {
         VStack(spacing: 10) {
             Button {
+                if isDestructive {
+                    AppHaptics.warning()
+                } else {
+                    AppHaptics.impact(.medium)
+                }
                 onConfirm()
             } label: {
                 Text(confirmTitle)

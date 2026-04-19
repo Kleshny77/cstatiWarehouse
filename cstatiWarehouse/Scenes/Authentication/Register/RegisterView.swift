@@ -31,7 +31,7 @@ struct RegisterView: View {
                         .padding(.top, 24)
                 }
                 .padding(.horizontal, 22)
-                .animation(.smooth(duration: 0.35), value: password.isEmpty)
+                .appAnimation(AppAnimation.smooth, value: password.isEmpty)
             }
         }
         .onChange(of: password) { _, newValue in
@@ -163,8 +163,8 @@ struct RegisterView: View {
             }
         }
         .padding(.top, 2)
-        .animation(.smooth(duration: 0.3), value: score)
-        .animation(.smooth(duration: 0.3), value: isValid)
+        .appAnimation(AppAnimation.snap, value: score)
+        .appAnimation(AppAnimation.snap, value: isValid)
     }
 
     private var passwordScore: Int {
