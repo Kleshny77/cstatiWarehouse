@@ -11,24 +11,24 @@ import Foundation
 @MainActor
 final class FakeMyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
     weak var presenter: MyWarehouseInteractorOutputProtocol?
-    
+
     private(set) var loadActiveItemsCallCount: Int = 0
-    private(set) var archiveCalls: [(UUID, ArchiveReason, Date)] = []
+    private(set) var archiveCalls: [(UUID, Int, ArchiveReason, String)] = []
     private(set) var deleteCalls: [UUID] = []
     private(set) var externalChangeCalls: [(Item, Bool)] = []
-    
+
     func loadActiveItems() {
         loadActiveItemsCallCount += 1
     }
-    
-    func archiveItem(id: UUID, reason: ArchiveReason, at date: Date) {
-        archiveCalls.append((id, reason, date))
+
+    func archiveItem(id: UUID, quantity: Int, reason: ArchiveReason, reasonDetail: String) {
+        archiveCalls.append((id, quantity, reason, reasonDetail))
     }
-    
+
     func deleteItem(id: UUID) {
         deleteCalls.append(id)
     }
-    
+
     func applyExternalChange(_ item: Item, isNew: Bool) {
         externalChangeCalls.append((item, isNew))
         presenter?.itemChangedExternally(item, isNew: isNew)

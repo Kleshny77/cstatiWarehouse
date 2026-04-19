@@ -11,6 +11,7 @@ enum AppRoute: Hashable {
     case login
     case register
     case main
+    case profile
 }
 
 protocol AppCoordinatorProtocol: AnyObject {

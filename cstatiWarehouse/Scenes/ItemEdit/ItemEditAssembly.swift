@@ -11,10 +11,14 @@ final class ItemEditAssembly {
     static func assemble(
         mode: ItemEditMode,
         warehouseService: WarehouseServiceProtocol,
+        uploadsService: UploadsServiceProtocol = AppServices.uploadsService(),
         onFinish: @escaping (ItemEditResult) -> Void
     ) -> some View {
         let presenter = ItemEditPresenter(mode: mode, onFinish: onFinish)
-        let interactor = ItemEditInteractor(warehouseService: warehouseService)
+        let interactor = ItemEditInteractor(
+            warehouseService: warehouseService,
+            uploadsService: uploadsService
+        )
         let router = ItemEditRouter()
         
         presenter.interactor = interactor

@@ -90,11 +90,37 @@ struct LoginView: View {
     }
     
     private var footer: some View {
-        VStack(spacing: 19) {
+        VStack(spacing: 16) {
             loginButton
+            divider
+            TelegramLoginButton(
+                isLoading: presenter.isTelegramLoginInProgress,
+                action: {
+                    presenter.telegramLoginButtonTapped()
+                }
+            )
+            .frame(width: 331)
             textFooter
+                .padding(.top, 6)
         }
-        .padding(.top, 39)
+        .padding(.top, 32)
+    }
+    
+    private var divider: some View {
+        HStack(spacing: 10) {
+            dividerLine
+            Text("или")
+                .foregroundStyle(.white.opacity(0.45))
+                .font(font: .semiBold, size: 12)
+            dividerLine
+        }
+        .frame(width: 331)
+    }
+    
+    private var dividerLine: some View {
+        Rectangle()
+            .fill(.white.opacity(0.15))
+            .frame(height: 1)
     }
     
     private var loginButton: some View {
@@ -107,7 +133,8 @@ struct LoginView: View {
                 .frame(maxWidth: .infinity)
                 .frame(width: 331, height: 47)
         }
-        .glassEffect()
+        .appGlass()
+        .buttonStyle(.pressable)
     }
     
     private var textFooter: some View {
@@ -122,6 +149,7 @@ struct LoginView: View {
                     .foregroundStyle(Color(hex: "8A80FF"))
                     .font(font: .bold, size: 14)
             }
+            .buttonStyle(.pressable)
         }
     }
 }

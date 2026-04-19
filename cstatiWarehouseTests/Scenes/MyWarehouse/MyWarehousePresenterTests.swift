@@ -95,31 +95,37 @@ struct MyWarehousePresenterTests {
         let (sut, fake) = makeSUT()
         let item = makeItem(name: "x", category: "y")
         sut.archiveItemRequested(item)
-        
-        sut.confirmArchive(reason: .usedAtEvent)
-        
+
+        sut.confirmArchive(
+            decision: ArchiveDecision(quantity: 1, reason: .usedAtEvent, detail: "корпоратив")
+        )
+
         #expect(sut.archivePresentation == nil)
         #expect(fake.archiveCalls.count == 1)
         #expect(fake.archiveCalls.first?.0 == item.id)
-        #expect(fake.archiveCalls.first?.1 == .usedAtEvent)
+        #expect(fake.archiveCalls.first?.1 == 1)
+        #expect(fake.archiveCalls.first?.2 == .usedAtEvent)
+        #expect(fake.archiveCalls.first?.3 == "корпоратив")
     }
-    
+
     @Test
     func confirmArchive_withoutPresentation_doesNothing() {
         let (sut, fake) = makeSUT()
-        
-        sut.confirmArchive(reason: .disposed)
-        
+
+        sut.confirmArchive(
+            decision: ArchiveDecision(quantity: 1, reason: .disposed, detail: "")
+        )
+
         #expect(fake.archiveCalls.isEmpty)
     }
-    
+
     @Test
     func cancelArchive_clearsPresentation() {
         let (sut, _) = makeSUT()
         sut.archiveItemRequested(makeItem(name: "x", category: "y"))
-        
+
         sut.cancelArchive()
-        
+
         #expect(sut.archivePresentation == nil)
     }
     

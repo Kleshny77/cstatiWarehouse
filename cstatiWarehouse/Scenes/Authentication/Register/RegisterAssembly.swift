@@ -8,9 +8,20 @@
 import SwiftUI
 
 final class RegisterAssembly {
-    static func assemble(appCoordinator: AppCoordinatorProtocol, authService: AuthServiceProtocol = MockAuthService()) -> some View {
+    static func assemble(
+        appCoordinator: AppCoordinatorProtocol,
+        authService: AuthServiceProtocol = AppServices.authService(),
+        sessionStorage: UserSessionStorageProtocol = AppServices.sessionStorage,
+        telegramAuthService: TelegramAuthServiceProtocol = TelegramLoginAuthService(),
+        uploadsService: UploadsServiceProtocol = AppServices.uploadsService()
+    ) -> some View {
         let presenter = RegisterPresenter()
-        let interactor = RegisterInteractor(authService: authService)
+        let interactor = RegisterInteractor(
+            authService: authService,
+            sessionStorage: sessionStorage,
+            telegramAuthService: telegramAuthService,
+            uploadsService: uploadsService
+        )
         let router = RegisterRouter(appCoordinator: appCoordinator)
         
         presenter.interactor = interactor

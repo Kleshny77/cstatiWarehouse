@@ -26,7 +26,7 @@ final class MyWarehouseRouter: MyWarehouseRouterProtocol {
     // MARK: Public Methods
     
     func navigateToProfile() {
-        // TODO: будет отдельный экран профиля через AppCoordinator
+        appCoordinator?.navigate(to: .profile)
     }
     
     func makeItemEditScene(mode: ItemEditMode, onFinish: @escaping (ItemEditResult) -> Void) -> AnyView {

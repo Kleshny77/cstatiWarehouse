@@ -48,12 +48,12 @@ struct WarehouseItemCard: View {
     
     private var image: some View {
         ZStack(alignment: .topTrailing) {
-            Image("test")
-                .resizable()
-                .scaledToFill()
-                .frame(width: 100, height: 100)
-                .clipShape(RoundedRectangle(cornerRadius: 24))
-            
+            RemoteImageView(url: item.imageURL) {
+                imagePlaceholder
+            }
+            .frame(width: 100, height: 100)
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+
             if item.quantity > 0 {
                 Text("\(item.quantity)")
                     .font(.system(size: 16, weight: .bold))
@@ -67,6 +67,16 @@ struct WarehouseItemCard: View {
                     )
                     .offset(x: 8, y: -8)
             }
+        }
+    }
+
+    private var imagePlaceholder: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.white.opacity(0.08))
+            Image(systemName: "shippingbox")
+                .font(.system(size: 34, weight: .regular))
+                .foregroundStyle(.white.opacity(0.55))
         }
     }
 }

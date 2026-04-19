@@ -8,9 +8,18 @@
 import SwiftUI
 
 final class LoginAssembly {
-    static func assemble(appCoordinator: AppCoordinatorProtocol, authService: AuthServiceProtocol = MockAuthService()) -> some View {
+    static func assemble(
+        appCoordinator: AppCoordinatorProtocol,
+        authService: AuthServiceProtocol = AppServices.authService(),
+        sessionStorage: UserSessionStorageProtocol = AppServices.sessionStorage,
+        telegramAuthService: TelegramAuthServiceProtocol = TelegramLoginAuthService()
+    ) -> some View {
         let presenter = LoginPresenter()
-        let interactor = LoginInteractor(authService: authService)
+        let interactor = LoginInteractor(
+            authService: authService,
+            sessionStorage: sessionStorage,
+            telegramAuthService: telegramAuthService
+        )
         let router = LoginRouter(appCoordinator: appCoordinator)
         
         presenter.interactor = interactor

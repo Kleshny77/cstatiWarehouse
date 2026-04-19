@@ -6,28 +6,63 @@
 //
 
 import Foundation
+import UIKit
 
 protocol ItemEditInteractorInputProtocol: AnyObject {
-    func save(item: Item, isNew: Bool)
+    func loadCategories()
+    func save(item: Item, image: UIImage?, isNew: Bool)
 }
 
 protocol ItemEditInteractorOutputProtocol: AnyObject {
+    func categoriesLoaded(_ categories: [String])
     func saved(_ item: Item)
     func failed(error: String)
 }
 
 final class ItemEditInteractor: ItemEditInteractorInputProtocol {
     weak var presenter: ItemEditInteractorOutputProtocol?
-    
+
     private let warehouseService: WarehouseServiceProtocol
-    
-    init(warehouseService: WarehouseServiceProtocol) {
+    private let uploadsService: UploadsServiceProtocol
+
+    init(warehouseService: WarehouseServiceProtocol, uploadsService: UploadsServiceProtocol) {
         self.warehouseService = warehouseService
+        self.uploadsService = uploadsService
     }
-    
+
     // MARK: Public Methods
-    
-    func save(item: Item, isNew: Bool) {
+
+    func loadCategories() {
+        warehouseService.fetchCategories { [weak self] result in
+            switch result {
+            case .success(let categories):
+                self?.presenter?.categoriesLoaded(categories)
+            case .failure:
+                self?.presenter?.categoriesLoaded([])
+            }
+        }
+    }
+
+    func save(item: Item, image: UIImage?, isNew: Bool) {
+        guard let image else {
+            persist(item: item, isNew: isNew)
+            return
+        }
+        uploadsService.uploadImage(image) { [weak self] result in
+            switch result {
+            case .success(let url):
+                var updated = item
+                updated.imageURL = url
+                self?.persist(item: updated, isNew: isNew)
+            case .failure(let error):
+                self?.presenter?.failed(error: error.message)
+            }
+        }
+    }
+
+    // MARK: Private Methods
+
+    private func persist(item: Item, isNew: Bool) {
         let completion: (Result<Item, WarehouseError>) -> Void = { [weak self] result in
             switch result {
             case .success(let saved):
@@ -36,7 +71,7 @@ final class ItemEditInteractor: ItemEditInteractorInputProtocol {
                 self?.presenter?.failed(error: error.message)
             }
         }
-        
+
         if isNew {
             warehouseService.createItem(item, completion: completion)
         } else {

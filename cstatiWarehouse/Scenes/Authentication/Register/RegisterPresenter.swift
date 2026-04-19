@@ -7,12 +7,14 @@
 
 import Foundation
 import SwiftUI
+import UIKit
 
 protocol RegisterPresenterProtocol: AnyObject {
     func viewDidLoad()
     func validatePassword(_ password: String) -> PasswordValidation
-    func registerButtonTapped(name: String, email: String, password: String)
+    func registerButtonTapped(name: String, email: String, password: String, avatar: UIImage?)
     func loginButtonTapped()
+    func telegramLoginButtonTapped()
 }
 
 @Observable
@@ -21,6 +23,7 @@ final class RegisterPresenter: RegisterPresenterProtocol {
     var router: RegisterRouterProtocol?
     
     var errorMessage: String?
+    var isTelegramLoginInProgress: Bool = false
     var passwordValidation: PasswordValidation = PasswordValidation(
         minLength: false,
         hasUppercase: false,
@@ -45,21 +48,33 @@ final class RegisterPresenter: RegisterPresenterProtocol {
         return result
     }
     
-    func registerButtonTapped(name: String, email: String, password: String) {
-        interactor?.register(name: name, email: email, password: password)
+    func registerButtonTapped(name: String, email: String, password: String, avatar: UIImage?) {
+        interactor?.register(name: name, email: email, password: password, avatar: avatar)
     }
     
     func loginButtonTapped() {
         router?.navigateToLogin()
     }
+    
+    func telegramLoginButtonTapped() {
+        guard !isTelegramLoginInProgress else { return }
+        isTelegramLoginInProgress = true
+        interactor?.registerWithTelegram()
+    }
 }
 
 extension RegisterPresenter: RegisterInteractorOutputProtocol {
     func registrationSuccess() {
+        isTelegramLoginInProgress = false
         router?.navigateToMain()
     }
     
     func registrationFailure(error: String) {
+        isTelegramLoginInProgress = false
         errorMessage = error
+    }
+    
+    func telegramLoginCancelled() {
+        isTelegramLoginInProgress = false
     }
 }

@@ -54,6 +54,22 @@ struct MockWarehouseServiceTests {
     }
     
     @Test
+    func fetchCategories_returnsDistinctFromActiveItems_sortedLocalized() async {
+        let service = MockWarehouseService(seed: [
+            makeItem(name: "a", categoryName: "напитки"),
+            makeItem(name: "b", categoryName: "еда"),
+            makeItem(name: "c", categoryName: "напитки"),
+            makeItem(name: "d", categoryName: "десерт",
+                     status: .archived(reason: .disposed, at: .now))
+        ])
+        
+        let result = await run { service.fetchCategories(completion: $0) }
+        let categories = try! result.get()
+        
+        #expect(categories == ["еда", "напитки"])
+    }
+    
+    @Test
     func createItem_addsToActiveList() async {
         let service = MockWarehouseService(seed: [])
         let item = makeItem(name: "new")
@@ -95,19 +111,22 @@ struct MockWarehouseServiceTests {
     }
     
     @Test
-    func archiveItem_movesItemFromActiveToHistory() async {
-        let item = makeItem(name: "used")
+    func archiveItem_movesItemFromActiveToHistory_whenFullyArchived() async {
+        let item = makeItem(name: "used", quantity: 1)
         let service = MockWarehouseService(seed: [item])
-        let at = Date.now
         
-        let archived = await run { service.archiveItem(id: item.id, reason: .usedAtEvent, at: at, completion: $0) }
+        let archived = await run {
+            service.archiveItem(id: item.id, quantity: 1, reason: .usedAtEvent, reasonDetail: "Концерт", completion: $0)
+        }
         let saved = try! archived.get()
-        guard case .archived(let reason, let savedAt) = saved.status else {
-            Issue.record("Expected archived status, got \(saved.status)")
+        guard case .archived(let reason, _) = saved.item.status else {
+            Issue.record("Expected archived status, got \(saved.item.status)")
             return
         }
         #expect(reason == .usedAtEvent)
-        #expect(savedAt == at)
+        #expect(saved.item.quantity == 0)
+        #expect(saved.event.quantity == 1)
+        #expect(saved.event.reasonDetail == "Концерт")
         
         let active = await run { service.fetchActiveItems(completion: $0) }
         #expect(try! active.get().isEmpty)
@@ -117,9 +136,24 @@ struct MockWarehouseServiceTests {
     }
     
     @Test
+    func archiveItem_partialArchive_keepsItemInStock() async {
+        let item = makeItem(name: "stack", quantity: 5)
+        let service = MockWarehouseService(seed: [item])
+        
+        let result = await run {
+            service.archiveItem(id: item.id, quantity: 2, reason: .disposed, reasonDetail: "", completion: $0)
+        }
+        let saved = try! result.get()
+        #expect(saved.item.quantity == 3)
+        #expect(saved.item.status.isArchived == false)
+    }
+    
+    @Test
     func archiveItem_failsWithNotFound_whenMissing() async {
         let service = MockWarehouseService(seed: [])
-        let result = await run { service.archiveItem(id: UUID(), reason: .other, at: .now, completion: $0) }
+        let result = await run {
+            service.archiveItem(id: UUID(), quantity: 1, reason: .disposed, reasonDetail: "", completion: $0)
+        }
         
         switch result {
         case .success:
@@ -162,13 +196,15 @@ struct MockWarehouseServiceTests {
     
     private func makeItem(
         name: String,
+        categoryName: String = "cat",
+        quantity: Int = 1,
         createdAt: Date = .now,
         status: ItemStatus = .inStock
     ) -> Item {
         Item(
             name: name,
-            categoryName: "cat",
-            quantity: 1,
+            categoryName: categoryName,
+            quantity: quantity,
             createdAt: createdAt,
             status: status
         )

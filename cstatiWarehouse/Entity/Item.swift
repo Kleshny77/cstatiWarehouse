@@ -14,6 +14,7 @@ struct Item: Identifiable, Hashable {
     var categoryName: String
     var quantity: Int
     var expirationDate: Date?
+    var imageURL: URL?
     var createdAt: Date
     var status: ItemStatus
     
@@ -24,6 +25,7 @@ struct Item: Identifiable, Hashable {
         categoryName: String,
         quantity: Int = 1,
         expirationDate: Date? = nil,
+        imageURL: URL? = nil,
         createdAt: Date = .now,
         status: ItemStatus = .inStock
     ) {
@@ -33,6 +35,7 @@ struct Item: Identifiable, Hashable {
         self.categoryName = categoryName
         self.quantity = quantity
         self.expirationDate = expirationDate
+        self.imageURL = imageURL
         self.createdAt = createdAt
         self.status = status
     }
@@ -89,12 +92,34 @@ enum ArchiveReason: String, Hashable, CaseIterable, Identifiable {
         case .disposed:
             return "Утилизировано"
         case .lost:
-            return "Утеряно / кража"
+            return "Утеряно"
         case .other:
             return "Другое"
         }
     }
-    
+
+    /// Требует ли причина текстового пояснения (название мероприятия, детали «другое»).
+    var requiresDetail: Bool {
+        switch self {
+        case .usedAtEvent, .other:
+            return true
+        case .expired, .disposed, .lost:
+            return false
+        }
+    }
+
+    /// Подсказка для поля ввода подробностей.
+    var detailPlaceholder: String? {
+        switch self {
+        case .usedAtEvent:
+            return "Название мероприятия"
+        case .other:
+            return "Опишите причину"
+        case .expired, .disposed, .lost:
+            return nil
+        }
+    }
+
     var icon: String {
         switch self {
         case .usedAtEvent:
@@ -104,7 +129,7 @@ enum ArchiveReason: String, Hashable, CaseIterable, Identifiable {
         case .disposed:
             return "trash"
         case .lost:
-            return "exclamationmark.triangle"
+            return "questionmark.folder"
         case .other:
             return "ellipsis.circle"
         }

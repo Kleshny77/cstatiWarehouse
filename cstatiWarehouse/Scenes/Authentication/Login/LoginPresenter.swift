@@ -12,6 +12,7 @@ protocol LoginPresenterProtocol: AnyObject {
     func viewDidLoad()
     func loginButtonTapped(email: String, password: String)
     func registerButtonTapped()
+    func telegramLoginButtonTapped()
 }
 
 @Observable
@@ -20,6 +21,7 @@ final class LoginPresenter: LoginPresenterProtocol {
     var router: LoginRouterProtocol?
     
     var errorMessage: String?
+    var isTelegramLoginInProgress: Bool = false
     
     func viewDidLoad() {
         
@@ -32,14 +34,26 @@ final class LoginPresenter: LoginPresenterProtocol {
     func registerButtonTapped() {
         router?.navigateToRegister()
     }
+    
+    func telegramLoginButtonTapped() {
+        guard !isTelegramLoginInProgress else { return }
+        isTelegramLoginInProgress = true
+        interactor?.loginWithTelegram()
+    }
 }
 
 extension LoginPresenter: LoginInteractorOutputProtocol {
     func loginSuccess() {
+        isTelegramLoginInProgress = false
         router?.navigateToMain()
     }
     
     func loginFailure(error: String) {
+        isTelegramLoginInProgress = false
         errorMessage = error
+    }
+    
+    func telegramLoginCancelled() {
+        isTelegramLoginInProgress = false
     }
 }

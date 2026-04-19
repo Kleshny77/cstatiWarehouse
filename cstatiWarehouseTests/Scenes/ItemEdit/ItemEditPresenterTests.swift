@@ -92,7 +92,7 @@ struct ItemEditPresenterTests {
         
         #expect(sut.isSaving == true)
         #expect(fake.saveCalls.count == 1)
-        let (item, isNew) = fake.saveCalls[0]
+        let (item, _, isNew) = fake.saveCalls[0]
         #expect(isNew == true)
         #expect(item.name == "пиво")
         #expect(item.description == "светлое")
@@ -111,6 +111,7 @@ struct ItemEditPresenterTests {
         sut.saveButtonTapped()
         
         #expect(fake.saveCalls.first?.0.description == nil)
+        #expect(fake.saveCalls.first?.1 == nil)
     }
     
     @Test
@@ -128,7 +129,7 @@ struct ItemEditPresenterTests {
         
         sut.saveButtonTapped()
         
-        let (item, isNew) = fake.saveCalls[0]
+        let (item, _, isNew) = fake.saveCalls[0]
         #expect(isNew == false)
         #expect(item.id == original.id)
         #expect(item.createdAt == original.createdAt)
@@ -176,6 +177,33 @@ struct ItemEditPresenterTests {
             Issue.record("Expected .cancelled, got \(String(describing: spy.lastResult))")
             return
         }
+    }
+    
+    @Test
+    func viewDidLoad_requestsCategoriesFromInteractor() {
+        let (sut, fake, _) = makeSUT(mode: .create(suggestedCategory: nil))
+        
+        sut.viewDidLoad()
+        
+        #expect(fake.loadCategoriesCallCount == 1)
+    }
+    
+    @Test
+    func categoriesLoaded_populatesExistingCategories() {
+        let (sut, _, _) = makeSUT(mode: .create(suggestedCategory: nil))
+        
+        sut.categoriesLoaded(["еда", "напитки"])
+        
+        #expect(sut.existingCategories == ["еда", "напитки"])
+    }
+    
+    @Test
+    func selectCategory_writesIntoDraft() {
+        let (sut, _, _) = makeSUT(mode: .create(suggestedCategory: nil))
+        
+        sut.selectCategory("напитки")
+        
+        #expect(sut.draft.categoryName == "напитки")
     }
     
     // MARK: Helpers

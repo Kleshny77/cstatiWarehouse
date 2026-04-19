@@ -12,22 +12,18 @@ struct TabBarView: View {
     
     var body: some View {
         TabView {
-            MyWarehouseAssembly.assemble(appCoordinator: appCoordinator)
-                .tabItem {
-                    Image(systemName: "shippingbox")
-                    Text("Мой склад")
-                }
-            MockView()
-                .tabItem {
-                    Image(systemName: "cancel")
-                    Text("Организация")
-                }
-            MockView()
-                .tabItem {
-                    Image(systemName: "pencil")
-                    Text("Настройки")
-                }
+            Tab("Мой склад", systemImage: "shippingbox") {
+                MyWarehouseAssembly.assemble(appCoordinator: appCoordinator)
+            }
+            Tab("Организация", systemImage: "cancel") {
+                MockView()
+            }
+            Tab("Настройки", systemImage: "pencil") {
+                MockView()
+            }
         }
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 

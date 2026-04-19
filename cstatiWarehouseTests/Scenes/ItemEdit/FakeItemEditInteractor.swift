@@ -6,13 +6,19 @@
 //
 
 import Foundation
+import UIKit
 @testable import cstatiWarehouse
 
 @MainActor
 final class FakeItemEditInteractor: ItemEditInteractorInputProtocol {
-    private(set) var saveCalls: [(Item, Bool)] = []
+    private(set) var loadCategoriesCallCount: Int = 0
+    private(set) var saveCalls: [(Item, UIImage?, Bool)] = []
     
-    func save(item: Item, isNew: Bool) {
-        saveCalls.append((item, isNew))
+    func loadCategories() {
+        loadCategoriesCallCount += 1
+    }
+    
+    func save(item: Item, image: UIImage?, isNew: Bool) {
+        saveCalls.append((item, image, isNew))
     }
 }

@@ -10,7 +10,7 @@ import SwiftUI
 final class MyWarehouseAssembly {
     static func assemble(
         appCoordinator: AppCoordinatorProtocol,
-        warehouseService: WarehouseServiceProtocol = MockWarehouseService.shared
+        warehouseService: WarehouseServiceProtocol = AppServices.warehouseService()
     ) -> some View {
         let presenter = MyWarehousePresenter()
         let interactor = MyWarehouseInteractor(warehouseService: warehouseService)

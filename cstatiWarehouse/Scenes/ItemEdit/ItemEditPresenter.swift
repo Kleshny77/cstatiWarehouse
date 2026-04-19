@@ -10,6 +10,7 @@ import SwiftUI
 
 protocol ItemEditPresenterProtocol: AnyObject {
     func viewDidLoad()
+    func selectCategory(_ name: String)
     func saveButtonTapped()
     func cancelButtonTapped()
 }
@@ -22,6 +23,7 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
     var router: ItemEditRouterProtocol?
     
     var draft: ItemEditDraft
+    var existingCategories: [String] = []
     var errorMessage: String?
     var isSaving: Bool = false
     var screenTitle: String {
@@ -52,15 +54,19 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
     // MARK: Public Methods
     
     func viewDidLoad() {
-        
+        interactor?.loadCategories()
+    }
+    
+    func selectCategory(_ name: String) {
+        draft.categoryName = name
     }
     
     func saveButtonTapped() {
         guard validate() else { return }
-        
+
         let item = buildItem()
         isSaving = true
-        interactor?.save(item: item, isNew: isNew)
+        interactor?.save(item: item, image: draft.pickedImage, isNew: isNew)
     }
     
     func cancelButtonTapped() {
@@ -103,6 +109,7 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
                 categoryName: trimmedCategory,
                 quantity: draft.quantity,
                 expirationDate: expiration,
+                imageURL: draft.existingImageURL,
                 createdAt: .now,
                 status: .inStock
             )
@@ -114,6 +121,7 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
                 categoryName: trimmedCategory,
                 quantity: draft.quantity,
                 expirationDate: expiration,
+                imageURL: draft.existingImageURL,
                 createdAt: original.createdAt,
                 status: original.status
             )
@@ -124,6 +132,10 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
 // MARK: - ItemEditInteractorOutputProtocol
 
 extension ItemEditPresenter: ItemEditInteractorOutputProtocol {
+    func categoriesLoaded(_ categories: [String]) {
+        existingCategories = categories
+    }
+    
     func saved(_ item: Item) {
         isSaving = false
         onFinish(.saved(item))

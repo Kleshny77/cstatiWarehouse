@@ -8,7 +8,15 @@
 import SwiftUI
 
 struct CoordinatorView: View {
-    @State private var coordinator = AppCoordinator()
+    @State private var coordinator: AppCoordinator
+    
+    init(sessionStorage: UserSessionStorageProtocol = AppServices.sessionStorage) {
+        let coord = AppCoordinator()
+        if sessionStorage.isLoggedIn {
+            coord.path.append(AppRoute.main)
+        }
+        _coordinator = State(initialValue: coord)
+    }
     
     var body: some View {
         NavigationStack(path: $coordinator.path) {
@@ -28,17 +36,12 @@ struct CoordinatorView: View {
             TabBarView(appCoordinator: coordinator)
         case .register:
             RegisterAssembly.assemble(appCoordinator: coordinator)
+        case .profile:
+            SettingsAssembly.assemble(appCoordinator: coordinator)
         }
     }
 }
 
-struct MainView: View {
-    var body: some View {
-        Text("Main View")
-            .navigationTitle("Главная")
-    }
-}
-
-#Preview() {
+#Preview {
     CoordinatorView()
 }

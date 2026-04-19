@@ -35,36 +35,47 @@ struct MyWarehouseView: View {
                 }
             )
         }
-        .confirmationDialog(
-            "Списать со склада?",
-            isPresented: archiveDialogBinding,
-            titleVisibility: .visible,
-            presenting: presenter.archivePresentation
-        ) { _ in
-            ForEach(ArchiveReason.allCases) { reason in
-                Button(reason.title) {
-                    presenter.confirmArchive(reason: reason)
+        .sheet(item: $presenter.archivePresentation) { presentation in
+            ArchiveReasonPickerView(
+                itemName: presentation.item.name,
+                availableQuantity: presentation.item.quantity,
+                onConfirm: { decision in
+                    presenter.confirmArchive(decision: decision)
+                },
+                onCancel: {
+                    presenter.cancelArchive()
                 }
-            }
-            Button("Отмена", role: .cancel) {
-                presenter.cancelArchive()
-            }
-        } message: { presentation in
-            Text("Позиция «\(presentation.item.name)» уйдёт в историю. Вы сможете посмотреть её позже.")
+            )
         }
-        .alert(
-            "Удалить навсегда?",
-            isPresented: deleteAlertBinding,
-            presenting: presenter.deleteConfirmation
-        ) { _ in
-            Button("Удалить", role: .destructive) {
-                presenter.confirmHardDelete()
-            }
-            Button("Отмена", role: .cancel) {
-                presenter.cancelHardDelete()
-            }
-        } message: { confirmation in
-            Text("«\(confirmation.item.name)» будет удалено без возможности восстановления и не попадёт в историю.")
+        .sheet(item: $presenter.filtersPresentation) { presentation in
+            WarehouseFiltersSheet(
+                availableCategories: presentation.availableCategories,
+                initial: presentation.current,
+                onApply: { filters in
+                    presenter.applyFilters(filters)
+                },
+                onReset: {
+                    presenter.applyFilters(.none)
+                },
+                onCancel: {
+                    presenter.filtersPresentation = nil
+                }
+            )
+        }
+        .sheet(item: $presenter.deleteConfirmation) { confirmation in
+            GlassConfirmationSheet(
+                title: "Удалить навсегда?",
+                message: "«\(confirmation.item.name)» будет удалено без возможности восстановления и не попадёт в историю.",
+                confirmTitle: "Удалить",
+                cancelTitle: "Отмена",
+                isDestructive: true,
+                onConfirm: {
+                    presenter.confirmHardDelete()
+                },
+                onCancel: {
+                    presenter.cancelHardDelete()
+                }
+            )
         }
         .alert("Ошибка", isPresented: errorBinding) {
             Button("OK") {
@@ -89,6 +100,8 @@ struct MyWarehouseView: View {
                 Text(itemsCountLabel)
                     .font(font: .semiBold, size: 20)
                     .secondaryTextStyle()
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: presenter.totalItemsCount)
             }
             .padding(.horizontal, 10)
             
@@ -106,8 +119,9 @@ struct MyWarehouseView: View {
                 .font(font: .regular, size: 34)
                 .foregroundStyle(.white.opacity(0.9))
                 .frame(width: 60, height: 60)
-                .glassEffect()
+                .appGlass(in: Circle())
         }
+        .buttonStyle(.pressable)
     }
     
     private var addButton: some View {
@@ -118,8 +132,9 @@ struct MyWarehouseView: View {
                 .font(font: .regular, size: 34)
                 .foregroundStyle(.white.opacity(0.9))
                 .frame(width: 60, height: 60)
-                .glassEffect()
+                .appGlass(in: Circle())
         }
+        .buttonStyle(.pressable)
     }
     
     private var searchBar: some View {
@@ -145,21 +160,22 @@ struct MyWarehouseView: View {
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
         .frame(minHeight: 50)
-        .glassEffect()
-        .clipShape(Capsule())
+        .appGlass(in: Capsule())
     }
     
     private var filterButton: some View {
         Button {
             presenter.filterButtonTapped()
         } label: {
-            Image(systemName: "line.3.horizontal.decrease.circle")
+            Image(systemName: presenter.isFiltersActive
+                  ? "line.3.horizontal.decrease.circle.fill"
+                  : "line.3.horizontal.decrease.circle")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(.white.opacity(0.9))
                 .frame(width: 50, height: 50)
-                .glassEffect()
-                .clipShape(Circle())
+                .appGlass(in: Circle())
         }
+        .buttonStyle(.pressable)
     }
     
     private var searchFilterBar: some View {
@@ -175,24 +191,25 @@ struct MyWarehouseView: View {
                 Section {
                     ForEach(section.items) { item in
                         WarehouseItemCard(item: item)
-                            .listRowBackground(Color.black.opacity(0.4))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .contextMenu {
                                 itemContextMenu(for: item)
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
+                                Button {
                                     presenter.archiveItemRequested(item)
                                 } label: {
                                     Label("Списать", systemImage: "archivebox")
                                 }
-                            }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                .tint(.red)
                                 Button {
                                     presenter.editItemRequested(item)
                                 } label: {
                                     Label("Изменить", systemImage: "pencil")
                                 }
-                                .tint(Color(red: 0.62, green: 0.42, blue: 0.98))
+                                .tint(.indigo)
                             }
                     }
                 } header: {
@@ -200,9 +217,10 @@ struct MyWarehouseView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .navigationTitle("Склад")
+        .animation(.snappy, value: presenter.sections)
     }
     
     @ViewBuilder
@@ -215,6 +233,8 @@ struct MyWarehouseView: View {
             Text("\(section.items.count)")
                 .font(font: .regular, size: 20)
                 .secondaryTextStyle()
+                .contentTransition(.numericText())
+                .animation(.snappy, value: section.items.count)
         }
     }
     
@@ -225,31 +245,24 @@ struct MyWarehouseView: View {
         } label: {
             Label("Редактировать", systemImage: "pencil")
         }
-        
-        Menu {
-            ForEach(ArchiveReason.allCases) { reason in
-                Button {
-                    presenter.archivePresentation = ArchivePresentation(item: item)
-                    presenter.confirmArchive(reason: reason)
-                } label: {
-                    Label(reason.title, systemImage: reason.icon)
-                }
-            }
+
+        Button {
+            presenter.archiveItemRequested(item)
         } label: {
             Label("Списать со склада", systemImage: "archivebox")
         }
-        
+
         Divider()
-        
+
         Button(role: .destructive) {
             presenter.hardDeleteRequested(item)
         } label: {
             Label("Удалить навсегда", systemImage: "trash")
         }
     }
-    
+
     // MARK: Private Methods
-    
+
     private var itemsCountLabel: String {
         let count = presenter.totalItemsCount
         let suffix: String
@@ -264,20 +277,6 @@ struct MyWarehouseView: View {
             }
         }
         return "\(count) \(suffix)"
-    }
-    
-    private var archiveDialogBinding: Binding<Bool> {
-        Binding(
-            get: { presenter.archivePresentation != nil },
-            set: { if !$0 { presenter.cancelArchive() } }
-        )
-    }
-    
-    private var deleteAlertBinding: Binding<Bool> {
-        Binding(
-            get: { presenter.deleteConfirmation != nil },
-            set: { if !$0 { presenter.cancelHardDelete() } }
-        )
     }
     
     private var errorBinding: Binding<Bool> {

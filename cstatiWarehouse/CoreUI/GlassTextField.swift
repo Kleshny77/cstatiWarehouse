@@ -46,7 +46,7 @@ struct GlassTextField: View {
         .padding(.horizontal, 17)
         .padding(.vertical, 15)
         .frame(width: 331, height: 47)
-        .glassEffect()
+        .appGlass()
         .autocapitalization(.none)
         .keyboardType(keyboardType)
     }
@@ -55,7 +55,7 @@ struct GlassTextField: View {
         ZStack(alignment: .trailing) {
             Color.clear
                 .frame(width: 331, height: 47)
-                .glassEffect()
+                .appGlass()
             
             Group {
                 if isPasswordVisible {

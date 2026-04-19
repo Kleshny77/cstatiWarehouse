@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		FBF2FC532F1B260C00CC2213 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = FBF2FC522F1B260C00CC2213 /* Lottie */; };
+		FBF2FC712F1D000000CC2213 /* TelegramLogin in Frameworks */ = {isa = PBXBuildFile; productRef = FBF2FC702F1D000000CC2213 /* TelegramLogin */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +71,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FBF2FC532F1B260C00CC2213 /* Lottie in Frameworks */,
+				FBF2FC712F1D000000CC2213 /* TelegramLogin in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -131,6 +133,7 @@
 			name = cstatiWarehouse;
 			packageProductDependencies = (
 				FBF2FC522F1B260C00CC2213 /* Lottie */,
+				FBF2FC702F1D000000CC2213 /* TelegramLogin */,
 			);
 			productName = cstatiWarehouse;
 			productReference = FBF2FBF82F1ADC7E00CC2213 /* cstatiWarehouse.app */;
@@ -216,6 +219,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				FBF2FC512F1B260C00CC2213 /* XCRemoteSwiftPackageReference "lottie-ios" */,
+				FBF2FC6F2F1D000000CC2213 /* XCRemoteSwiftPackageReference "telegram-login-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FBF2FBF92F1ADC7E00CC2213 /* Products */;
@@ -436,7 +440,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Kleshny.cstatiWarehouse;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kleshny.cstatiwarehouse;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -476,7 +480,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Kleshny.cstatiWarehouse;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kleshny.cstatiwarehouse;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -502,7 +506,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Kleshny.cstatiWarehouseTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kleshny.cstatiwarehouse.Tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -524,7 +528,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Kleshny.cstatiWarehouseTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kleshny.cstatiwarehouse.Tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -544,7 +548,7 @@
 				DEVELOPMENT_TEAM = NWMHAK8G97;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Kleshny.cstatiWarehouseUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kleshny.cstatiwarehouse.UITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -564,7 +568,7 @@
 				DEVELOPMENT_TEAM = NWMHAK8G97;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Kleshny.cstatiWarehouseUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kleshny.cstatiwarehouse.UITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -626,6 +630,14 @@
 				minimumVersion = 4.6.0;
 			};
 		};
+		FBF2FC6F2F1D000000CC2213 /* XCRemoteSwiftPackageReference "telegram-login-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/TelegramMessenger/telegram-login-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -633,6 +645,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = FBF2FC512F1B260C00CC2213 /* XCRemoteSwiftPackageReference "lottie-ios" */;
 			productName = Lottie;
+		};
+		FBF2FC702F1D000000CC2213 /* TelegramLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FBF2FC6F2F1D000000CC2213 /* XCRemoteSwiftPackageReference "telegram-login-ios" */;
+			productName = TelegramLogin;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
