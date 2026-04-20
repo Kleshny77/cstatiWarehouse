@@ -26,11 +26,16 @@ protocol MyWarehousePresenterProtocol: AnyObject {
 
     func selectOrganization(_ summary: OrganizationSummary)
     func createOrganization(name: String)
+    func joinOrganization(code: String)
     func dismissSwitcher()
     func dismissSwitcherError()
 
     func applyFilters(_ filters: WarehouseFilters)
     func editCompleted(result: ItemEditResult)
+    func selectScope(_ scope: WarehouseScope)
+
+    func archiveHistoryButtonTapped()
+    func dismissArchiveHistory()
 }
 
 @Observable
@@ -43,7 +48,10 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     var sections: [WarehouseSection] = []
     var totalItemsCount: Int = 0
     var searchText: String = "" {
-        didSet { rebuildSections() }
+        didSet {
+            searchTextByScope[scope] = searchText
+            rebuildSections()
+        }
     }
     var isLoading: Bool = false
     var errorMessage: String?
@@ -56,11 +64,38 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     var deleteConfirmation: DeleteConfirmation?
     var filtersPresentation: FiltersPresentation?
 
-    var filters: WarehouseFilters = .none
+    /// История списаний (архивные операции с деталями).
+    var isArchiveHistoryPresented = false
+    var archiveHistoryEvents: [ArchiveEvent] = []
+    var isArchiveHistoryLoading = false
+
+    var filters: WarehouseFilters = .none {
+        didSet { filtersByScope[scope] = filters }
+    }
     var isFiltersActive: Bool { filters.isActive }
+
+    /// Текущий скоуп списка. Для обычных участников всегда `.mine` (бэкенд всё равно сузит).
+    /// Для admin/owner — переключается сегментом "Мои / Все".
+    var scope: WarehouseScope = .mine
+    /// Показывать ли сегмент-переключатель "Мои / Все".
+    /// Прячем в персональной организации и у обычных участников.
+    var canSwitchScope: Bool {
+        guard let summary = activeOrganization else { return false }
+        if summary.organization.isPersonal { return false }
+        return summary.role.canManageMembers
+    }
 
     private var allItems: [Item] = []
     private var hasResolvedOrganization: Bool = false
+    private var searchTextByScope: [WarehouseScope: String] = [:]
+    private var filtersByScope: [WarehouseScope: WarehouseFilters] = [:]
+    private var loadedScopes: Set<WarehouseScope> = []
+
+    /// Показываем скелетон только при первой загрузке текущего скоупа.
+    /// Если скоуп уже однажды загружался (даже пустым), дальше показываем обычный empty-state.
+    var shouldShowSkeleton: Bool {
+        isLoading && sections.isEmpty && !loadedScopes.contains(scope)
+    }
 
     // MARK: Public Methods
 
@@ -92,6 +127,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
             organizations: [],
             isLoading: true,
             isCreating: false,
+            isJoining: false,
             errorMessage: nil
         )
         interactor?.loadMyOrganizations()
@@ -102,7 +138,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
 
     func archiveItemRequested(_ item: Item) {
-        archivePresentation = ArchivePresentation(item: item)
+        interactor?.prepareArchive(for: item)
     }
 
     func hardDeleteRequested(_ item: Item) {
@@ -116,7 +152,8 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
             id: item.id,
             quantity: decision.quantity,
             reason: decision.reason,
-            reasonDetail: decision.detail
+            reasonDetail: decision.detail,
+            eventID: decision.eventID
         )
     }
 
@@ -139,10 +176,11 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         if summary.id == activeOrganization?.id { return }
         interactor?.selectActiveOrganization(summary.organization.id)
         activeOrganization = summary
+        resetScopeStateForNewOrganization()
         allItems = []
         rebuildSections()
         isLoading = true
-        interactor?.loadActiveItems(organizationID: summary.organization.id)
+        interactor?.loadActiveItems(organizationID: summary.organization.id, scope: scope)
     }
 
     func createOrganization(name: String) {
@@ -151,6 +189,14 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         pres.errorMessage = nil
         switcherPresentation = pres
         interactor?.createOrganization(name: name)
+    }
+
+    func joinOrganization(code: String) {
+        guard var pres = switcherPresentation else { return }
+        pres.isJoining = true
+        pres.errorMessage = nil
+        switcherPresentation = pres
+        interactor?.joinOrganization(code: code)
     }
 
     func dismissSwitcher() {
@@ -165,6 +211,40 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         self.filters = filters
         filtersPresentation = nil
         rebuildSections()
+    }
+
+    func archiveHistoryButtonTapped() {
+        guard let orgID = activeOrganization?.organization.id else { return }
+        AppHaptics.selection()
+        isArchiveHistoryPresented = true
+        isArchiveHistoryLoading = true
+        archiveHistoryEvents = []
+        interactor?.loadArchiveEvents(organizationID: orgID)
+    }
+
+    func dismissArchiveHistory() {
+        isArchiveHistoryPresented = false
+        isArchiveHistoryLoading = false
+    }
+
+    func selectScope(_ newScope: WarehouseScope) {
+        guard canSwitchScope, newScope != scope else { return }
+        // Запомнить search/filters текущего скоупа уже случилось в их didSet.
+        scope = newScope
+        // Восстановить сохранённое состояние search/filters для нового скоупа.
+        let restoredSearch = searchTextByScope[scope] ?? ""
+        if searchText != restoredSearch {
+            searchText = restoredSearch
+        }
+        let restoredFilters = filtersByScope[scope] ?? .none
+        if filters != restoredFilters {
+            filters = restoredFilters
+        }
+        guard let orgID = activeOrganization?.organization.id else { return }
+        allItems = []
+        rebuildSections()
+        isLoading = true
+        interactor?.loadActiveItems(organizationID: orgID, scope: scope)
     }
 
     func editCompleted(result: ItemEditResult) {
@@ -184,6 +264,17 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
 
     // MARK: Private Methods
+
+    /// Сбрасывает запомнённые search/filters при смене организации, чтобы не тянуть
+    /// контекст одной орги в другую. scope всегда стартует с `.mine`.
+    private func resetScopeStateForNewOrganization() {
+        searchTextByScope = [:]
+        filtersByScope = [:]
+        loadedScopes = []
+        scope = .mine
+        if !searchText.isEmpty { searchText = "" }
+        if filters != .none { filters = .none }
+    }
 
     private var availableCategories: [String] {
         let active = allItems.filter { !$0.status.isArchived }
@@ -264,7 +355,8 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
     func activeOrganizationResolved(_ summary: OrganizationSummary?) {
         activeOrganization = summary
         if let summary {
-            interactor?.loadActiveItems(organizationID: summary.organization.id)
+            resetScopeStateForNewOrganization()
+            interactor?.loadActiveItems(organizationID: summary.organization.id, scope: scope)
         } else {
             isLoading = false
             allItems = []
@@ -282,16 +374,32 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
     func organizationCreated(_ summary: OrganizationSummary) {
         switcherPresentation = nil
         activeOrganization = summary
+        resetScopeStateForNewOrganization()
         allItems = []
         rebuildSections()
         isLoading = true
-        interactor?.loadActiveItems(organizationID: summary.organization.id)
+        interactor?.loadActiveItems(organizationID: summary.organization.id, scope: scope)
+    }
+
+    func archiveReady(item: Item, orgEvents: [OrgEvent]) {
+        archivePresentation = ArchivePresentation(item: item, orgEvents: orgEvents)
     }
 
     func itemsLoaded(_ items: [Item]) {
+        loadedScopes.insert(scope)
         allItems = items
         isLoading = false
         rebuildSections()
+    }
+
+    func archiveEventsLoaded(_ events: [ArchiveEvent]) {
+        archiveHistoryEvents = events
+        isArchiveHistoryLoading = false
+    }
+
+    func archiveHistoryFailed(_ message: String) {
+        isArchiveHistoryLoading = false
+        errorMessage = message
     }
 
     func itemArchived(_ item: Item) {
@@ -318,6 +426,7 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
     }
 
     func failed(error: String) {
+        loadedScopes.insert(scope)
         isLoading = false
         errorMessage = error
     }
@@ -326,9 +435,26 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
         if switcherPresentation != nil {
             switcherPresentation?.isLoading = false
             switcherPresentation?.isCreating = false
+            switcherPresentation?.isJoining = false
             switcherPresentation?.errorMessage = error
         } else {
             errorMessage = error
         }
+    }
+
+    func organizationJoined(_ summary: OrganizationSummary) {
+        switcherPresentation = nil
+        if summary.id == activeOrganization?.id {
+            isLoading = true
+            interactor?.loadActiveItems(organizationID: summary.organization.id, scope: scope)
+            return
+        }
+        interactor?.selectActiveOrganization(summary.organization.id)
+        activeOrganization = summary
+        resetScopeStateForNewOrganization()
+        allItems = []
+        rebuildSections()
+        isLoading = true
+        interactor?.loadActiveItems(organizationID: summary.organization.id, scope: scope)
     }
 }

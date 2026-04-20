@@ -49,5 +49,6 @@ fastlane/test_output
 # Редакторы / IDE
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo

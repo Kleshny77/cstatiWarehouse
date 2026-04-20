@@ -14,6 +14,7 @@ final class MockOrganizationsService: OrganizationsServiceProtocol {
     private var orgs: [UUID: Organization]
     private var memberships: [UUID: OrgRole] = [:]
     private var allMembers: [UUID: [OrganizationMember]] = [:]
+    private var invites: [UUID: [OrganizationInvite]] = [:]
 
     init(currentUserID: UUID = UUID()) {
         self.currentUserID = currentUserID
@@ -155,6 +156,103 @@ final class MockOrganizationsService: OrganizationsServiceProtocol {
             self.memberships.removeValue(forKey: id)
             self.allMembers[id]?.removeAll { $0.userID == self.currentUserID }
             completion(.success(()))
+        }
+    }
+
+    func removeMember(organizationID: UUID, userID: UUID, completion: @escaping (Result<Void, OrganizationsError>) -> Void) {
+        respond {
+            guard let role = self.memberships[organizationID], role.canManageMembers else {
+                completion(.failure(.forbidden))
+                return
+            }
+            self.allMembers[organizationID]?.removeAll { $0.userID == userID }
+            completion(.success(()))
+        }
+    }
+
+    func changeMemberRole(organizationID: UUID, userID: UUID, role: OrgRole, completion: @escaping (Result<Void, OrganizationsError>) -> Void) {
+        respond {
+            guard self.memberships[organizationID] == .owner else {
+                completion(.failure(.forbidden))
+                return
+            }
+            self.allMembers[organizationID] = self.allMembers[organizationID]?.map { m in
+                var copy = m
+                if m.userID == userID { copy.role = role }
+                return copy
+            }
+            completion(.success(()))
+        }
+    }
+
+    func transferOwnership(organizationID: UUID, newOwnerID: UUID, completion: @escaping (Result<Void, OrganizationsError>) -> Void) {
+        respond {
+            guard self.memberships[organizationID] == .owner else {
+                completion(.failure(.forbidden))
+                return
+            }
+            self.memberships[organizationID] = .admin
+            completion(.success(()))
+        }
+    }
+
+    func listInvites(organizationID: UUID, completion: @escaping (Result<[OrganizationInvite], OrganizationsError>) -> Void) {
+        respond {
+            guard let role = self.memberships[organizationID], role.canManageMembers else {
+                completion(.failure(.forbidden))
+                return
+            }
+            completion(.success(self.invites[organizationID] ?? []))
+        }
+    }
+
+    func createInvite(organizationID: UUID, expiresInDays: Int?, maxUses: Int?, completion: @escaping (Result<OrganizationInvite, OrganizationsError>) -> Void) {
+        respond {
+            guard let role = self.memberships[organizationID], role.canManageMembers else {
+                completion(.failure(.forbidden))
+                return
+            }
+            let invite = OrganizationInvite(
+                id: UUID(),
+                organizationID: organizationID,
+                code: String(UUID().uuidString.prefix(8)).uppercased(),
+                createdByID: self.currentUserID,
+                createdAt: .now,
+                expiresAt: expiresInDays.map { Date().addingTimeInterval(TimeInterval($0) * 86_400) },
+                maxUses: maxUses,
+                usedCount: 0,
+                revokedAt: nil,
+                isActive: true
+            )
+            self.invites[organizationID, default: []].append(invite)
+            completion(.success(invite))
+        }
+    }
+
+    func revokeInvite(organizationID: UUID, inviteID: UUID, completion: @escaping (Result<Void, OrganizationsError>) -> Void) {
+        respond {
+            self.invites[organizationID] = self.invites[organizationID]?.map { inv in
+                guard inv.id == inviteID else { return inv }
+                return OrganizationInvite(
+                    id: inv.id,
+                    organizationID: inv.organizationID,
+                    code: inv.code,
+                    createdByID: inv.createdByID,
+                    createdAt: inv.createdAt,
+                    expiresAt: inv.expiresAt,
+                    maxUses: inv.maxUses,
+                    usedCount: inv.usedCount,
+                    revokedAt: .now,
+                    isActive: false
+                )
+            }
+            completion(.success(()))
+        }
+    }
+
+    func joinByCode(_ code: String, completion: @escaping (Result<OrganizationSummary, OrganizationsError>) -> Void) {
+        respond {
+            completion(.failure(.notFound))
         }
     }
 

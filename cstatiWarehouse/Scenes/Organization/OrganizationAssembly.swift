@@ -11,12 +11,18 @@ final class OrganizationAssembly {
     static func assemble(
         appCoordinator: AppCoordinatorProtocol,
         organizationsService: OrganizationsServiceProtocol = AppServices.organizationsService(),
+        eventsService: EventsServiceProtocol = AppServices.eventsService(),
+        categoriesService: OrgCategoriesServiceProtocol = AppServices.orgCategoriesService(),
+        activityService: ActivityServiceProtocol = AppServices.activityService(),
         sessionStorage: UserSessionStorageProtocol = AppServices.sessionStorage,
         activeOrgStorage: ActiveOrganizationStorageProtocol = AppServices.activeOrganizationStorage
     ) -> some View {
         let presenter = OrganizationPresenter()
         let interactor = OrganizationInteractor(
             organizationsService: organizationsService,
+            eventsService: eventsService,
+            categoriesService: categoriesService,
+            activityService: activityService,
             sessionStorage: sessionStorage,
             activeOrgStorage: activeOrgStorage
         )

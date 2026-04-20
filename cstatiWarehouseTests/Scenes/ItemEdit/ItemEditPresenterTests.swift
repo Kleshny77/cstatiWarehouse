@@ -64,7 +64,7 @@ struct ItemEditPresenterTests {
         
         sut.saveButtonTapped()
         
-        #expect(sut.errorMessage == "Укажите категорию")
+        #expect(sut.errorMessage == "Выберите или создайте категорию")
         #expect(fake.saveCalls.isEmpty)
     }
     
@@ -180,28 +180,45 @@ struct ItemEditPresenterTests {
     }
     
     @Test
-    func viewDidLoad_requestsCategoriesFromInteractor() {
+    func viewDidLoad_requestsCategoriesAndMembersFromInteractor() {
         let (sut, fake, _) = makeSUT(mode: .create(suggestedCategory: nil))
         
         sut.viewDidLoad()
         
         #expect(fake.loadCategoriesCallCount == 1)
+        #expect(fake.loadMembersCallCount == 1)
     }
     
     @Test
-    func categoriesLoaded_populatesExistingCategories() {
+    func categoriesLoaded_populatesOrgCategoriesAndExtraNames() {
         let (sut, _, _) = makeSUT(mode: .create(suggestedCategory: nil))
+        let orgID = UUID()
+        let eda = OrgCategory(
+            id: UUID(),
+            organizationID: orgID,
+            name: "еда",
+            createdByID: UUID(),
+            createdAt: .now
+        )
+        let drinks = OrgCategory(
+            id: UUID(),
+            organizationID: orgID,
+            name: "напитки",
+            createdByID: UUID(),
+            createdAt: .now
+        )
         
-        sut.categoriesLoaded(["еда", "напитки"])
+        sut.categoriesLoaded(orgCategories: [eda, drinks], extraNames: ["старая"])
         
-        #expect(sut.existingCategories == ["еда", "напитки"])
+        #expect(sut.orgCategories.map(\.name).sorted() == ["еда", "напитки"])
+        #expect(sut.extraCategoryNames == ["старая"])
     }
     
     @Test
     func selectCategory_writesIntoDraft() {
         let (sut, _, _) = makeSUT(mode: .create(suggestedCategory: nil))
         
-        sut.selectCategory("напитки")
+        sut.selectCategory(name: "напитки")
         
         #expect(sut.draft.categoryName == "напитки")
     }
@@ -217,7 +234,7 @@ struct ItemEditPresenterTests {
     ) -> (ItemEditPresenter, FakeItemEditInteractor, OnFinishSpy) {
         let spy = OnFinishSpy()
         let fake = FakeItemEditInteractor()
-        let presenter = ItemEditPresenter(mode: mode, onFinish: { result in
+        let presenter = ItemEditPresenter(mode: mode, currentUserID: nil, onFinish: { result in
             spy.lastResult = result
         })
         presenter.interactor = fake

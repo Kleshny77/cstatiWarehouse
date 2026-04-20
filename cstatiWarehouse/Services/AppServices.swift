@@ -32,4 +32,16 @@ enum AppServices {
     static func organizationsService() -> OrganizationsServiceProtocol {
         ApiOrganizationsService(client: apiClient)
     }
+
+    static func eventsService() -> EventsServiceProtocol {
+        ApiEventsService(client: apiClient)
+    }
+
+    static func orgCategoriesService() -> OrgCategoriesServiceProtocol {
+        ApiOrgCategoriesService(client: apiClient)
+    }
+
+    static func activityService() -> ActivityServiceProtocol {
+        ApiActivityService(client: apiClient)
+    }
 }

@@ -23,12 +23,14 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
 
     // MARK: Public Methods
 
-    func fetchActiveItems(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
-        fetchItems(statusFilter: "in_stock", organizationID: organizationID, completion: completion)
+    func fetchActiveItems(organizationID: UUID, scope: WarehouseScope, completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
+        fetchItems(statusFilter: "in_stock", scope: scope, organizationID: organizationID, completion: completion)
     }
 
     func fetchHistory(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
-        fetchItems(statusFilter: "archived", organizationID: organizationID, completion: completion)
+        // Для истории явно просим `all`: admin/owner увидят архив всей организации,
+        // для обычного участника бэкенд всё равно сузит выдачу до собственных позиций.
+        fetchItems(statusFilter: "archived", scope: .all, organizationID: organizationID, completion: completion)
     }
 
     func fetchArchiveEvents(organizationID: UUID, completion: @escaping (Result<[ArchiveEvent], WarehouseError>) -> Void) {
@@ -89,12 +91,14 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
         quantity: Int,
         reason: ArchiveReason,
         reasonDetail: String,
+        eventID: UUID?,
         completion: @escaping (Result<ArchiveResult, WarehouseError>) -> Void
     ) {
         let body = ArchiveRequestDTO(
             quantity: quantity,
             reason: reason.rawValue,
-            reasonDetail: reasonDetail.isEmpty ? nil : reasonDetail
+            reasonDetail: reasonDetail.isEmpty ? nil : reasonDetail,
+            eventId: eventID?.uuidString.lowercased()
         )
         client.request(
             path: "/items/\(id.uuidString.lowercased())/archive",
@@ -132,6 +136,7 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
 
     private func fetchItems(
         statusFilter: String?,
+        scope: WarehouseScope?,
         organizationID: UUID,
         completion: @escaping (Result<[Item], WarehouseError>) -> Void
     ) {
@@ -140,6 +145,9 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
         ]
         if let statusFilter = statusFilter {
             query.append(URLQueryItem(name: "status", value: statusFilter))
+        }
+        if let scope = scope {
+            query.append(URLQueryItem(name: "scope", value: scope.rawValue))
         }
         client.request(
             path: "/items",
@@ -220,6 +228,7 @@ private struct ArchiveRequestDTO: Encodable {
     let quantity: Int
     let reason: String
     let reasonDetail: String?
+    let eventId: String?
 }
 
 private struct CreateItemRequestDTO: Encodable {
@@ -231,16 +240,18 @@ private struct CreateItemRequestDTO: Encodable {
     let quantity: Int
     let expirationDate: Date?
     let imageUrl: String?
+    let locationAddress: String?
 
     init(item: Item, organizationID: UUID) {
         self.organizationId = organizationID.uuidString.lowercased()
-        self.heldByUserId = nil
+        self.heldByUserId = item.heldByUserID?.uuidString.lowercased()
         self.name = item.name
         self.description = item.description ?? ""
         self.categoryName = item.categoryName
         self.quantity = item.quantity
         self.expirationDate = item.expirationDate
         self.imageUrl = item.imageURL?.absoluteString
+        self.locationAddress = item.locationAddress
     }
 }
 
@@ -252,20 +263,23 @@ private struct UpdateItemRequestDTO: Encodable {
     let quantity: Int
     let expirationDate: Date?
     let imageUrl: String?
+    let locationAddress: String?
 
     init(item: Item) {
-        self.heldByUserId = nil
+        self.heldByUserId = item.heldByUserID?.uuidString.lowercased()
         self.name = item.name
         self.description = item.description ?? ""
         self.categoryName = item.categoryName
         self.quantity = item.quantity
         self.expirationDate = item.expirationDate
         self.imageUrl = item.imageURL?.absoluteString
+        self.locationAddress = item.locationAddress
     }
 }
 
 private struct ItemDTO: Decodable {
     let id: String
+    let heldByUserId: String?
     let name: String
     let description: String
     let categoryName: String
@@ -275,6 +289,7 @@ private struct ItemDTO: Decodable {
     let archivedAt: Date?
     let expirationDate: Date?
     let imageUrl: String?
+    let locationAddress: String?
     let createdAt: Date
     let updatedAt: Date
 
@@ -294,6 +309,7 @@ private struct ItemDTO: Decodable {
         }
 
         let imageURL = imageUrl.flatMap { URL(string: $0) }
+        let holder = heldByUserId.flatMap { UUID(uuidString: $0) }
         return Item(
             id: uuid,
             name: name,
@@ -303,7 +319,9 @@ private struct ItemDTO: Decodable {
             expirationDate: expirationDate,
             imageURL: imageURL,
             createdAt: createdAt,
-            status: status
+            status: status,
+            heldByUserID: holder,
+            locationAddress: locationAddress
         )
     }
 }
@@ -311,21 +329,31 @@ private struct ItemDTO: Decodable {
 private struct ArchiveEventDTO: Decodable {
     let id: String
     let itemId: String
+    let archivedByUserId: String
+    let itemName: String?
+    let archivedByName: String?
     let quantity: Int
     let reason: String
     let reasonDetail: String?
     let archivedAt: Date
 
     func toDomain() -> ArchiveEvent? {
-        guard let id = UUID(uuidString: id), let itemId = UUID(uuidString: itemId) else { return nil }
+        guard let id = UUID(uuidString: id),
+              let itemId = UUID(uuidString: itemId),
+              let actorId = UUID(uuidString: archivedByUserId) else { return nil }
         let reason = ArchiveReason(rawValue: reason) ?? .other
+        let name = (itemName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let actorName = (archivedByName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return ArchiveEvent(
             id: id,
             itemID: itemId,
+            itemName: name.isEmpty ? "Позиция" : name,
             quantity: quantity,
             reason: reason,
             reasonDetail: reasonDetail ?? "",
-            archivedAt: archivedAt
+            archivedAt: archivedAt,
+            archivedByUserID: actorId,
+            archivedByDisplayName: actorName
         )
     }
 }

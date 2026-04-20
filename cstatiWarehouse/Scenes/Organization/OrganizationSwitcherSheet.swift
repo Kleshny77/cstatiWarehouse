@@ -17,14 +17,19 @@ struct OrganizationSwitcherSheet: View {
     let activeID: UUID?
     let isLoading: Bool
     let isCreating: Bool
+    let isJoining: Bool
     let errorMessage: String?
     let onSelect: (OrganizationSummary) -> Void
     let onCreate: (String) -> Void
+    let onJoin: (String) -> Void
     let onCancel: () -> Void
     let onDismissError: () -> Void
 
     @State private var newOrgName: String = ""
-    @FocusState private var isNewOrgFocused: Bool
+    @State private var joinCode: String = ""
+    @FocusState private var focusedField: Field?
+
+    private enum Field { case name, code }
 
     // MARK: Body
 
@@ -35,6 +40,7 @@ struct OrganizationSwitcherSheet: View {
                 VStack(spacing: 16) {
                     header
                     listSection
+                    joinSection
                     createSection
                     if let errorMessage {
                         errorBanner(errorMessage)
@@ -155,7 +161,7 @@ struct OrganizationSwitcherSheet: View {
                 .tint(.white.opacity(0.8))
                 .foregroundStyle(.white.opacity(0.9))
                 .font(font: .semiBold, size: 14)
-                .focused($isNewOrgFocused)
+                .focused($focusedField, equals: .name)
                 .submitLabel(.done)
                 .onSubmit(submitCreate)
                 .padding(.horizontal, 14)
@@ -181,6 +187,56 @@ struct OrganizationSwitcherSheet: View {
                 }
                 .buttonStyle(.pressable)
                 .disabled(isCreating || trimmedName.isEmpty)
+            }
+        }
+    }
+
+    private var joinSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Присоединиться по коду")
+                .foregroundStyle(.white.opacity(0.8))
+                .font(font: .semiBold, size: 13)
+                .padding(.leading, 4)
+
+            HStack(spacing: 10) {
+                TextField(
+                    "",
+                    text: $joinCode,
+                    prompt: Text("Код приглашения")
+                        .foregroundColor(.white.opacity(0.4))
+                        .font(font: .semiBold, size: 14)
+                )
+                .tint(.white.opacity(0.8))
+                .foregroundStyle(.white.opacity(0.9))
+                .font(font: .semiBold, size: 14)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled(true)
+                .focused($focusedField, equals: .code)
+                .submitLabel(.done)
+                .onSubmit(submitJoin)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
+                .appGlass(in: Capsule())
+
+                Button {
+                    submitJoin()
+                } label: {
+                    Group {
+                        if isJoining {
+                            ProgressView().tint(.white.opacity(0.85))
+                        } else {
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
+                    }
+                    .frame(width: 44, height: 44)
+                    .appGlass(in: Circle())
+                }
+                .buttonStyle(.pressable)
+                .disabled(isJoining || trimmedCode.isEmpty)
             }
         }
     }
@@ -213,12 +269,25 @@ struct OrganizationSwitcherSheet: View {
         newOrgName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var trimmedCode: String {
+        joinCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    }
+
     private func submitCreate() {
         let name = trimmedName
         guard !name.isEmpty, !isCreating else { return }
         AppHaptics.impact(.light)
         onCreate(name)
         newOrgName = ""
-        isNewOrgFocused = false
+        focusedField = nil
+    }
+
+    private func submitJoin() {
+        let code = trimmedCode
+        guard !code.isEmpty, !isJoining else { return }
+        AppHaptics.impact(.light)
+        onJoin(code)
+        joinCode = ""
+        focusedField = nil
     }
 }

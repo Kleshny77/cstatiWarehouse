@@ -39,8 +39,16 @@ struct ArchiveResult {
     let event: ArchiveEvent
 }
 
+/// Скоуп выдачи активных позиций в списке склада.
+/// `mine` — только позиции, за которые отвечает текущий пользователь.
+/// `all` — все позиции организации (доступно только админу/владельцу, бэкенд молча фильтрует обратно к `mine`, если прав нет).
+enum WarehouseScope: String {
+    case mine
+    case all
+}
+
 protocol WarehouseServiceProtocol: AnyObject {
-    func fetchActiveItems(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void)
+    func fetchActiveItems(organizationID: UUID, scope: WarehouseScope, completion: @escaping (Result<[Item], WarehouseError>) -> Void)
     func fetchHistory(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void)
     func fetchArchiveEvents(organizationID: UUID, completion: @escaping (Result<[ArchiveEvent], WarehouseError>) -> Void)
     func fetchCategories(organizationID: UUID, completion: @escaping (Result<[String], WarehouseError>) -> Void)
@@ -51,6 +59,7 @@ protocol WarehouseServiceProtocol: AnyObject {
         quantity: Int,
         reason: ArchiveReason,
         reasonDetail: String,
+        eventID: UUID?,
         completion: @escaping (Result<ArchiveResult, WarehouseError>) -> Void
     )
     func deleteItem(id: UUID, completion: @escaping (Result<Void, WarehouseError>) -> Void)

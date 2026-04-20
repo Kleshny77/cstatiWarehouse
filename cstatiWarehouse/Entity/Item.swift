@@ -17,7 +17,9 @@ struct Item: Identifiable, Hashable {
     var imageURL: URL?
     var createdAt: Date
     var status: ItemStatus
-    
+    var heldByUserID: UUID?
+    var locationAddress: String?
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -27,7 +29,9 @@ struct Item: Identifiable, Hashable {
         expirationDate: Date? = nil,
         imageURL: URL? = nil,
         createdAt: Date = .now,
-        status: ItemStatus = .inStock
+        status: ItemStatus = .inStock,
+        heldByUserID: UUID? = nil,
+        locationAddress: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -38,6 +42,8 @@ struct Item: Identifiable, Hashable {
         self.imageURL = imageURL
         self.createdAt = createdAt
         self.status = status
+        self.heldByUserID = heldByUserID
+        self.locationAddress = locationAddress
     }
     
     func expirationStatus(referenceNow: Date = .now, calendar: Calendar = .current) -> ExpirationStatus {

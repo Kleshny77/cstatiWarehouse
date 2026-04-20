@@ -61,10 +61,11 @@ type RefreshTokenRepository interface {
 	Revoke(ctx context.Context, hash string, at time.Time) error
 }
 
-// ItemFilter позволяет ограничить выдачу ListByOrganization по статусу.
-// Nil статус означает "любой".
+// ItemFilter позволяет ограничить выдачу ListByOrganization.
+// Nil поля означают "любой".
 type ItemFilter struct {
-	Status *domain.ItemStatus
+	Status       *domain.ItemStatus
+	HeldByUserID *uuid.UUID
 }
 
 // ItemRepository — CRUD позиций склада. Все операции работают в scope одной организации.
@@ -93,6 +94,7 @@ type OrganizationRepository interface {
 	// ListByUser возвращает организации, в которых состоит пользователь, вместе с его ролью в каждой.
 	ListByUser(ctx context.Context, userID uuid.UUID) ([]OrganizationWithRole, error)
 	Update(ctx context.Context, id uuid.UUID, patch OrganizationPatch, now time.Time) (*domain.Organization, error)
+	SetOwner(ctx context.Context, id uuid.UUID, newOwnerID uuid.UUID, now time.Time) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
@@ -110,10 +112,59 @@ type OrganizationMemberRepository interface {
 	UpdateRole(ctx context.Context, orgID, userID uuid.UUID, role domain.OrgRole) error
 	FindRole(ctx context.Context, orgID, userID uuid.UUID) (domain.OrgRole, error)
 	ListByOrganization(ctx context.Context, orgID uuid.UUID) ([]domain.OrganizationMember, error)
+	ListWithProfilesByOrganization(ctx context.Context, orgID uuid.UUID) ([]MemberWithProfile, error)
+}
+
+// MemberWithProfile — участник организации вместе с публичным профилем пользователя.
+// Нужен UI: показать имя/аватар, а не голый userID.
+type MemberWithProfile struct {
+	Member    domain.OrganizationMember
+	Name      string
+	Email     string
+	AvatarURL *string
+}
+
+// InviteRepository — CRUD приглашений в организацию.
+type InviteRepository interface {
+	Create(ctx context.Context, invite *domain.Invite) error
+	FindByCode(ctx context.Context, code string) (*domain.Invite, error)
+	FindByID(ctx context.Context, id uuid.UUID) (*domain.Invite, error)
+	ListByOrganization(ctx context.Context, orgID uuid.UUID) ([]domain.Invite, error)
+	IncrementUsed(ctx context.Context, id uuid.UUID) error
+	Revoke(ctx context.Context, id uuid.UUID, at time.Time) error
+}
+
+// InviteCodeGenerator генерирует короткие читаемые коды приглашений.
+type InviteCodeGenerator interface {
+	Generate() (string, error)
 }
 
 // PersonalOrgCreator — узкий порт, который Auth использует для создания персональной
 // организации при регистрации нового пользователя. Реализуется OrganizationsUseCase.
 type PersonalOrgCreator interface {
 	CreatePersonal(ctx context.Context, ownerID uuid.UUID, ownerName string) (*domain.Organization, error)
+}
+
+// EventRepository — CRUD мероприятий организации.
+type EventRepository interface {
+	Create(ctx context.Context, event *domain.Event) error
+	Update(ctx context.Context, event *domain.Event) error
+	FindByID(ctx context.Context, id uuid.UUID) (*domain.Event, error)
+	ListByOrganization(ctx context.Context, orgID uuid.UUID) ([]domain.Event, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// CategoryRepository — справочник категорий, общий на всю организацию.
+type CategoryRepository interface {
+	Create(ctx context.Context, category *domain.Category) error
+	FindByID(ctx context.Context, id uuid.UUID) (*domain.Category, error)
+	FindByName(ctx context.Context, orgID uuid.UUID, name string) (*domain.Category, error)
+	ListByOrganization(ctx context.Context, orgID uuid.UUID) ([]domain.Category, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// ActivityRepository — append-only лог действий внутри организации.
+type ActivityRepository interface {
+	Append(ctx context.Context, entry *domain.ActivityEntry) error
+	ListByOrganization(ctx context.Context, orgID uuid.UUID, limit int) ([]domain.ActivityEntry, error)
 }

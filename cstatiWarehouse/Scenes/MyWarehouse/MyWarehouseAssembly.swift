@@ -18,11 +18,13 @@ final class MyWarehouseAssembly {
         let interactor = MyWarehouseInteractor(
             warehouseService: warehouseService,
             organizationsService: organizationsService,
+            eventsService: AppServices.eventsService(),
             activeOrgStorage: activeOrgStorage
         )
         let router = MyWarehouseRouter(
             appCoordinator: appCoordinator,
-            warehouseService: warehouseService
+            warehouseService: warehouseService,
+            organizationsService: organizationsService
         )
 
         presenter.interactor = interactor

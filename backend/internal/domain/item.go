@@ -43,10 +43,11 @@ type Item struct {
 	Status         ItemStatus
 	ArchiveReason  *ArchiveReason
 	ArchivedAt     *time.Time
-	ExpirationDate *time.Time
-	ImageURL       *string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ExpirationDate  *time.Time
+	ImageURL        *string
+	LocationAddress *string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // IsHeldBy возвращает true, если айтем физически находится у указанного пользователя.

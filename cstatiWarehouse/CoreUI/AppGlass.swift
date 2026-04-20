@@ -25,6 +25,9 @@ struct PressableButtonStyle: ButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            // Глобально расширяем hit-area до всего контейнера label.
+            // Это решает кейсы, когда тач ловится только по тексту/иконке.
+            .contentShape(Rectangle())
             .scaleEffect(configuration.isPressed ? scaleOnPress : 1)
             .opacity(configuration.isPressed ? fadeOnPress : 1)
             .animation(AppAnimation.tap, value: configuration.isPressed)

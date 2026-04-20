@@ -54,6 +54,16 @@ func mapError(err error) (int, string, string) {
 		return http.StatusConflict, "owner_cannot_leave", "owner must transfer ownership or delete the organization"
 	case errors.Is(err, domain.ErrCannotDeletePersonalOrg):
 		return http.StatusConflict, "personal_org_protected", "personal organization cannot be deleted"
+	case errors.Is(err, domain.ErrInviteNotUsable):
+		return http.StatusConflict, "invite_not_usable", "invite is no longer usable"
+	case errors.Is(err, domain.ErrInviteWrongOrg):
+		return http.StatusConflict, "invite_wrong_org", "invite belongs to a different organization"
+	case errors.Is(err, domain.ErrCannotTargetOwner):
+		return http.StatusConflict, "cannot_target_owner", "cannot modify organization owner"
+	case errors.Is(err, domain.ErrCannotTargetSelf):
+		return http.StatusConflict, "cannot_target_self", "cannot perform this action on self"
+	case errors.Is(err, domain.ErrConflict):
+		return http.StatusConflict, "conflict", "conflict"
 	case errors.Is(err, infrajwt.ErrInvalidToken):
 		return http.StatusUnauthorized, "invalid_access_token", "invalid access token"
 	default:

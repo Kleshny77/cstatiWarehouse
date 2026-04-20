@@ -19,37 +19,39 @@ func NewWarehouseHandler(warehouse *usecase.WarehouseUseCase) *WarehouseHandler 
 }
 
 type itemDTO struct {
-	ID             string     `json:"id"`
-	OrganizationID string     `json:"organization_id"`
-	HeldByUserID   string     `json:"held_by_user_id"`
-	Name           string     `json:"name"`
-	Description    string     `json:"description"`
-	CategoryName   string     `json:"category_name"`
-	Quantity       int        `json:"quantity"`
-	Status         string     `json:"status"`
-	ArchiveReason  *string    `json:"archive_reason,omitempty"`
-	ArchivedAt     *time.Time `json:"archived_at,omitempty"`
-	ExpirationDate *time.Time `json:"expiration_date,omitempty"`
-	ImageURL       *string    `json:"image_url,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID              string     `json:"id"`
+	OrganizationID  string     `json:"organization_id"`
+	HeldByUserID    string     `json:"held_by_user_id"`
+	Name            string     `json:"name"`
+	Description     string     `json:"description"`
+	CategoryName    string     `json:"category_name"`
+	Quantity        int        `json:"quantity"`
+	Status          string     `json:"status"`
+	ArchiveReason   *string    `json:"archive_reason,omitempty"`
+	ArchivedAt      *time.Time `json:"archived_at,omitempty"`
+	ExpirationDate  *time.Time `json:"expiration_date,omitempty"`
+	ImageURL        *string    `json:"image_url,omitempty"`
+	LocationAddress *string    `json:"location_address,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 func itemToDTO(i *domain.Item) itemDTO {
 	dto := itemDTO{
-		ID:             i.ID.String(),
-		OrganizationID: i.OrganizationID.String(),
-		HeldByUserID:   i.HeldByUserID.String(),
-		Name:           i.Name,
-		Description:    i.Description,
-		CategoryName:   i.CategoryName,
-		Quantity:       i.Quantity,
-		Status:         string(i.Status),
-		ArchivedAt:     i.ArchivedAt,
-		ExpirationDate: i.ExpirationDate,
-		ImageURL:       i.ImageURL,
-		CreatedAt:      i.CreatedAt,
-		UpdatedAt:      i.UpdatedAt,
+		ID:              i.ID.String(),
+		OrganizationID:  i.OrganizationID.String(),
+		HeldByUserID:    i.HeldByUserID.String(),
+		Name:            i.Name,
+		Description:     i.Description,
+		CategoryName:    i.CategoryName,
+		Quantity:        i.Quantity,
+		Status:          string(i.Status),
+		ArchivedAt:      i.ArchivedAt,
+		ExpirationDate:  i.ExpirationDate,
+		ImageURL:        i.ImageURL,
+		LocationAddress: i.LocationAddress,
+		CreatedAt:       i.CreatedAt,
+		UpdatedAt:       i.UpdatedAt,
 	}
 	if i.ArchiveReason != nil {
 		s := string(*i.ArchiveReason)
@@ -71,41 +73,47 @@ type categoriesResponse struct {
 }
 
 type createItemRequest struct {
-	OrganizationID string     `json:"organization_id"`
-	HeldByUserID   *string    `json:"held_by_user_id,omitempty"`
-	Name           string     `json:"name"`
-	Description    string     `json:"description"`
-	CategoryName   string     `json:"category_name"`
-	Quantity       int        `json:"quantity"`
-	ExpirationDate *time.Time `json:"expiration_date,omitempty"`
-	ImageURL       *string    `json:"image_url,omitempty"`
+	OrganizationID  string     `json:"organization_id"`
+	HeldByUserID    *string    `json:"held_by_user_id,omitempty"`
+	Name            string     `json:"name"`
+	Description     string     `json:"description"`
+	CategoryName    string     `json:"category_name"`
+	Quantity        int        `json:"quantity"`
+	ExpirationDate  *time.Time `json:"expiration_date,omitempty"`
+	ImageURL        *string    `json:"image_url,omitempty"`
+	LocationAddress *string    `json:"location_address,omitempty"`
 }
 
 type updateItemRequest struct {
-	HeldByUserID   *string    `json:"held_by_user_id,omitempty"`
-	Name           string     `json:"name"`
-	Description    string     `json:"description"`
-	CategoryName   string     `json:"category_name"`
-	Quantity       int        `json:"quantity"`
-	ExpirationDate *time.Time `json:"expiration_date,omitempty"`
-	ImageURL       *string    `json:"image_url,omitempty"`
+	HeldByUserID    *string    `json:"held_by_user_id,omitempty"`
+	Name            string     `json:"name"`
+	Description     string     `json:"description"`
+	CategoryName    string     `json:"category_name"`
+	Quantity        int        `json:"quantity"`
+	ExpirationDate  *time.Time `json:"expiration_date,omitempty"`
+	ImageURL        *string    `json:"image_url,omitempty"`
+	LocationAddress *string    `json:"location_address,omitempty"`
 }
 
 type archiveRequest struct {
-	Quantity     int    `json:"quantity"`
-	Reason       string `json:"reason"`
-	ReasonDetail string `json:"reason_detail,omitempty"`
+	Quantity     int     `json:"quantity"`
+	Reason       string  `json:"reason"`
+	ReasonDetail string  `json:"reason_detail,omitempty"`
+	EventID      *string `json:"event_id,omitempty"`
 }
 
 type archiveEventDTO struct {
-	ID               string    `json:"id"`
-	ItemID           string    `json:"item_id"`
-	OrganizationID   string    `json:"organization_id"`
-	ArchivedByUserID string    `json:"archived_by_user_id"`
-	Quantity         int       `json:"quantity"`
-	Reason           string    `json:"reason"`
-	ReasonDetail     string    `json:"reason_detail,omitempty"`
-	ArchivedAt       time.Time `json:"archived_at"`
+	ID                 string    `json:"id"`
+	ItemID             string    `json:"item_id"`
+	OrganizationID     string    `json:"organization_id"`
+	ArchivedByUserID   string    `json:"archived_by_user_id"`
+	ItemName           string    `json:"item_name"`
+	ArchivedByName     string    `json:"archived_by_name"`
+	Quantity           int       `json:"quantity"`
+	Reason             string    `json:"reason"`
+	ReasonDetail       string    `json:"reason_detail,omitempty"`
+	EventID            *string   `json:"event_id,omitempty"`
+	ArchivedAt         time.Time `json:"archived_at"`
 }
 
 type archiveEventsResponse struct {
@@ -143,6 +151,19 @@ func (h *WarehouseHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// scope: "mine" (по умолчанию) ограничивает выдачу позициями, за которые отвечает
+	// текущий пользователь. "all" доступен только админам/владельцу (проверяется в usecase).
+	switch r.URL.Query().Get("scope") {
+	case "", "mine":
+		uid := userID
+		filter.HeldByUserID = &uid
+	case "all":
+		// не навязываем фильтр — usecase сам решит, имеет ли пользователь право.
+	default:
+		writeError(w, r, domain.NewValidationError("invalid scope filter"))
+		return
+	}
+
 	items, err := h.warehouse.List(r.Context(), userID, orgID, filter)
 	if err != nil {
 		writeError(w, r, err)
@@ -177,15 +198,16 @@ func (h *WarehouseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item, err := h.warehouse.Create(r.Context(), usecase.CreateItemInput{
-		UserID:         userID,
-		OrganizationID: orgID,
-		HeldByUserID:   heldBy,
-		Name:           req.Name,
-		Description:    req.Description,
-		CategoryName:   req.CategoryName,
-		Quantity:       req.Quantity,
-		ExpirationDate: req.ExpirationDate,
-		ImageURL:       req.ImageURL,
+		UserID:          userID,
+		OrganizationID:  orgID,
+		HeldByUserID:    heldBy,
+		Name:            req.Name,
+		Description:     req.Description,
+		CategoryName:    req.CategoryName,
+		Quantity:        req.Quantity,
+		ExpirationDate:  req.ExpirationDate,
+		ImageURL:        req.ImageURL,
+		LocationAddress: req.LocationAddress,
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -216,15 +238,16 @@ func (h *WarehouseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item, err := h.warehouse.Update(r.Context(), usecase.UpdateItemInput{
-		ID:             id,
-		UserID:         userID,
-		HeldByUserID:   heldBy,
-		Name:           req.Name,
-		Description:    req.Description,
-		CategoryName:   req.CategoryName,
-		Quantity:       req.Quantity,
-		ExpirationDate: req.ExpirationDate,
-		ImageURL:       req.ImageURL,
+		ID:              id,
+		UserID:          userID,
+		HeldByUserID:    heldBy,
+		Name:            req.Name,
+		Description:     req.Description,
+		CategoryName:    req.CategoryName,
+		Quantity:        req.Quantity,
+		ExpirationDate:  req.ExpirationDate,
+		ImageURL:        req.ImageURL,
+		LocationAddress: req.LocationAddress,
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -253,12 +276,18 @@ func (h *WarehouseHandler) Archive(w http.ResponseWriter, r *http.Request) {
 	if quantity == 0 {
 		quantity = 1
 	}
+	eventID, err := parseOptionalUUID(req.EventID, "event_id")
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
 	item, event, err := h.warehouse.Archive(r.Context(), usecase.ArchiveItemInput{
 		ItemID:       id,
 		UserID:       userID,
 		Quantity:     quantity,
 		Reason:       domain.ArchiveReason(req.Reason),
 		ReasonDetail: req.ReasonDetail,
+		EventID:      eventID,
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -292,16 +321,23 @@ func (h *WarehouseHandler) ArchiveEvents(w http.ResponseWriter, r *http.Request)
 }
 
 func archiveEventToDTO(e *domain.ArchiveEvent) archiveEventDTO {
-	return archiveEventDTO{
-		ID:               e.ID.String(),
-		ItemID:           e.ItemID.String(),
-		OrganizationID:   e.OrganizationID.String(),
-		ArchivedByUserID: e.ArchivedByUserID.String(),
-		Quantity:         e.Quantity,
-		Reason:           string(e.Reason),
-		ReasonDetail:     e.ReasonDetail,
-		ArchivedAt:       e.ArchivedAt,
+	dto := archiveEventDTO{
+		ID:                 e.ID.String(),
+		ItemID:             e.ItemID.String(),
+		OrganizationID:     e.OrganizationID.String(),
+		ArchivedByUserID:   e.ArchivedByUserID.String(),
+		ItemName:           e.ItemName,
+		ArchivedByName:     e.ArchivedByDisplayName,
+		Quantity:           e.Quantity,
+		Reason:             string(e.Reason),
+		ReasonDetail:       e.ReasonDetail,
+		ArchivedAt:         e.ArchivedAt,
 	}
+	if e.EventID != nil {
+		s := e.EventID.String()
+		dto.EventID = &s
+	}
+	return dto
 }
 
 func (h *WarehouseHandler) Delete(w http.ResponseWriter, r *http.Request) {

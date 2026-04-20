@@ -9,6 +9,7 @@ import SwiftUI
 
 struct MyWarehouseView: View {
     @Bindable var presenter: MyWarehousePresenter
+    @Namespace private var scopePickerNamespace
     
     init(presenter: MyWarehousePresenter) {
         self.presenter = presenter
@@ -19,12 +20,17 @@ struct MyWarehouseView: View {
             GradientBackground()
             VStack {
                 topBar
-                    .padding(.bottom, 50)
+                    .padding(.bottom, presenter.canSwitchScope ? 20 : 50)
                     .padding(.horizontal, 20)
+                if presenter.canSwitchScope {
+                    scopePicker
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
+                }
                 searchFilterBar
                     .padding(.horizontal, 20)
                     .padding(.bottom, 10)
-                itemsList
+                content
             }
         }
         .sheet(item: $presenter.editPresentation) { presentation in
@@ -46,12 +52,16 @@ struct MyWarehouseView: View {
                 activeID: presenter.activeOrganization?.id,
                 isLoading: presentation.isLoading,
                 isCreating: presentation.isCreating,
+                isJoining: presentation.isJoining,
                 errorMessage: presentation.errorMessage,
                 onSelect: { summary in
                     presenter.selectOrganization(summary)
                 },
                 onCreate: { name in
                     presenter.createOrganization(name: name)
+                },
+                onJoin: { code in
+                    presenter.joinOrganization(code: code)
                 },
                 onCancel: {
                     presenter.dismissSwitcher()
@@ -65,6 +75,7 @@ struct MyWarehouseView: View {
             ArchiveReasonPickerView(
                 itemName: presentation.item.name,
                 availableQuantity: presentation.item.quantity,
+                orgEvents: presentation.orgEvents,
                 onConfirm: { decision in
                     presenter.confirmArchive(decision: decision)
                 },
@@ -85,6 +96,15 @@ struct MyWarehouseView: View {
                 },
                 onCancel: {
                     presenter.filtersPresentation = nil
+                }
+            )
+        }
+        .sheet(isPresented: $presenter.isArchiveHistoryPresented) {
+            ArchiveHistorySheet(
+                events: presenter.archiveHistoryEvents,
+                isLoading: presenter.isArchiveHistoryLoading,
+                onDismiss: {
+                    presenter.dismissArchiveHistory()
                 }
             )
         }
@@ -233,12 +253,151 @@ struct MyWarehouseView: View {
     }
     
     private var searchFilterBar: some View {
-        HStack {
+        HStack(spacing: 10) {
             searchBar
+            archiveHistoryButton
             filterButton
         }
     }
-    
+
+    private var archiveHistoryButton: some View {
+        Button {
+            presenter.archiveHistoryButtonTapped()
+        } label: {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 50, height: 50)
+                .appGlass(in: Circle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel("История списаний")
+    }
+
+    private var scopePicker: some View {
+        HStack(spacing: 8) {
+            scopeButton(title: "Мои", scope: .mine)
+            scopeButton(title: "Все", scope: .all)
+        }
+        .padding(4)
+        .appGlass(in: Capsule())
+        .appAnimation(AppAnimation.smooth, value: presenter.scope)
+    }
+
+    private func scopeButton(title: String, scope: WarehouseScope) -> some View {
+        let isSelected = presenter.scope == scope
+        return Button {
+            AppHaptics.selection()
+            withAnimation(AppAnimation.smooth) {
+                presenter.selectScope(scope)
+            }
+        } label: {
+            Text(title)
+                .font(font: .semiBold, size: 16)
+                .foregroundStyle(.white.opacity(isSelected ? 1 : 0.55))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background {
+                    if isSelected {
+                        Capsule()
+                            .fill(Color.white.opacity(0.18))
+                            .matchedGeometryEffect(id: "scopePickerSelectedBackground", in: scopePickerNamespace)
+                    }
+                }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.pressable)
+        .appAnimation(AppAnimation.snap, value: presenter.scope)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if presenter.shouldShowSkeleton {
+            skeletonList
+        } else if presenter.sections.isEmpty {
+            emptyState
+        } else {
+            itemsList
+        }
+    }
+
+    private var skeletonList: some View {
+        List {
+            Section {
+                ForEach(0..<4, id: \.self) { _ in
+                    WarehouseItemCard(item: Self.skeletonItem)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .redacted(reason: .placeholder)
+                }
+            } header: {
+                HStack {
+                    Text("загрузка")
+                        .font(font: .semiBold, size: 20)
+                        .secondaryTextStyle()
+                    Spacer()
+                }
+                .redacted(reason: .placeholder)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .allowsHitTesting(false)
+    }
+
+    private static let skeletonItem = Item(
+        name: "Placeholder name",
+        description: "Placeholder description text for the item card",
+        categoryName: "placeholder",
+        quantity: 1
+    )
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: emptyStateIcon)
+                .font(.system(size: 48, weight: .light))
+                .foregroundStyle(.white.opacity(0.4))
+            Text(emptyStateTitle)
+                .font(font: .semiBold, size: 20)
+                .defaultTextStyle()
+                .multilineTextAlignment(.center)
+            Text(emptyStateSubtitle)
+                .font(font: .regular, size: 15)
+                .secondaryTextStyle()
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var emptyStateIcon: String {
+        if isFilteringOrSearching { return "magnifyingglass" }
+        return presenter.scope == .mine ? "tray" : "shippingbox"
+    }
+
+    private var emptyStateTitle: String {
+        if isFilteringOrSearching { return "Ничего не найдено" }
+        switch presenter.scope {
+        case .mine: return "На вас пока ничего не записано"
+        case .all: return "На складе пусто"
+        }
+    }
+
+    private var emptyStateSubtitle: String {
+        if isFilteringOrSearching { return "Попробуйте изменить поиск или фильтры" }
+        switch presenter.scope {
+        case .mine: return "Когда кто-то выдаст вам позицию или вы добавите свою, она появится здесь"
+        case .all: return "Добавьте первую позицию — и она появится здесь"
+        }
+    }
+
+    private var isFilteringOrSearching: Bool {
+        !presenter.searchText.trimmingCharacters(in: .whitespaces).isEmpty || presenter.isFiltersActive
+    }
+
     private var itemsList: some View {
         List {
             ForEach(presenter.sections) { section in

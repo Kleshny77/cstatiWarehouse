@@ -18,13 +18,19 @@ protocol MyWarehouseRouterProtocol: AnyObject {
 
 final class MyWarehouseRouter: MyWarehouseRouterProtocol {
     // MARK: Properties
-    
+
     private weak var appCoordinator: AppCoordinatorProtocol?
     private let warehouseService: WarehouseServiceProtocol
-    
-    init(appCoordinator: AppCoordinatorProtocol, warehouseService: WarehouseServiceProtocol) {
+    private let organizationsService: OrganizationsServiceProtocol
+
+    init(
+        appCoordinator: AppCoordinatorProtocol,
+        warehouseService: WarehouseServiceProtocol,
+        organizationsService: OrganizationsServiceProtocol
+    ) {
         self.appCoordinator = appCoordinator
         self.warehouseService = warehouseService
+        self.organizationsService = organizationsService
     }
     
     // MARK: Public Methods
@@ -43,6 +49,7 @@ final class MyWarehouseRouter: MyWarehouseRouterProtocol {
                 mode: mode,
                 organizationID: organizationID,
                 warehouseService: warehouseService,
+                organizationsService: organizationsService,
                 onFinish: onFinish
             )
         )

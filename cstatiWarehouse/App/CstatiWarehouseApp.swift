@@ -11,6 +11,9 @@ import TelegramLogin
 @main
 struct CstatiWarehouseApp: App {
     init() {
+        // Окно чёрное до первого рендера SwiftUI — убирает белую вспышку при запуске.
+        UIWindow.appearance().backgroundColor = .black
+
         if TelegramAuthConfig.isConfigured {
             TelegramLogin.configure(
                 clientId: TelegramAuthConfig.clientId,
@@ -27,6 +30,9 @@ struct CstatiWarehouseApp: App {
                 .onOpenURL { url in
                     TelegramLogin.handle(url)
                 }
+                // Меняет background UIHostingController на тёмный до первого рендера —
+                // убирает белую вспышку при запуске приложения.
+                .preferredColorScheme(.dark)
         }
     }
 }

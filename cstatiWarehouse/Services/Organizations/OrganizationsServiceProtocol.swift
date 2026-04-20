@@ -12,6 +12,7 @@ enum OrganizationsError: Error {
     case forbidden
     case validationError(String)
     case conflict(String)
+    case inviteNotUsable
     case networkError(Error?)
     case serverError(String)
     case unauthorized
@@ -26,6 +27,8 @@ enum OrganizationsError: Error {
             return text
         case .conflict(let text):
             return text.isEmpty ? "Операция недоступна" : text
+        case .inviteNotUsable:
+            return "Код приглашения больше не действителен"
         case .networkError:
             return "Ошибка сети. Проверьте подключение."
         case .serverError(let text):
@@ -44,4 +47,15 @@ protocol OrganizationsServiceProtocol: AnyObject {
     func deleteOrganization(id: UUID, completion: @escaping (Result<Void, OrganizationsError>) -> Void)
     func fetchMembers(organizationID: UUID, completion: @escaping (Result<[OrganizationMember], OrganizationsError>) -> Void)
     func leaveOrganization(id: UUID, completion: @escaping (Result<Void, OrganizationsError>) -> Void)
+
+    // MARK: Members management
+    func removeMember(organizationID: UUID, userID: UUID, completion: @escaping (Result<Void, OrganizationsError>) -> Void)
+    func changeMemberRole(organizationID: UUID, userID: UUID, role: OrgRole, completion: @escaping (Result<Void, OrganizationsError>) -> Void)
+    func transferOwnership(organizationID: UUID, newOwnerID: UUID, completion: @escaping (Result<Void, OrganizationsError>) -> Void)
+
+    // MARK: Invites
+    func listInvites(organizationID: UUID, completion: @escaping (Result<[OrganizationInvite], OrganizationsError>) -> Void)
+    func createInvite(organizationID: UUID, expiresInDays: Int?, maxUses: Int?, completion: @escaping (Result<OrganizationInvite, OrganizationsError>) -> Void)
+    func revokeInvite(organizationID: UUID, inviteID: UUID, completion: @escaping (Result<Void, OrganizationsError>) -> Void)
+    func joinByCode(_ code: String, completion: @escaping (Result<OrganizationSummary, OrganizationsError>) -> Void)
 }

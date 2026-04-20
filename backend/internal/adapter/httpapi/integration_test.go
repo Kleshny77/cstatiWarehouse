@@ -15,6 +15,7 @@ import (
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/adapter/httpapi"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/adapter/repo"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/clock"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/invitecode"
 	infrajwt "github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/jwt"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/password"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/testsupport"
@@ -36,7 +37,14 @@ func newTestServer(t *testing.T) *testServer {
 
 	orgsRepo := repo.NewOrganizationRepo(pool)
 	membersRepo := repo.NewMemberRepo(pool)
-	orgsUC := usecase.NewOrganizationsUseCase(orgsRepo, membersRepo, clock.Real{})
+	invitesRepo := repo.NewInviteRepo(pool)
+	eventsRepo := repo.NewEventRepo(pool)
+	categoriesRepo := repo.NewCategoryRepo(pool)
+	activityRepo := repo.NewActivityRepo(pool)
+	itemsRepo := repo.NewItemRepo(pool)
+	inviteGen := invitecode.NewGenerator(8)
+	orgsUC := usecase.NewOrganizationsUseCase(orgsRepo, membersRepo, invitesRepo, inviteGen, clock.Real{}).
+		WithActivity(activityRepo)
 
 	authUC := usecase.NewAuthUseCase(
 		repo.NewUserRepo(pool),
@@ -45,12 +53,20 @@ func newTestServer(t *testing.T) *testServer {
 		hasher, issuer, refreshGen, nil, clock.Real{},
 		usecase.AuthConfig{RefreshTTL: time.Hour, TelegramConfigured: false},
 	)
-	warehouseUC := usecase.NewWarehouseUseCase(repo.NewItemRepo(pool), membersRepo, clock.Real{})
+	warehouseUC := usecase.NewWarehouseUseCase(itemsRepo, membersRepo, clock.Real{}).
+		WithActivity(activityRepo).
+		WithEvents(eventsRepo)
+	eventsUC := usecase.NewEventsUseCase(eventsRepo, membersRepo, activityRepo, clock.Real{})
+	categoriesUC := usecase.NewCategoriesUseCase(categoriesRepo, membersRepo, activityRepo, clock.Real{})
+	activityUC := usecase.NewActivityUseCase(activityRepo, membersRepo)
 
 	handler := httpapi.NewRouter(httpapi.RouterDeps{
 		Auth:          httpapi.NewAuthHandler(authUC),
 		Warehouse:     httpapi.NewWarehouseHandler(warehouseUC),
 		Organizations: httpapi.NewOrganizationHandler(orgsUC),
+		Events:        httpapi.NewEventsHandler(eventsUC),
+		Categories:    httpapi.NewCategoriesHandler(categoriesUC),
+		Activity:      httpapi.NewActivityHandler(activityUC),
 		Tokens:        issuer,
 	})
 
@@ -403,5 +419,101 @@ func TestIntegrationHTTP_Organizations(t *testing.T) {
 	status, _ = s.do("DELETE", "/organizations/"+orgID, bearer(access), nil)
 	if status != http.StatusNoContent {
 		t.Errorf("delete org failed: %d", status)
+	}
+}
+
+func TestIntegrationHTTP_EventsCategoriesActivity(t *testing.T) {
+	s := newTestServer(t)
+
+	reg := s.registerUser("d-owner@example.com", "Dueсу", "supersecret")
+	access, _ := reg["access_token"].(string)
+	personal := s.personalOrgID(access)
+
+	// Создать категорию.
+	status, body := s.do("POST", "/org-categories", bearer(access), map[string]any{
+		"organization_id": personal,
+		"name":            "Напитки",
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create category failed: %d %+v", status, body)
+	}
+	cat, _ := body["category"].(map[string]any)
+	catID, _ := cat["id"].(string)
+
+	status, body = s.do("GET", "/org-categories?organizationId="+personal, bearer(access), nil)
+	if status != http.StatusOK || len(body["categories"].([]any)) != 1 {
+		t.Fatalf("list categories failed: %d %+v", status, body)
+	}
+
+	// Дубликат — 409.
+	status, _ = s.do("POST", "/org-categories", bearer(access), map[string]any{
+		"organization_id": personal,
+		"name":            "напитки",
+	})
+	if status != http.StatusConflict {
+		t.Errorf("duplicate category must be 409, got %d", status)
+	}
+
+	// Создать event.
+	status, body = s.do("POST", "/events", bearer(access), map[string]any{
+		"organization_id": personal,
+		"name":            "Квиз",
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create event failed: %d %+v", status, body)
+	}
+	ev, _ := body["event"].(map[string]any)
+	eventID, _ := ev["id"].(string)
+
+	status, body = s.do("GET", "/events?organizationId="+personal, bearer(access), nil)
+	if status != http.StatusOK || len(body["events"].([]any)) != 1 {
+		t.Fatalf("list events failed: %d %+v", status, body)
+	}
+
+	// Создать item и списать на мероприятие по event_id.
+	status, body = s.do("POST", "/items", bearer(access), map[string]any{
+		"organization_id": personal,
+		"name":            "Сок",
+		"quantity":        2,
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create item failed: %d %+v", status, body)
+	}
+	item, _ := body["item"].(map[string]any)
+	itemID, _ := item["id"].(string)
+
+	status, body = s.do("POST", fmt.Sprintf("/items/%s/archive", itemID), bearer(access), map[string]any{
+		"quantity": 1,
+		"reason":   "usedAtEvent",
+		"event_id": eventID,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("archive by event failed: %d %+v", status, body)
+	}
+	archivedEvent, _ := body["event"].(map[string]any)
+	if id, _ := archivedEvent["event_id"].(string); id != eventID {
+		t.Errorf("archive event must reference event_id, got %+v", archivedEvent)
+	}
+
+	// Activity log должен содержать минимум: category.created, event.created, item.created, item.archived.
+	status, body = s.do("GET", "/organizations/"+personal+"/activity", bearer(access), nil)
+	if status != http.StatusOK {
+		t.Fatalf("activity failed: %d %+v", status, body)
+	}
+	entries, _ := body["entries"].([]any)
+	if len(entries) < 4 {
+		t.Errorf("expected at least 4 activity entries, got %d: %+v", len(entries), entries)
+	}
+
+	// Удаление категории.
+	status, _ = s.do("DELETE", "/org-categories/"+catID, bearer(access), nil)
+	if status != http.StatusNoContent {
+		t.Errorf("delete category failed: %d", status)
+	}
+
+	// Удаление event.
+	status, _ = s.do("DELETE", "/events/"+eventID, bearer(access), nil)
+	if status != http.StatusNoContent {
+		t.Errorf("delete event failed: %d", status)
 	}
 }

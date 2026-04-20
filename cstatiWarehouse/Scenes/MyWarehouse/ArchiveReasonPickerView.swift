@@ -12,6 +12,15 @@ struct ArchiveDecision: Equatable {
     let quantity: Int
     let reason: ArchiveReason
     let detail: String
+    /// При «Использовано на мероприятии» — выбранное мероприятие организации (если есть).
+    let eventID: UUID?
+
+    init(quantity: Int, reason: ArchiveReason, detail: String, eventID: UUID? = nil) {
+        self.quantity = quantity
+        self.reason = reason
+        self.detail = detail
+        self.eventID = eventID
+    }
 }
 
 struct ArchiveReasonPickerView: View {
@@ -20,12 +29,15 @@ struct ArchiveReasonPickerView: View {
 
     let itemName: String
     let availableQuantity: Int
+    /// Мероприятия активной организации — подсказки для причины «на мероприятии».
+    var orgEvents: [OrgEvent] = []
     let onConfirm: (ArchiveDecision) -> Void
     let onCancel: () -> Void
 
     @State private var quantity: Int
     @State private var selectedReason: ArchiveReason = .expired
     @State private var detail: String = ""
+    @State private var selectedEventID: UUID?
     @FocusState private var isDetailFocused: Bool
 
     // MARK: Lifecycle
@@ -33,11 +45,13 @@ struct ArchiveReasonPickerView: View {
     init(
         itemName: String,
         availableQuantity: Int,
+        orgEvents: [OrgEvent] = [],
         onConfirm: @escaping (ArchiveDecision) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.itemName = itemName
         self.availableQuantity = max(1, availableQuantity)
+        self.orgEvents = orgEvents
         self.onConfirm = onConfirm
         self.onCancel = onCancel
         _quantity = State(initialValue: max(1, availableQuantity))
@@ -51,9 +65,10 @@ struct ArchiveReasonPickerView: View {
                     header
                     quantitySection
                     reasonList
-                    if selectedReason.requiresDetail {
-                        detailField
+                    if selectedReason == .usedAtEvent, !orgEvents.isEmpty {
+                        eventsSection
                     }
+                    detailSection
                     actions
                 }
                 .padding(.horizontal, 20)
@@ -155,6 +170,9 @@ struct ArchiveReasonPickerView: View {
         return Button {
             AppHaptics.selection()
             selectedReason = reason
+            if reason != .usedAtEvent {
+                selectedEventID = nil
+            }
             if !reason.requiresDetail {
                 detail = ""
                 isDetailFocused = false
@@ -186,6 +204,93 @@ struct ArchiveReasonPickerView: View {
             .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.pressable)
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var eventsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Мероприятие")
+                .foregroundStyle(.white.opacity(0.8))
+                .font(font: .semiBold, size: 14)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(orgEvents) { event in
+                        eventChip(event)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            Text("Или укажите название в поле ниже")
+                .font(font: .semiBold, size: 11)
+                .foregroundStyle(.white.opacity(0.45))
+        }
+    }
+
+    private func eventChip(_ event: OrgEvent) -> some View {
+        let isSelected = selectedEventID == event.id
+        return Button {
+            AppHaptics.selection()
+            selectedEventID = isSelected ? nil : event.id
+            if selectedEventID != nil {
+                detail = ""
+            }
+        } label: {
+            Text(event.name)
+                .font(font: .semiBold, size: 13)
+                .foregroundStyle(isSelected ? .white : .white.opacity(0.8))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(minHeight: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(isSelected ? Color.white.opacity(0.15) : Color.clear)
+                )
+                .appGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.pressable)
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    /// Поля подробностей в зависимости от причины.
+    private var detailSection: some View {
+        Group {
+            if selectedReason == .usedAtEvent {
+                if orgEvents.isEmpty {
+                    detailField
+                } else if selectedEventID == nil {
+                    detailField
+                } else {
+                    optionalCommentField
+                }
+            } else if selectedReason.requiresDetail {
+                detailField
+            }
+        }
+    }
+
+    private var optionalCommentField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Комментарий (необязательно)")
+                .foregroundStyle(.white.opacity(0.8))
+                .font(font: .semiBold, size: 14)
+            TextField(
+                "",
+                text: $detail,
+                prompt: Text("Напр. подразделение или заметка")
+                    .foregroundColor(.white.opacity(0.4))
+                    .font(font: .semiBold, size: 14)
+            )
+            .focused($isDetailFocused)
+            .tint(.white.opacity(0.8))
+            .foregroundStyle(.white.opacity(0.9))
+            .font(font: .semiBold, size: 14)
+            .padding(.horizontal, 17)
+            .frame(height: 47)
+            .frame(maxWidth: .infinity)
+            .appGlass()
+            .autocapitalization(.sentences)
+        }
+        .transition(.opacity)
     }
 
     private var detailField: some View {
@@ -206,6 +311,7 @@ struct ArchiveReasonPickerView: View {
             .font(font: .semiBold, size: 14)
             .padding(.horizontal, 17)
             .frame(height: 47)
+            .frame(maxWidth: .infinity)
             .appGlass()
             .autocapitalization(.sentences)
         }
@@ -225,6 +331,7 @@ struct ArchiveReasonPickerView: View {
                     .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.pressable)
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .disabled(!canSubmit)
             .opacity(canSubmit ? 1 : 0.5)
 
@@ -239,6 +346,7 @@ struct ArchiveReasonPickerView: View {
                     .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.pressable)
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .padding(.top, 8)
     }
@@ -247,6 +355,11 @@ struct ArchiveReasonPickerView: View {
 
     private var canSubmit: Bool {
         guard quantity > 0, quantity <= availableQuantity else { return false }
+        if selectedReason == .usedAtEvent {
+            if selectedEventID != nil { return true }
+            let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !trimmed.isEmpty
+        }
         if selectedReason.requiresDetail,
            detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return false
@@ -264,11 +377,14 @@ struct ArchiveReasonPickerView: View {
     private func submit() {
         guard canSubmit else { return }
         AppHaptics.impact(.medium)
+        let trimmedDetail = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let eventID = selectedReason == .usedAtEvent ? selectedEventID : nil
         onConfirm(
             ArchiveDecision(
                 quantity: quantity,
                 reason: selectedReason,
-                detail: detail.trimmingCharacters(in: .whitespacesAndNewlines)
+                detail: trimmedDetail,
+                eventID: eventID
             )
         )
     }

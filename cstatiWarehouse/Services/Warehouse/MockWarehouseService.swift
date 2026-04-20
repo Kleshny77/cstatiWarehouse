@@ -10,13 +10,17 @@ import Foundation
 final class MockWarehouseService: WarehouseServiceProtocol {
     static let shared = MockWarehouseService()
 
+    /// Фиксированный ID организации для сидов из `init(seed:)` — нужен тестам и превью.
+    static let defaultOrganizationID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+
     /// Каждая позиция хранится в привязке к organizationID, чтобы мок честно реагировал
     /// на переключение активной организации.
     private var items: [UUID: (orgID: UUID, item: Item)] = [:]
     private var events: [(orgID: UUID, event: ArchiveEvent)] = []
+    private let mockActorID = UUID(uuidString: "00000000-0000-0000-0000-0000000000AA")!
 
     init(seed: [Item] = MockWarehouseService.defaultSeed()) {
-        let defaultOrg = UUID()
+        let defaultOrg = Self.defaultOrganizationID
         for item in seed {
             items[item.id] = (defaultOrg, item)
         }
@@ -24,11 +28,13 @@ final class MockWarehouseService: WarehouseServiceProtocol {
 
     // MARK: Public Methods
 
-    func fetchActiveItems(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
+    func fetchActiveItems(organizationID: UUID, scope: WarehouseScope, completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
         respond {
             let active = self.items.values
                 .filter { $0.orgID == organizationID && !$0.item.status.isArchived }
                 .map(\.item)
+            // Мок не знает о ролях: scope игнорируется, но сигнатура нужна для совместимости с протоколом.
+            _ = scope
             completion(.success(active.sorted { $0.createdAt > $1.createdAt }))
         }
     }
@@ -91,6 +97,7 @@ final class MockWarehouseService: WarehouseServiceProtocol {
         quantity: Int,
         reason: ArchiveReason,
         reasonDetail: String,
+        eventID: UUID?,
         completion: @escaping (Result<ArchiveResult, WarehouseError>) -> Void
     ) {
         respond {
@@ -107,8 +114,13 @@ final class MockWarehouseService: WarehouseServiceProtocol {
                 completion(.failure(.validationError("Недостаточно единиц на складе")))
                 return
             }
-            if reason.requiresDetail,
-               reasonDetail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let trimmed = reasonDetail.trimmingCharacters(in: .whitespacesAndNewlines)
+            if reason == .usedAtEvent {
+                if eventID == nil && trimmed.isEmpty {
+                    completion(.failure(.validationError("Выберите мероприятие или укажите название")))
+                    return
+                }
+            } else if reason.requiresDetail, trimmed.isEmpty {
                 completion(.failure(.validationError("Укажите подробности")))
                 return
             }
@@ -123,10 +135,13 @@ final class MockWarehouseService: WarehouseServiceProtocol {
             let event = ArchiveEvent(
                 id: UUID(),
                 itemID: id,
+                itemName: item.name,
                 quantity: quantity,
                 reason: reason,
                 reasonDetail: reasonDetail,
-                archivedAt: now
+                archivedAt: now,
+                archivedByUserID: self.mockActorID,
+                archivedByDisplayName: "Вы"
             )
             self.events.append((existing.orgID, event))
 

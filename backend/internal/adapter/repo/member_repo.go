@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/usecase"
 )
 
 type MemberRepo struct {
@@ -70,6 +71,42 @@ func (r *MemberRepo) FindRole(ctx context.Context, orgID, userID uuid.UUID) (dom
 		return "", err
 	}
 	return domain.OrgRole(role), nil
+}
+
+func (r *MemberRepo) ListWithProfilesByOrganization(ctx context.Context, orgID uuid.UUID) ([]usecase.MemberWithProfile, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT m.organization_id, m.user_id, m.role, m.joined_at, u.name, u.email, u.avatar_url
+		FROM organization_members m
+		JOIN users u ON u.id = m.user_id
+		WHERE m.organization_id = $1
+		ORDER BY m.joined_at ASC
+	`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []usecase.MemberWithProfile
+	for rows.Next() {
+		var (
+			m      domain.OrganizationMember
+			role   string
+			name   string
+			email  string
+			avatar *string
+		)
+		if err := rows.Scan(&m.OrganizationID, &m.UserID, &role, &m.JoinedAt, &name, &email, &avatar); err != nil {
+			return nil, err
+		}
+		m.Role = domain.OrgRole(role)
+		out = append(out, usecase.MemberWithProfile{
+			Member:    m,
+			Name:      name,
+			Email:     email,
+			AvatarURL: avatar,
+		})
+	}
+	return out, rows.Err()
 }
 
 func (r *MemberRepo) ListByOrganization(ctx context.Context, orgID uuid.UUID) ([]domain.OrganizationMember, error) {

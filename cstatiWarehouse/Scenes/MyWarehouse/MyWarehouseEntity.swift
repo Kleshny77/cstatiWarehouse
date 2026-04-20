@@ -20,6 +20,7 @@ struct SwitcherPresentation: Identifiable {
     var organizations: [OrganizationSummary]
     var isLoading: Bool
     var isCreating: Bool
+    var isJoining: Bool
     var errorMessage: String?
 }
 
@@ -36,6 +37,7 @@ enum ItemEditMode: Hashable {
 struct ArchivePresentation: Identifiable, Hashable {
     var id: UUID { item.id }
     let item: Item
+    var orgEvents: [OrgEvent] = []
 }
 
 struct DeleteConfirmation: Identifiable, Hashable {

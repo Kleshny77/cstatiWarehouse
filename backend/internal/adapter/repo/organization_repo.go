@@ -82,6 +82,19 @@ func (r *OrganizationRepo) Update(ctx context.Context, id uuid.UUID, patch useca
 	return r.FindByID(ctx, id)
 }
 
+func (r *OrganizationRepo) SetOwner(ctx context.Context, id, newOwnerID uuid.UUID, now time.Time) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE organizations SET owner_id = $2, updated_at = $3 WHERE id = $1
+	`, id, newOwnerID, now)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
 func (r *OrganizationRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	tag, err := r.pool.Exec(ctx, `DELETE FROM organizations WHERE id = $1`, id)
 	if err != nil {

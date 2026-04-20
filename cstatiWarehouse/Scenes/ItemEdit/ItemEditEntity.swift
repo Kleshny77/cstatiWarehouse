@@ -19,6 +19,10 @@ struct ItemEditDraft {
     var existingImageURL: URL?
     /// Выбранное пользователем новое фото; если задано — перекрывает `existingImageURL` при сохранении.
     var pickedImage: UIImage?
+    /// Адрес размещения позиции (необязательно).
+    var locationAddress: String
+    /// Текущий держатель позиции. В режиме create задаётся снаружи (текущий пользователь).
+    var holderID: UUID?
 
     static func from(item: Item) -> ItemEditDraft {
         ItemEditDraft(
@@ -29,7 +33,9 @@ struct ItemEditDraft {
             hasShelfLife: item.expirationDate != nil,
             expirationDate: item.expirationDate ?? .now,
             existingImageURL: item.imageURL,
-            pickedImage: nil
+            pickedImage: nil,
+            locationAddress: item.locationAddress ?? "",
+            holderID: item.heldByUserID
         )
     }
 
@@ -42,7 +48,9 @@ struct ItemEditDraft {
             hasShelfLife: false,
             expirationDate: .now,
             existingImageURL: nil,
-            pickedImage: nil
+            pickedImage: nil,
+            locationAddress: "",
+            holderID: nil
         )
     }
 }

@@ -84,6 +84,40 @@ func TestWarehouseUseCase_Update_OnlyMembers(t *testing.T) {
 	}
 }
 
+func TestWarehouseUseCase_CreateAndUpdate_LocationAddress(t *testing.T) {
+	uc, _, _, _, userID, orgID := newWarehouseUC(t)
+
+	addr := "  ул. Пушкина, 10  "
+	created, err := uc.Create(context.Background(), CreateItemInput{
+		UserID:          userID,
+		OrganizationID:  orgID,
+		Name:            "A",
+		Quantity:        1,
+		LocationAddress: &addr,
+	})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if created.LocationAddress == nil || *created.LocationAddress != "ул. Пушкина, 10" {
+		t.Fatalf("expected trimmed address, got %+v", created.LocationAddress)
+	}
+
+	empty := "   "
+	updated, err := uc.Update(context.Background(), UpdateItemInput{
+		ID:              created.ID,
+		UserID:          userID,
+		Name:            "A",
+		Quantity:        1,
+		LocationAddress: &empty,
+	})
+	if err != nil {
+		t.Fatalf("update failed: %v", err)
+	}
+	if updated.LocationAddress != nil {
+		t.Fatalf("expected nil address after empty string, got %+v", updated.LocationAddress)
+	}
+}
+
 func TestWarehouseUseCase_Archive_FullAndValidation(t *testing.T) {
 	uc, _, _, clock, userID, orgID := newWarehouseUC(t)
 	created, err := uc.Create(context.Background(), CreateItemInput{UserID: userID, OrganizationID: orgID, Name: "A", Quantity: 1})
@@ -250,5 +284,74 @@ func TestWarehouseUseCase_ListAndCategories(t *testing.T) {
 	// Попытка получить список чужой организации → forbidden.
 	if _, err := uc.List(context.Background(), userID, otherOrg, ItemFilter{}); !errors.Is(err, domain.ErrForbidden) {
 		t.Errorf("expected ErrForbidden for non-member list, got %v", err)
+	}
+}
+
+func TestWarehouseUseCase_List_MemberSeesOnlyOwnHoldings(t *testing.T) {
+	uc, _, members, clock, ownerID, orgID := newWarehouseUC(t)
+
+	memberID := uuid.New()
+	if err := members.Add(context.Background(), &domain.OrganizationMember{
+		OrganizationID: orgID,
+		UserID:         memberID,
+		Role:           domain.OrgRoleMember,
+		JoinedAt:       clock.Now(),
+	}); err != nil {
+		t.Fatalf("seed member failed: %v", err)
+	}
+
+	// Owner создаёт две позиции: одну на себя, вторую — на member.
+	_, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: ownerID, OrganizationID: orgID, Name: "Кола", CategoryName: "Напитки", Quantity: 1,
+	})
+	if err != nil {
+		t.Fatalf("create owner item: %v", err)
+	}
+	clock.Advance(time.Second)
+	held := memberID
+	_, err = uc.Create(context.Background(), CreateItemInput{
+		UserID: ownerID, OrganizationID: orgID, HeldByUserID: &held,
+		Name: "Пицца", CategoryName: "Еда", Quantity: 1,
+	})
+	if err != nil {
+		t.Fatalf("create member item: %v", err)
+	}
+
+	// Член видит только то, что на нём.
+	memberList, err := uc.List(context.Background(), memberID, orgID, ItemFilter{})
+	if err != nil {
+		t.Fatalf("member list failed: %v", err)
+	}
+	if len(memberList) != 1 || memberList[0].Name != "Пицца" {
+		t.Errorf("member must see only own holdings, got %+v", memberList)
+	}
+
+	// Член не может обойти ограничение через scope — usecase молча перепишет фильтр.
+	other := ownerID
+	hacked, err := uc.List(context.Background(), memberID, orgID, ItemFilter{HeldByUserID: &other})
+	if err != nil {
+		t.Fatalf("member hacked list failed: %v", err)
+	}
+	if len(hacked) != 1 || hacked[0].Name != "Пицца" {
+		t.Errorf("member must not be able to override HeldByUserID, got %+v", hacked)
+	}
+
+	// Владелец видит обе позиции.
+	ownerList, err := uc.List(context.Background(), ownerID, orgID, ItemFilter{})
+	if err != nil {
+		t.Fatalf("owner list failed: %v", err)
+	}
+	if len(ownerList) != 2 {
+		t.Errorf("owner must see all org items, got %d", len(ownerList))
+	}
+
+	// Владелец может явно запросить "мои" — получит только свою позицию.
+	uid := ownerID
+	ownerMine, err := uc.List(context.Background(), ownerID, orgID, ItemFilter{HeldByUserID: &uid})
+	if err != nil {
+		t.Fatalf("owner mine list failed: %v", err)
+	}
+	if len(ownerMine) != 1 || ownerMine[0].Name != "Кола" {
+		t.Errorf("owner mine list unexpected: %+v", ownerMine)
 	}
 }

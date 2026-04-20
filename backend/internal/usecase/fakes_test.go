@@ -273,6 +273,9 @@ func (r *fakeItemRepo) ListByOrganization(ctx context.Context, orgID uuid.UUID, 
 		if filter.Status != nil && i.Status != *filter.Status {
 			continue
 		}
+		if filter.HeldByUserID != nil && i.HeldByUserID != *filter.HeldByUserID {
+			continue
+		}
 		out = append(out, *i)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
@@ -307,7 +310,11 @@ func (r *fakeItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID) (
 	var out []domain.ArchiveEvent
 	for _, e := range r.events {
 		if e.OrganizationID == orgID {
-			out = append(out, e)
+			ev := e
+			if item, ok := r.items[e.ItemID]; ok {
+				ev.ItemName = item.Name
+			}
+			out = append(out, ev)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ArchivedAt.After(out[j].ArchivedAt) })
@@ -404,6 +411,18 @@ func (r *fakeOrgRepo) Update(ctx context.Context, id uuid.UUID, patch Organizati
 	return &clone, nil
 }
 
+func (r *fakeOrgRepo) SetOwner(ctx context.Context, id, newOwnerID uuid.UUID, now time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	o, ok := r.orgs[id]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	o.OwnerID = newOwnerID
+	o.UpdatedAt = now
+	return nil
+}
+
 func (r *fakeOrgRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -486,6 +505,284 @@ func (r *fakeMemberRepo) ListByOrganization(ctx context.Context, orgID uuid.UUID
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].JoinedAt.Before(out[j].JoinedAt) })
+	return out, nil
+}
+
+func (r *fakeMemberRepo) ListWithProfilesByOrganization(ctx context.Context, orgID uuid.UUID) ([]MemberWithProfile, error) {
+	members, err := r.ListByOrganization(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MemberWithProfile, 0, len(members))
+	for _, m := range members {
+		out = append(out, MemberWithProfile{
+			Member: m,
+			Name:   m.UserID.String(),
+			Email:  m.UserID.String() + "@example.com",
+		})
+	}
+	return out, nil
+}
+
+// MARK: InviteRepository + generator
+
+type fakeInviteRepo struct {
+	mu      sync.Mutex
+	invites map[uuid.UUID]*domain.Invite
+}
+
+func newFakeInviteRepo() *fakeInviteRepo {
+	return &fakeInviteRepo{invites: map[uuid.UUID]*domain.Invite{}}
+}
+
+func (r *fakeInviteRepo) Create(ctx context.Context, invite *domain.Invite) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	clone := *invite
+	r.invites[invite.ID] = &clone
+	return nil
+}
+
+func (r *fakeInviteRepo) FindByCode(ctx context.Context, code string) (*domain.Invite, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, inv := range r.invites {
+		if inv.Code == code {
+			clone := *inv
+			return &clone, nil
+		}
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (r *fakeInviteRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Invite, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	inv, ok := r.invites[id]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	clone := *inv
+	return &clone, nil
+}
+
+func (r *fakeInviteRepo) ListByOrganization(ctx context.Context, orgID uuid.UUID) ([]domain.Invite, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []domain.Invite
+	for _, inv := range r.invites {
+		if inv.OrganizationID == orgID {
+			out = append(out, *inv)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
+}
+
+func (r *fakeInviteRepo) IncrementUsed(ctx context.Context, id uuid.UUID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	inv, ok := r.invites[id]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	inv.UsedCount++
+	return nil
+}
+
+func (r *fakeInviteRepo) Revoke(ctx context.Context, id uuid.UUID, at time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	inv, ok := r.invites[id]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	if inv.RevokedAt != nil {
+		return domain.ErrNotFound
+	}
+	inv.RevokedAt = &at
+	return nil
+}
+
+type fakeInviteGen struct {
+	mu      sync.Mutex
+	counter int
+}
+
+func newFakeInviteGen() *fakeInviteGen { return &fakeInviteGen{} }
+
+func (g *fakeInviteGen) Generate() (string, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.counter++
+	return "CODE" + strconv.Itoa(g.counter), nil
+}
+
+// MARK: EventRepository
+
+type fakeEventRepo struct {
+	mu     sync.Mutex
+	events map[uuid.UUID]*domain.Event
+}
+
+func newFakeEventRepo() *fakeEventRepo {
+	return &fakeEventRepo{events: map[uuid.UUID]*domain.Event{}}
+}
+
+func (r *fakeEventRepo) Create(ctx context.Context, e *domain.Event) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	clone := *e
+	r.events[e.ID] = &clone
+	return nil
+}
+
+func (r *fakeEventRepo) Update(ctx context.Context, e *domain.Event) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.events[e.ID]; !ok {
+		return domain.ErrNotFound
+	}
+	clone := *e
+	r.events[e.ID] = &clone
+	return nil
+}
+
+func (r *fakeEventRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Event, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	e, ok := r.events[id]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	clone := *e
+	return &clone, nil
+}
+
+func (r *fakeEventRepo) ListByOrganization(ctx context.Context, orgID uuid.UUID) ([]domain.Event, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []domain.Event
+	for _, e := range r.events {
+		if e.OrganizationID == orgID {
+			out = append(out, *e)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
+}
+
+func (r *fakeEventRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.events[id]; !ok {
+		return domain.ErrNotFound
+	}
+	delete(r.events, id)
+	return nil
+}
+
+// MARK: CategoryRepository
+
+type fakeCategoryRepo struct {
+	mu    sync.Mutex
+	cats  map[uuid.UUID]*domain.Category
+}
+
+func newFakeCategoryRepo() *fakeCategoryRepo {
+	return &fakeCategoryRepo{cats: map[uuid.UUID]*domain.Category{}}
+}
+
+func (r *fakeCategoryRepo) Create(ctx context.Context, c *domain.Category) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, existing := range r.cats {
+		if existing.OrganizationID == c.OrganizationID && existing.Name == c.Name {
+			return domain.ErrConflict
+		}
+	}
+	clone := *c
+	r.cats[c.ID] = &clone
+	return nil
+}
+
+func (r *fakeCategoryRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Category, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	c, ok := r.cats[id]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	clone := *c
+	return &clone, nil
+}
+
+func (r *fakeCategoryRepo) FindByName(ctx context.Context, orgID uuid.UUID, name string) (*domain.Category, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, c := range r.cats {
+		if c.OrganizationID == orgID && c.Name == name {
+			clone := *c
+			return &clone, nil
+		}
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (r *fakeCategoryRepo) ListByOrganization(ctx context.Context, orgID uuid.UUID) ([]domain.Category, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []domain.Category
+	for _, c := range r.cats {
+		if c.OrganizationID == orgID {
+			out = append(out, *c)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (r *fakeCategoryRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.cats[id]; !ok {
+		return domain.ErrNotFound
+	}
+	delete(r.cats, id)
+	return nil
+}
+
+// MARK: ActivityRepository
+
+type fakeActivityRepo struct {
+	mu      sync.Mutex
+	entries []domain.ActivityEntry
+}
+
+func newFakeActivityRepo() *fakeActivityRepo {
+	return &fakeActivityRepo{}
+}
+
+func (r *fakeActivityRepo) Append(ctx context.Context, e *domain.ActivityEntry) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.entries = append(r.entries, *e)
+	return nil
+}
+
+func (r *fakeActivityRepo) ListByOrganization(ctx context.Context, orgID uuid.UUID, limit int) ([]domain.ActivityEntry, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []domain.ActivityEntry
+	for _, e := range r.entries {
+		if e.OrganizationID == orgID {
+			out = append(out, e)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
 	return out, nil
 }
 

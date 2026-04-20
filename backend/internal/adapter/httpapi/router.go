@@ -10,6 +10,9 @@ type RouterDeps struct {
 	Auth          *AuthHandler
 	Warehouse     *WarehouseHandler
 	Organizations *OrganizationHandler
+	Events        *EventsHandler
+	Categories    *CategoriesHandler
+	Activity      *ActivityHandler
 	Uploads       *UploadsHandler
 	Tokens        usecase.TokenIssuer
 }
@@ -46,11 +49,33 @@ func NewRouter(deps RouterDeps) http.Handler {
 
 	mux.Handle("GET /organizations", auth(http.HandlerFunc(deps.Organizations.List)))
 	mux.Handle("POST /organizations", auth(http.HandlerFunc(deps.Organizations.Create)))
+	mux.Handle("POST /organizations/join", auth(http.HandlerFunc(deps.Organizations.JoinByCode)))
 	mux.Handle("GET /organizations/{id}", auth(http.HandlerFunc(deps.Organizations.Get)))
 	mux.Handle("PATCH /organizations/{id}", auth(http.HandlerFunc(deps.Organizations.Update)))
 	mux.Handle("DELETE /organizations/{id}", auth(http.HandlerFunc(deps.Organizations.Delete)))
 	mux.Handle("GET /organizations/{id}/members", auth(http.HandlerFunc(deps.Organizations.Members)))
+	mux.Handle("DELETE /organizations/{id}/members/{userId}", auth(http.HandlerFunc(deps.Organizations.RemoveMember)))
+	mux.Handle("PATCH /organizations/{id}/members/{userId}", auth(http.HandlerFunc(deps.Organizations.ChangeRole)))
+	mux.Handle("POST /organizations/{id}/transfer", auth(http.HandlerFunc(deps.Organizations.TransferOwnership)))
 	mux.Handle("POST /organizations/{id}/leave", auth(http.HandlerFunc(deps.Organizations.Leave)))
+	mux.Handle("GET /organizations/{id}/invites", auth(http.HandlerFunc(deps.Organizations.ListInvites)))
+	mux.Handle("POST /organizations/{id}/invites", auth(http.HandlerFunc(deps.Organizations.CreateInvite)))
+	mux.Handle("DELETE /organizations/{id}/invites/{inviteId}", auth(http.HandlerFunc(deps.Organizations.RevokeInvite)))
+
+	if deps.Events != nil {
+		mux.Handle("GET /events", auth(http.HandlerFunc(deps.Events.List)))
+		mux.Handle("POST /events", auth(http.HandlerFunc(deps.Events.Create)))
+		mux.Handle("PATCH /events/{id}", auth(http.HandlerFunc(deps.Events.Update)))
+		mux.Handle("DELETE /events/{id}", auth(http.HandlerFunc(deps.Events.Delete)))
+	}
+	if deps.Categories != nil {
+		mux.Handle("GET /org-categories", auth(http.HandlerFunc(deps.Categories.List)))
+		mux.Handle("POST /org-categories", auth(http.HandlerFunc(deps.Categories.Create)))
+		mux.Handle("DELETE /org-categories/{id}", auth(http.HandlerFunc(deps.Categories.Delete)))
+	}
+	if deps.Activity != nil {
+		mux.Handle("GET /organizations/{id}/activity", auth(http.HandlerFunc(deps.Activity.List)))
+	}
 
 	// Uploads: загрузка — за auth, выдача — публичный static (URL и так непредсказуемый).
 	if deps.Uploads != nil {

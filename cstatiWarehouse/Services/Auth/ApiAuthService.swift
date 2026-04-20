@@ -22,7 +22,7 @@ final class ApiAuthService: AuthServiceProtocol {
     }
 
     // MARK: Public Methods
-
+    
     func login(request: LoginRequest, completion: @escaping (Result<LoginResponse, AuthError>) -> Void) {
         let body = LoginRequestDTO(email: request.email, password: request.password)
         client.request(
@@ -34,7 +34,7 @@ final class ApiAuthService: AuthServiceProtocol {
             completion(Self.mapAuthResult(result))
         }
     }
-
+    
     func register(request: RegisterRequest, completion: @escaping (Result<RegisterResponse, AuthError>) -> Void) {
         let body = RegisterRequestDTO(
             name: request.name,

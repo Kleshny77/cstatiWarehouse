@@ -18,7 +18,7 @@ struct MyWarehousePresenterTests {
         sut.viewDidLoad()
         
         #expect(sut.isLoading == true)
-        #expect(fake.loadActiveItemsCallCount == 1)
+        #expect(fake.resolveActiveOrganizationCallCount == 1)
     }
     
     @Test
@@ -58,6 +58,7 @@ struct MyWarehousePresenterTests {
     @Test
     func addButtonTapped_setsCreateEditPresentation() {
         let (sut, _) = makeSUT()
+        sut.activeOrganization = makeOrganizationSummary()
         sut.addButtonTapped()
         guard case .create(let suggested) = sut.editPresentation?.mode else {
             Issue.record("Expected .create, got \(String(describing: sut.editPresentation?.mode))")
@@ -106,6 +107,7 @@ struct MyWarehousePresenterTests {
         #expect(fake.archiveCalls.first?.1 == 1)
         #expect(fake.archiveCalls.first?.2 == .usedAtEvent)
         #expect(fake.archiveCalls.first?.3 == "корпоратив")
+        #expect(fake.archiveCalls.first?.4 == nil)
     }
 
     @Test
@@ -195,6 +197,7 @@ struct MyWarehousePresenterTests {
     @Test
     func editCompleted_savedInCreateMode_callsInteractorWithIsNewTrue() {
         let (sut, fake) = makeSUT()
+        sut.activeOrganization = makeOrganizationSummary()
         sut.addButtonTapped()
         let item = makeItem(name: "new", category: "c")
         
@@ -252,7 +255,22 @@ struct MyWarehousePresenterTests {
         fake.presenter = presenter
         return (presenter, fake)
     }
-    
+
+    private func makeOrganizationSummary() -> OrganizationSummary {
+        let orgID = UUID()
+        return OrganizationSummary(
+            organization: Organization(
+                id: orgID,
+                name: "Test Org",
+                ownerID: UUID(),
+                isPersonal: false,
+                createdAt: .now,
+                updatedAt: .now
+            ),
+            role: .member
+        )
+    }
+
     private func makeItem(
         name: String,
         description: String? = nil,

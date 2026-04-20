@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"errors"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -20,16 +21,16 @@ func NewItemRepo(pool *pgxpool.Pool) *ItemRepo {
 	return &ItemRepo{pool: pool}
 }
 
-const itemColumns = `id, organization_id, held_by_user_id, name, description, category_name, quantity, status, archive_reason, archived_at, expiration_date, image_url, created_at, updated_at`
+const itemColumns = `id, organization_id, held_by_user_id, name, description, category_name, quantity, status, archive_reason, archived_at, expiration_date, image_url, location_address, created_at, updated_at`
 
 func (r *ItemRepo) Create(ctx context.Context, item *domain.Item) error {
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO items (id, organization_id, held_by_user_id, name, description, category_name, quantity, status, archive_reason, archived_at, expiration_date, image_url, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+		INSERT INTO items (id, organization_id, held_by_user_id, name, description, category_name, quantity, status, archive_reason, archived_at, expiration_date, image_url, location_address, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 	`,
 		item.ID, item.OrganizationID, item.HeldByUserID, item.Name, item.Description, item.CategoryName, item.Quantity,
 		string(item.Status), archiveReasonToDB(item.ArchiveReason), item.ArchivedAt,
-		item.ExpirationDate, item.ImageURL, item.CreatedAt, item.UpdatedAt,
+		item.ExpirationDate, item.ImageURL, item.LocationAddress, item.CreatedAt, item.UpdatedAt,
 	)
 	return err
 }
@@ -39,12 +40,12 @@ func (r *ItemRepo) Update(ctx context.Context, item *domain.Item) error {
 		UPDATE items SET
 			held_by_user_id = $2, name = $3, description = $4, category_name = $5, quantity = $6,
 			status = $7, archive_reason = $8, archived_at = $9,
-			expiration_date = $10, image_url = $11, updated_at = $12
+			expiration_date = $10, image_url = $11, location_address = $12, updated_at = $13
 		WHERE id = $1
 	`,
 		item.ID, item.HeldByUserID, item.Name, item.Description, item.CategoryName, item.Quantity,
 		string(item.Status), archiveReasonToDB(item.ArchiveReason), item.ArchivedAt,
-		item.ExpirationDate, item.ImageURL, item.UpdatedAt,
+		item.ExpirationDate, item.ImageURL, item.LocationAddress, item.UpdatedAt,
 	)
 	if err != nil {
 		return err
@@ -64,8 +65,12 @@ func (r *ItemRepo) ListByOrganization(ctx context.Context, orgID uuid.UUID, filt
 	query := `SELECT ` + itemColumns + ` FROM items WHERE organization_id = $1`
 	args := []any{orgID}
 	if filter.Status != nil {
-		query += ` AND status = $2`
 		args = append(args, string(*filter.Status))
+		query += ` AND status = $` + strconv.Itoa(len(args))
+	}
+	if filter.HeldByUserID != nil {
+		args = append(args, *filter.HeldByUserID)
+		query += ` AND held_by_user_id = $` + strconv.Itoa(len(args))
 	}
 	query += ` ORDER BY created_at DESC`
 
@@ -125,11 +130,11 @@ func (r *ItemRepo) RecordArchiveEvent(ctx context.Context, item *domain.Item, ev
 	}
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO item_archive_events (id, item_id, organization_id, archived_by_user_id, quantity, reason, reason_detail, archived_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO item_archive_events (id, item_id, organization_id, archived_by_user_id, quantity, reason, reason_detail, event_id, archived_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`,
 		event.ID, event.ItemID, event.OrganizationID, event.ArchivedByUserID, event.Quantity,
-		string(event.Reason), event.ReasonDetail, event.ArchivedAt,
+		string(event.Reason), event.ReasonDetail, event.EventID, event.ArchivedAt,
 	); err != nil {
 		return err
 	}
@@ -140,10 +145,23 @@ func (r *ItemRepo) RecordArchiveEvent(ctx context.Context, item *domain.Item, ev
 // ListArchiveEvents возвращает все события списания в рамках организации, от новых к старым.
 func (r *ItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID) ([]domain.ArchiveEvent, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, item_id, organization_id, archived_by_user_id, quantity, reason, reason_detail, archived_at
-		FROM item_archive_events
-		WHERE organization_id = $1
-		ORDER BY archived_at DESC
+		SELECT
+			e.id,
+			e.item_id,
+			e.organization_id,
+			e.archived_by_user_id,
+			e.quantity,
+			e.reason,
+			e.reason_detail,
+			e.event_id,
+			e.archived_at,
+			i.name AS item_name,
+			COALESCE(NULLIF(TRIM(u.name), ''), u.email, '') AS archived_by_display_name
+		FROM item_archive_events e
+		INNER JOIN items i ON i.id = e.item_id AND i.organization_id = e.organization_id
+		INNER JOIN users u ON u.id = e.archived_by_user_id
+		WHERE e.organization_id = $1
+		ORDER BY e.archived_at DESC
 	`, orgID)
 	if err != nil {
 		return nil, err
@@ -154,7 +172,11 @@ func (r *ItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID) ([]do
 	for rows.Next() {
 		var e domain.ArchiveEvent
 		var reason string
-		if err := rows.Scan(&e.ID, &e.ItemID, &e.OrganizationID, &e.ArchivedByUserID, &e.Quantity, &reason, &e.ReasonDetail, &e.ArchivedAt); err != nil {
+		if err := rows.Scan(
+			&e.ID, &e.ItemID, &e.OrganizationID, &e.ArchivedByUserID,
+			&e.Quantity, &reason, &e.ReasonDetail, &e.EventID, &e.ArchivedAt,
+			&e.ItemName, &e.ArchivedByDisplayName,
+		); err != nil {
 			return nil, err
 		}
 		e.Reason = domain.ArchiveReason(reason)
@@ -193,7 +215,7 @@ func scanItem(row pgx.Row) (*domain.Item, error) {
 	)
 	err := row.Scan(
 		&item.ID, &item.OrganizationID, &item.HeldByUserID, &item.Name, &item.Description, &item.CategoryName, &item.Quantity,
-		&status, &reason, &item.ArchivedAt, &item.ExpirationDate, &item.ImageURL,
+		&status, &reason, &item.ArchivedAt, &item.ExpirationDate, &item.ImageURL, &item.LocationAddress,
 		&item.CreatedAt, &item.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {

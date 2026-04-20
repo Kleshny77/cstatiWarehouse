@@ -40,8 +40,8 @@ struct LottieView: UIViewRepresentable {
 struct SplashView: View {
   var body: some View {
     ZStack {
+      Color.black.ignoresSafeArea()
       LottieView(name: "SplashAnimation", loopMode: .playOnce)
-        .background(.black)
     }
   }
 }
@@ -51,18 +51,21 @@ struct RootView: View {
 
   var body: some View {
     ZStack {
-      Color.black.ignoresSafeArea()
+      // CoordinatorView всегда рендерится на полном opacity в фоне —
+      // за 3.5с успевает полностью отрисоваться, при fade-in вспышки нет.
+      CoordinatorView()
+
+      // SplashView сам содержит Color.black.ignoresSafeArea() и полностью
+      // перекрывает CoordinatorView пока идёт анимация.
       if showSplash {
         SplashView()
           .transition(.opacity)
-      } else {
-        CoordinatorView()
-          .transition(.opacity)
+          .zIndex(1)
       }
     }
     .onAppear {
       DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
-        withAnimation(.easeOut(duration: 2)) {
+        withAnimation(.easeOut(duration: 0.5)) {
           showSplash = false
         }
       }

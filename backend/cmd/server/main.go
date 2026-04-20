@@ -16,6 +16,7 @@ import (
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/clock"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/config"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/db"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/invitecode"
 	infrajwt "github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/jwt"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/password"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/usecase"
@@ -56,6 +57,10 @@ func run() error {
 	itemRepo := repo.NewItemRepo(pool)
 	orgRepo := repo.NewOrganizationRepo(pool)
 	memberRepo := repo.NewMemberRepo(pool)
+	inviteRepo := repo.NewInviteRepo(pool)
+	eventRepo := repo.NewEventRepo(pool)
+	categoryRepo := repo.NewCategoryRepo(pool)
+	activityRepo := repo.NewActivityRepo(pool)
 
 	issuer := infrajwt.NewIssuer(cfg.JWTSecret, cfg.JWTAccessTTL)
 	refreshGen := infrajwt.NewRefreshGenerator()
@@ -70,7 +75,9 @@ func run() error {
 		verifier = v
 	}
 
-	organizationsUC := usecase.NewOrganizationsUseCase(orgRepo, memberRepo, clock.Real{})
+	inviteGen := invitecode.NewGenerator(8)
+	organizationsUC := usecase.NewOrganizationsUseCase(orgRepo, memberRepo, inviteRepo, inviteGen, clock.Real{}).
+		WithActivity(activityRepo)
 
 	authUC := usecase.NewAuthUseCase(
 		userRepo, refreshRepo, organizationsUC, hasher, issuer, refreshGen, verifier, clock.Real{},
@@ -79,7 +86,12 @@ func run() error {
 			TelegramConfigured: cfg.TelegramConfigured(),
 		},
 	)
-	warehouseUC := usecase.NewWarehouseUseCase(itemRepo, memberRepo, clock.Real{})
+	warehouseUC := usecase.NewWarehouseUseCase(itemRepo, memberRepo, clock.Real{}).
+		WithActivity(activityRepo).
+		WithEvents(eventRepo)
+	eventsUC := usecase.NewEventsUseCase(eventRepo, memberRepo, activityRepo, clock.Real{})
+	categoriesUC := usecase.NewCategoriesUseCase(categoryRepo, memberRepo, activityRepo, clock.Real{})
+	activityUC := usecase.NewActivityUseCase(activityRepo, memberRepo)
 
 	uploadsHandler := httpapi.NewUploadsHandler(cfg.UploadsDir, cfg.PublicBaseURL, cfg.MaxUploadBytes)
 
@@ -87,6 +99,9 @@ func run() error {
 		Auth:          httpapi.NewAuthHandler(authUC),
 		Warehouse:     httpapi.NewWarehouseHandler(warehouseUC),
 		Organizations: httpapi.NewOrganizationHandler(organizationsUC),
+		Events:        httpapi.NewEventsHandler(eventsUC),
+		Categories:    httpapi.NewCategoriesHandler(categoriesUC),
+		Activity:      httpapi.NewActivityHandler(activityUC),
 		Uploads:       uploadsHandler,
 		Tokens:        issuer,
 	})

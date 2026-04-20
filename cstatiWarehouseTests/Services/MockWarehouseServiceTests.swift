@@ -11,6 +11,8 @@ import Testing
 
 @MainActor
 struct MockWarehouseServiceTests {
+    private let testOrgID = MockWarehouseService.defaultOrganizationID
+
     @Test
     func fetchActiveItems_returnsOnlyInStock_sortedByCreatedAtDesc() async {
         let now = Date.now
@@ -21,7 +23,7 @@ struct MockWarehouseServiceTests {
         let newerItem = makeItem(name: "newer", createdAt: newer)
         let service = MockWarehouseService(seed: [archivedItem, olderItem, newerItem])
         
-        let result = await run { service.fetchActiveItems(completion: $0) }
+        let result = await run { service.fetchActiveItems(organizationID: testOrgID, scope: .mine, completion: $0) }
         let items = try! result.get()
         
         #expect(items.count == 2)
@@ -47,7 +49,7 @@ struct MockWarehouseServiceTests {
         )
         let service = MockWarehouseService(seed: [active, olderArchived, newerArchived])
         
-        let result = await run { service.fetchHistory(completion: $0) }
+        let result = await run { service.fetchHistory(organizationID: testOrgID, completion: $0) }
         let items = try! result.get()
         
         #expect(items.map(\.name) == ["new-archive", "old-archive"])
@@ -63,7 +65,7 @@ struct MockWarehouseServiceTests {
                      status: .archived(reason: .disposed, at: .now))
         ])
         
-        let result = await run { service.fetchCategories(completion: $0) }
+        let result = await run { service.fetchCategories(organizationID: testOrgID, completion: $0) }
         let categories = try! result.get()
         
         #expect(categories == ["еда", "напитки"])
@@ -74,8 +76,8 @@ struct MockWarehouseServiceTests {
         let service = MockWarehouseService(seed: [])
         let item = makeItem(name: "new")
         
-        _ = await run { service.createItem(item, completion: $0) }
-        let result = await run { service.fetchActiveItems(completion: $0) }
+        _ = await run { service.createItem(item, organizationID: testOrgID, completion: $0) }
+        let result = await run { service.fetchActiveItems(organizationID: testOrgID, scope: .mine, completion: $0) }
         
         #expect(try! result.get().map(\.id) == [item.id])
     }
@@ -90,7 +92,7 @@ struct MockWarehouseServiceTests {
         let updateResult = await run { service.updateItem(updated, completion: $0) }
         #expect((try? updateResult.get())?.name == "edited")
         
-        let fetch = await run { service.fetchActiveItems(completion: $0) }
+        let fetch = await run { service.fetchActiveItems(organizationID: testOrgID, scope: .mine, completion: $0) }
         #expect(try! fetch.get().first?.name == "edited")
     }
     
@@ -116,7 +118,7 @@ struct MockWarehouseServiceTests {
         let service = MockWarehouseService(seed: [item])
         
         let archived = await run {
-            service.archiveItem(id: item.id, quantity: 1, reason: .usedAtEvent, reasonDetail: "Концерт", completion: $0)
+            service.archiveItem(id: item.id, quantity: 1, reason: .usedAtEvent, reasonDetail: "Концерт", eventID: nil, completion: $0)
         }
         let saved = try! archived.get()
         guard case .archived(let reason, _) = saved.item.status else {
@@ -128,10 +130,10 @@ struct MockWarehouseServiceTests {
         #expect(saved.event.quantity == 1)
         #expect(saved.event.reasonDetail == "Концерт")
         
-        let active = await run { service.fetchActiveItems(completion: $0) }
+        let active = await run { service.fetchActiveItems(organizationID: testOrgID, scope: .mine, completion: $0) }
         #expect(try! active.get().isEmpty)
         
-        let history = await run { service.fetchHistory(completion: $0) }
+        let history = await run { service.fetchHistory(organizationID: testOrgID, completion: $0) }
         #expect(try! history.get().map(\.id) == [item.id])
     }
     
@@ -141,7 +143,7 @@ struct MockWarehouseServiceTests {
         let service = MockWarehouseService(seed: [item])
         
         let result = await run {
-            service.archiveItem(id: item.id, quantity: 2, reason: .disposed, reasonDetail: "", completion: $0)
+            service.archiveItem(id: item.id, quantity: 2, reason: .disposed, reasonDetail: "", eventID: nil, completion: $0)
         }
         let saved = try! result.get()
         #expect(saved.item.quantity == 3)
@@ -152,7 +154,7 @@ struct MockWarehouseServiceTests {
     func archiveItem_failsWithNotFound_whenMissing() async {
         let service = MockWarehouseService(seed: [])
         let result = await run {
-            service.archiveItem(id: UUID(), quantity: 1, reason: .disposed, reasonDetail: "", completion: $0)
+            service.archiveItem(id: UUID(), quantity: 1, reason: .disposed, reasonDetail: "", eventID: nil, completion: $0)
         }
         
         switch result {
@@ -172,8 +174,8 @@ struct MockWarehouseServiceTests {
         let deleteResult = await run { service.deleteItem(id: item.id, completion: $0) }
         _ = try! deleteResult.get()
         
-        let active = await run { service.fetchActiveItems(completion: $0) }
-        let history = await run { service.fetchHistory(completion: $0) }
+        let active = await run { service.fetchActiveItems(organizationID: testOrgID, scope: .mine, completion: $0) }
+        let history = await run { service.fetchHistory(organizationID: testOrgID, completion: $0) }
         #expect(try! active.get().isEmpty)
         #expect(try! history.get().isEmpty)
     }
