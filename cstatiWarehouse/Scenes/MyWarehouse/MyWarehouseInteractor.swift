@@ -8,38 +8,105 @@
 import Foundation
 
 protocol MyWarehouseInteractorInputProtocol: AnyObject {
-    func loadActiveItems()
+    func resolveActiveOrganization()
+    func loadActiveItems(organizationID: UUID)
+    func loadMyOrganizations()
+    func selectActiveOrganization(_ id: UUID)
+    func createOrganization(name: String)
     func archiveItem(id: UUID, quantity: Int, reason: ArchiveReason, reasonDetail: String)
     func deleteItem(id: UUID)
     func applyExternalChange(_ item: Item, isNew: Bool)
 }
 
 protocol MyWarehouseInteractorOutputProtocol: AnyObject {
+    func activeOrganizationResolved(_ summary: OrganizationSummary?)
+    func organizationsLoaded(_ organizations: [OrganizationSummary])
+    func organizationCreated(_ summary: OrganizationSummary)
     func itemsLoaded(_ items: [Item])
     func itemArchived(_ item: Item)
     func itemDeleted(id: UUID)
     func itemChangedExternally(_ item: Item, isNew: Bool)
     func failed(error: String)
+    func organizationFailed(error: String)
 }
 
 final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
+
+    // MARK: Properties
+
     weak var presenter: MyWarehouseInteractorOutputProtocol?
 
     private let warehouseService: WarehouseServiceProtocol
+    private let organizationsService: OrganizationsServiceProtocol
+    private let activeOrgStorage: ActiveOrganizationStorageProtocol
 
-    init(warehouseService: WarehouseServiceProtocol) {
+    // MARK: Lifecycle
+
+    init(
+        warehouseService: WarehouseServiceProtocol,
+        organizationsService: OrganizationsServiceProtocol,
+        activeOrgStorage: ActiveOrganizationStorageProtocol
+    ) {
         self.warehouseService = warehouseService
+        self.organizationsService = organizationsService
+        self.activeOrgStorage = activeOrgStorage
     }
 
     // MARK: Public Methods
 
-    func loadActiveItems() {
-        warehouseService.fetchActiveItems { [weak self] result in
+    func resolveActiveOrganization() {
+        organizationsService.fetchMyOrganizations { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let summaries):
+                self.presenter?.organizationsLoaded(summaries)
+                let resolved = self.pickActive(from: summaries)
+                if let resolved {
+                    self.activeOrgStorage.setActive(resolved.organization.id)
+                } else {
+                    self.activeOrgStorage.setActive(nil)
+                }
+                self.presenter?.activeOrganizationResolved(resolved)
+            case .failure(let error):
+                self.presenter?.failed(error: error.message)
+            }
+        }
+    }
+
+    func loadActiveItems(organizationID: UUID) {
+        warehouseService.fetchActiveItems(organizationID: organizationID) { [weak self] result in
             switch result {
             case .success(let items):
                 self?.presenter?.itemsLoaded(items)
             case .failure(let error):
                 self?.presenter?.failed(error: error.message)
+            }
+        }
+    }
+
+    func loadMyOrganizations() {
+        organizationsService.fetchMyOrganizations { [weak self] result in
+            switch result {
+            case .success(let summaries):
+                self?.presenter?.organizationsLoaded(summaries)
+            case .failure(let error):
+                self?.presenter?.organizationFailed(error: error.message)
+            }
+        }
+    }
+
+    func selectActiveOrganization(_ id: UUID) {
+        activeOrgStorage.setActive(id)
+    }
+
+    func createOrganization(name: String) {
+        organizationsService.createOrganization(name: name) { [weak self] result in
+            switch result {
+            case .success(let summary):
+                self?.activeOrgStorage.setActive(summary.organization.id)
+                self?.presenter?.organizationCreated(summary)
+            case .failure(let error):
+                self?.presenter?.organizationFailed(error: error.message)
             }
         }
     }
@@ -73,5 +140,19 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
 
     func applyExternalChange(_ item: Item, isNew: Bool) {
         presenter?.itemChangedExternally(item, isNew: isNew)
+    }
+
+    // MARK: Private Methods
+
+    private func pickActive(from summaries: [OrganizationSummary]) -> OrganizationSummary? {
+        guard !summaries.isEmpty else { return nil }
+        if let stored = activeOrgStorage.activeOrganizationID,
+           let match = summaries.first(where: { $0.organization.id == stored }) {
+            return match
+        }
+        if let personal = summaries.first(where: { $0.organization.isPersonal }) {
+            return personal
+        }
+        return summaries.first
     }
 }

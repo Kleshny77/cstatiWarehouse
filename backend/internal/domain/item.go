@@ -34,7 +34,8 @@ func IsValidArchiveReason(r ArchiveReason) bool {
 
 type Item struct {
 	ID             uuid.UUID
-	OwnerID        uuid.UUID
+	OrganizationID uuid.UUID
+	HeldByUserID   uuid.UUID
 	Name           string
 	Description    string
 	CategoryName   string
@@ -48,6 +49,12 @@ type Item struct {
 	UpdatedAt      time.Time
 }
 
-func (i *Item) IsOwnedBy(userID uuid.UUID) bool {
-	return i.OwnerID == userID
+// IsHeldBy возвращает true, если айтем физически находится у указанного пользователя.
+func (i *Item) IsHeldBy(userID uuid.UUID) bool {
+	return i.HeldByUserID == userID
+}
+
+// BelongsToOrganization проверяет, что айтем принадлежит указанной организации.
+func (i *Item) BelongsToOrganization(orgID uuid.UUID) bool {
+	return i.OrganizationID == orgID
 }

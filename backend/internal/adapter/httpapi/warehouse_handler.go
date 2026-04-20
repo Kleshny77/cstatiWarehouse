@@ -20,6 +20,8 @@ func NewWarehouseHandler(warehouse *usecase.WarehouseUseCase) *WarehouseHandler 
 
 type itemDTO struct {
 	ID             string     `json:"id"`
+	OrganizationID string     `json:"organization_id"`
+	HeldByUserID   string     `json:"held_by_user_id"`
 	Name           string     `json:"name"`
 	Description    string     `json:"description"`
 	CategoryName   string     `json:"category_name"`
@@ -36,6 +38,8 @@ type itemDTO struct {
 func itemToDTO(i *domain.Item) itemDTO {
 	dto := itemDTO{
 		ID:             i.ID.String(),
+		OrganizationID: i.OrganizationID.String(),
+		HeldByUserID:   i.HeldByUserID.String(),
 		Name:           i.Name,
 		Description:    i.Description,
 		CategoryName:   i.CategoryName,
@@ -67,6 +71,8 @@ type categoriesResponse struct {
 }
 
 type createItemRequest struct {
+	OrganizationID string     `json:"organization_id"`
+	HeldByUserID   *string    `json:"held_by_user_id,omitempty"`
 	Name           string     `json:"name"`
 	Description    string     `json:"description"`
 	CategoryName   string     `json:"category_name"`
@@ -75,7 +81,15 @@ type createItemRequest struct {
 	ImageURL       *string    `json:"image_url,omitempty"`
 }
 
-type updateItemRequest = createItemRequest
+type updateItemRequest struct {
+	HeldByUserID   *string    `json:"held_by_user_id,omitempty"`
+	Name           string     `json:"name"`
+	Description    string     `json:"description"`
+	CategoryName   string     `json:"category_name"`
+	Quantity       int        `json:"quantity"`
+	ExpirationDate *time.Time `json:"expiration_date,omitempty"`
+	ImageURL       *string    `json:"image_url,omitempty"`
+}
 
 type archiveRequest struct {
 	Quantity     int    `json:"quantity"`
@@ -84,12 +98,14 @@ type archiveRequest struct {
 }
 
 type archiveEventDTO struct {
-	ID           string    `json:"id"`
-	ItemID       string    `json:"item_id"`
-	Quantity     int       `json:"quantity"`
-	Reason       string    `json:"reason"`
-	ReasonDetail string    `json:"reason_detail,omitempty"`
-	ArchivedAt   time.Time `json:"archived_at"`
+	ID               string    `json:"id"`
+	ItemID           string    `json:"item_id"`
+	OrganizationID   string    `json:"organization_id"`
+	ArchivedByUserID string    `json:"archived_by_user_id"`
+	Quantity         int       `json:"quantity"`
+	Reason           string    `json:"reason"`
+	ReasonDetail     string    `json:"reason_detail,omitempty"`
+	ArchivedAt       time.Time `json:"archived_at"`
 }
 
 type archiveEventsResponse struct {
@@ -102,9 +118,14 @@ type archiveResponse struct {
 }
 
 func (h *WarehouseHandler) List(w http.ResponseWriter, r *http.Request) {
-	ownerID, ok := currentUserID(r)
+	userID, ok := currentUserID(r)
 	if !ok {
 		writeError(w, r, domain.ErrUnauthorized)
+		return
+	}
+	orgID, err := requireOrganizationID(r)
+	if err != nil {
+		writeError(w, r, err)
 		return
 	}
 
@@ -122,7 +143,7 @@ func (h *WarehouseHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := h.warehouse.List(r.Context(), ownerID, filter)
+	items, err := h.warehouse.List(r.Context(), userID, orgID, filter)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -135,7 +156,7 @@ func (h *WarehouseHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WarehouseHandler) Create(w http.ResponseWriter, r *http.Request) {
-	ownerID, ok := currentUserID(r)
+	userID, ok := currentUserID(r)
 	if !ok {
 		writeError(w, r, domain.ErrUnauthorized)
 		return
@@ -145,10 +166,26 @@ func (h *WarehouseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
+	orgID, err := parseRequiredUUID(req.OrganizationID, "organization_id")
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	heldBy, err := parseOptionalUUID(req.HeldByUserID, "held_by_user_id")
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
 	item, err := h.warehouse.Create(r.Context(), usecase.CreateItemInput{
-		OwnerID: ownerID, Name: req.Name, Description: req.Description,
-		CategoryName: req.CategoryName, Quantity: req.Quantity,
-		ExpirationDate: req.ExpirationDate, ImageURL: req.ImageURL,
+		UserID:         userID,
+		OrganizationID: orgID,
+		HeldByUserID:   heldBy,
+		Name:           req.Name,
+		Description:    req.Description,
+		CategoryName:   req.CategoryName,
+		Quantity:       req.Quantity,
+		ExpirationDate: req.ExpirationDate,
+		ImageURL:       req.ImageURL,
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -158,7 +195,7 @@ func (h *WarehouseHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WarehouseHandler) Update(w http.ResponseWriter, r *http.Request) {
-	ownerID, ok := currentUserID(r)
+	userID, ok := currentUserID(r)
 	if !ok {
 		writeError(w, r, domain.ErrUnauthorized)
 		return
@@ -173,10 +210,21 @@ func (h *WarehouseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
+	heldBy, err := parseOptionalUUID(req.HeldByUserID, "held_by_user_id")
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
 	item, err := h.warehouse.Update(r.Context(), usecase.UpdateItemInput{
-		ID: id, OwnerID: ownerID, Name: req.Name, Description: req.Description,
-		CategoryName: req.CategoryName, Quantity: req.Quantity,
-		ExpirationDate: req.ExpirationDate, ImageURL: req.ImageURL,
+		ID:             id,
+		UserID:         userID,
+		HeldByUserID:   heldBy,
+		Name:           req.Name,
+		Description:    req.Description,
+		CategoryName:   req.CategoryName,
+		Quantity:       req.Quantity,
+		ExpirationDate: req.ExpirationDate,
+		ImageURL:       req.ImageURL,
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -186,7 +234,7 @@ func (h *WarehouseHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WarehouseHandler) Archive(w http.ResponseWriter, r *http.Request) {
-	ownerID, ok := currentUserID(r)
+	userID, ok := currentUserID(r)
 	if !ok {
 		writeError(w, r, domain.ErrUnauthorized)
 		return
@@ -207,7 +255,7 @@ func (h *WarehouseHandler) Archive(w http.ResponseWriter, r *http.Request) {
 	}
 	item, event, err := h.warehouse.Archive(r.Context(), usecase.ArchiveItemInput{
 		ItemID:       id,
-		OwnerID:      ownerID,
+		UserID:       userID,
 		Quantity:     quantity,
 		Reason:       domain.ArchiveReason(req.Reason),
 		ReasonDetail: req.ReasonDetail,
@@ -219,14 +267,19 @@ func (h *WarehouseHandler) Archive(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, archiveResponse{Item: itemToDTO(item), Event: archiveEventToDTO(event)})
 }
 
-// ArchiveEvents — GET /archive-events: история списаний пользователя.
+// ArchiveEvents — GET /archive-events?organizationId=...: история списаний в организации.
 func (h *WarehouseHandler) ArchiveEvents(w http.ResponseWriter, r *http.Request) {
-	ownerID, ok := currentUserID(r)
+	userID, ok := currentUserID(r)
 	if !ok {
 		writeError(w, r, domain.ErrUnauthorized)
 		return
 	}
-	events, err := h.warehouse.ListArchiveEvents(r.Context(), ownerID)
+	orgID, err := requireOrganizationID(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	events, err := h.warehouse.ListArchiveEvents(r.Context(), userID, orgID)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -240,17 +293,19 @@ func (h *WarehouseHandler) ArchiveEvents(w http.ResponseWriter, r *http.Request)
 
 func archiveEventToDTO(e *domain.ArchiveEvent) archiveEventDTO {
 	return archiveEventDTO{
-		ID:           e.ID.String(),
-		ItemID:       e.ItemID.String(),
-		Quantity:     e.Quantity,
-		Reason:       string(e.Reason),
-		ReasonDetail: e.ReasonDetail,
-		ArchivedAt:   e.ArchivedAt,
+		ID:               e.ID.String(),
+		ItemID:           e.ItemID.String(),
+		OrganizationID:   e.OrganizationID.String(),
+		ArchivedByUserID: e.ArchivedByUserID.String(),
+		Quantity:         e.Quantity,
+		Reason:           string(e.Reason),
+		ReasonDetail:     e.ReasonDetail,
+		ArchivedAt:       e.ArchivedAt,
 	}
 }
 
 func (h *WarehouseHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	ownerID, ok := currentUserID(r)
+	userID, ok := currentUserID(r)
 	if !ok {
 		writeError(w, r, domain.ErrUnauthorized)
 		return
@@ -260,7 +315,7 @@ func (h *WarehouseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	if err := h.warehouse.Delete(r.Context(), id, ownerID); err != nil {
+	if err := h.warehouse.Delete(r.Context(), id, userID); err != nil {
 		writeError(w, r, err)
 		return
 	}
@@ -268,12 +323,17 @@ func (h *WarehouseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WarehouseHandler) Categories(w http.ResponseWriter, r *http.Request) {
-	ownerID, ok := currentUserID(r)
+	userID, ok := currentUserID(r)
 	if !ok {
 		writeError(w, r, domain.ErrUnauthorized)
 		return
 	}
-	cats, err := h.warehouse.Categories(r.Context(), ownerID)
+	orgID, err := requireOrganizationID(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	cats, err := h.warehouse.Categories(r.Context(), userID, orgID)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -291,4 +351,39 @@ func parseIDPath(r *http.Request, name string) (uuid.UUID, error) {
 		return uuid.Nil, domain.NewValidationError("invalid " + name)
 	}
 	return id, nil
+}
+
+// requireOrganizationID извлекает обязательный query-параметр organizationId.
+func requireOrganizationID(r *http.Request) (uuid.UUID, error) {
+	raw := r.URL.Query().Get("organizationId")
+	if raw == "" {
+		return uuid.Nil, domain.NewValidationError("organizationId query parameter is required")
+	}
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return uuid.Nil, domain.NewValidationError("invalid organizationId")
+	}
+	return id, nil
+}
+
+func parseRequiredUUID(raw, name string) (uuid.UUID, error) {
+	if raw == "" {
+		return uuid.Nil, domain.NewValidationError(name + " is required")
+	}
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return uuid.Nil, domain.NewValidationError("invalid " + name)
+	}
+	return id, nil
+}
+
+func parseOptionalUUID(raw *string, name string) (*uuid.UUID, error) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+	id, err := uuid.Parse(*raw)
+	if err != nil {
+		return nil, domain.NewValidationError("invalid " + name)
+	}
+	return &id, nil
 }

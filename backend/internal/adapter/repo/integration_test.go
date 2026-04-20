@@ -83,23 +83,46 @@ func TestIntegration_UserRepo_TelegramLookup(t *testing.T) {
 	}
 }
 
+// seedUserWithOrg создаёт пользователя и его персональную организацию
+// вместе с записью о членстве с ролью owner. Возвращает (userID, orgID).
+func seedUserWithOrg(t *testing.T, users *repo.UserRepo, orgs *repo.OrganizationRepo, members *repo.MemberRepo, email, name string) (uuid.UUID, uuid.UUID) {
+	t.Helper()
+	hash := "hash:x"
+	user := &domain.User{
+		ID: uuid.New(), Email: email, Name: name, PasswordHash: &hash,
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}
+	if err := users.Create(context.Background(), user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	now := time.Now().UTC()
+	org := &domain.Organization{
+		ID: uuid.New(), Name: "Склад " + name, OwnerID: user.ID, IsPersonal: true,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := orgs.Create(context.Background(), org); err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	if err := members.Add(context.Background(), &domain.OrganizationMember{
+		OrganizationID: org.ID, UserID: user.ID, Role: domain.OrgRoleOwner, JoinedAt: now,
+	}); err != nil {
+		t.Fatalf("add member: %v", err)
+	}
+	return user.ID, org.ID
+}
+
 func TestIntegration_ItemRepo_Lifecycle(t *testing.T) {
 	pool := testsupport.SetupDB(t)
 	users := repo.NewUserRepo(pool)
+	orgs := repo.NewOrganizationRepo(pool)
+	members := repo.NewMemberRepo(pool)
 	items := repo.NewItemRepo(pool)
 
-	hash := "hash:x"
-	owner := &domain.User{
-		ID: uuid.New(), Email: "owner@x.com", Name: "O", PasswordHash: &hash,
-		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
-	}
-	if err := users.Create(context.Background(), owner); err != nil {
-		t.Fatalf("create owner: %v", err)
-	}
+	userID, orgID := seedUserWithOrg(t, users, orgs, members, "owner@x.com", "O")
 
 	now := time.Now().UTC()
 	item := &domain.Item{
-		ID: uuid.New(), OwnerID: owner.ID,
+		ID: uuid.New(), OrganizationID: orgID, HeldByUserID: userID,
 		Name: "Кола", Description: "0.5л", CategoryName: "Напитки", Quantity: 3,
 		Status: domain.ItemStatusInStock, CreatedAt: now, UpdatedAt: now,
 	}
@@ -107,7 +130,7 @@ func TestIntegration_ItemRepo_Lifecycle(t *testing.T) {
 		t.Fatalf("create item: %v", err)
 	}
 
-	list, err := items.ListByOwner(context.Background(), owner.ID, usecase.ItemFilter{})
+	list, err := items.ListByOrganization(context.Background(), orgID, usecase.ItemFilter{})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -126,7 +149,7 @@ func TestIntegration_ItemRepo_Lifecycle(t *testing.T) {
 	}
 
 	inStock := domain.ItemStatusInStock
-	onlyInStock, err := items.ListByOwner(context.Background(), owner.ID, usecase.ItemFilter{Status: &inStock})
+	onlyInStock, err := items.ListByOrganization(context.Background(), orgID, usecase.ItemFilter{Status: &inStock})
 	if err != nil {
 		t.Fatalf("list in_stock: %v", err)
 	}
@@ -135,7 +158,7 @@ func TestIntegration_ItemRepo_Lifecycle(t *testing.T) {
 	}
 
 	archivedStatus := domain.ItemStatusArchived
-	onlyArchived, err := items.ListByOwner(context.Background(), owner.ID, usecase.ItemFilter{Status: &archivedStatus})
+	onlyArchived, err := items.ListByOrganization(context.Background(), orgID, usecase.ItemFilter{Status: &archivedStatus})
 	if err != nil {
 		t.Fatalf("list archived: %v", err)
 	}
@@ -146,7 +169,7 @@ func TestIntegration_ItemRepo_Lifecycle(t *testing.T) {
 		t.Errorf("archive reason not persisted: %+v", onlyArchived[0].ArchiveReason)
 	}
 
-	cats, err := items.ListCategoriesByOwner(context.Background(), owner.ID)
+	cats, err := items.ListCategoriesByOrganization(context.Background(), orgID)
 	if err != nil {
 		t.Fatalf("categories: %v", err)
 	}
@@ -159,5 +182,69 @@ func TestIntegration_ItemRepo_Lifecycle(t *testing.T) {
 	}
 	if _, err := items.FindByID(context.Background(), item.ID); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("expected ErrNotFound after delete, got %v", err)
+	}
+}
+
+func TestIntegration_OrganizationRepo_AndMembers(t *testing.T) {
+	pool := testsupport.SetupDB(t)
+	users := repo.NewUserRepo(pool)
+	orgs := repo.NewOrganizationRepo(pool)
+	members := repo.NewMemberRepo(pool)
+
+	ownerID, orgID := seedUserWithOrg(t, users, orgs, members, "owner-org@x.com", "Owner")
+
+	// Второй юзер добавляется участником.
+	hash := "hash:x"
+	second := &domain.User{
+		ID: uuid.New(), Email: "member@x.com", Name: "M", PasswordHash: &hash,
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}
+	if err := users.Create(context.Background(), second); err != nil {
+		t.Fatalf("create second user: %v", err)
+	}
+	if err := members.Add(context.Background(), &domain.OrganizationMember{
+		OrganizationID: orgID, UserID: second.ID, Role: domain.OrgRoleMember, JoinedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("add second member: %v", err)
+	}
+
+	// Дубликат членства → ErrAlreadyMember.
+	dupErr := members.Add(context.Background(), &domain.OrganizationMember{
+		OrganizationID: orgID, UserID: second.ID, Role: domain.OrgRoleMember, JoinedAt: time.Now().UTC(),
+	})
+	if !errors.Is(dupErr, domain.ErrAlreadyMember) {
+		t.Errorf("expected ErrAlreadyMember, got %v", dupErr)
+	}
+
+	// Списки членов и ролей.
+	list, err := members.ListByOrganization(context.Background(), orgID)
+	if err != nil {
+		t.Fatalf("list members: %v", err)
+	}
+	if len(list) != 2 {
+		t.Errorf("expected 2 members, got %d", len(list))
+	}
+
+	role, err := members.FindRole(context.Background(), orgID, ownerID)
+	if err != nil || role != domain.OrgRoleOwner {
+		t.Errorf("owner role wrong: role=%s err=%v", role, err)
+	}
+
+	// Обновление роли.
+	if err := members.UpdateRole(context.Background(), orgID, second.ID, domain.OrgRoleAdmin); err != nil {
+		t.Fatalf("update role: %v", err)
+	}
+	role, _ = members.FindRole(context.Background(), orgID, second.ID)
+	if role != domain.OrgRoleAdmin {
+		t.Errorf("expected admin role after update, got %s", role)
+	}
+
+	// Организации пользователя.
+	mine, err := orgs.ListByUser(context.Background(), second.ID)
+	if err != nil {
+		t.Fatalf("list orgs by user: %v", err)
+	}
+	if len(mine) != 1 || mine[0].Role != domain.OrgRoleAdmin {
+		t.Errorf("unexpected orgs for second user: %+v", mine)
 	}
 }

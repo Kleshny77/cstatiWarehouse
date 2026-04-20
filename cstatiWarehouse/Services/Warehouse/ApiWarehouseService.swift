@@ -23,18 +23,19 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
 
     // MARK: Public Methods
 
-    func fetchActiveItems(completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
-        fetchItems(statusFilter: "in_stock", completion: completion)
+    func fetchActiveItems(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
+        fetchItems(statusFilter: "in_stock", organizationID: organizationID, completion: completion)
     }
 
-    func fetchHistory(completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
-        fetchItems(statusFilter: "archived", completion: completion)
+    func fetchHistory(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
+        fetchItems(statusFilter: "archived", organizationID: organizationID, completion: completion)
     }
 
-    func fetchArchiveEvents(completion: @escaping (Result<[ArchiveEvent], WarehouseError>) -> Void) {
+    func fetchArchiveEvents(organizationID: UUID, completion: @escaping (Result<[ArchiveEvent], WarehouseError>) -> Void) {
         client.request(
             path: "/archive-events",
-            method: .get
+            method: .get,
+            query: [URLQueryItem(name: "organizationId", value: organizationID.uuidString.lowercased())]
         ) { (result: Result<ArchiveEventsResponseDTO, APIError>) in
             switch result {
             case .success(let dto):
@@ -46,10 +47,11 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
         }
     }
 
-    func fetchCategories(completion: @escaping (Result<[String], WarehouseError>) -> Void) {
+    func fetchCategories(organizationID: UUID, completion: @escaping (Result<[String], WarehouseError>) -> Void) {
         client.request(
             path: "/categories",
-            method: .get
+            method: .get,
+            query: [URLQueryItem(name: "organizationId", value: organizationID.uuidString.lowercased())]
         ) { (result: Result<CategoriesResponseDTO, APIError>) in
             switch result {
             case .success(let dto):
@@ -60,8 +62,8 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
         }
     }
 
-    func createItem(_ item: Item, completion: @escaping (Result<Item, WarehouseError>) -> Void) {
-        let body = ItemRequestDTO(from: item)
+    func createItem(_ item: Item, organizationID: UUID, completion: @escaping (Result<Item, WarehouseError>) -> Void) {
+        let body = CreateItemRequestDTO(item: item, organizationID: organizationID)
         client.request(
             path: "/items",
             method: .post,
@@ -72,7 +74,7 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
     }
 
     func updateItem(_ item: Item, completion: @escaping (Result<Item, WarehouseError>) -> Void) {
-        let body = ItemRequestDTO(from: item)
+        let body = UpdateItemRequestDTO(item: item)
         client.request(
             path: "/items/\(item.id.uuidString.lowercased())",
             method: .put,
@@ -128,8 +130,14 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
 
     // MARK: Private Methods
 
-    private func fetchItems(statusFilter: String?, completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
-        var query: [URLQueryItem] = []
+    private func fetchItems(
+        statusFilter: String?,
+        organizationID: UUID,
+        completion: @escaping (Result<[Item], WarehouseError>) -> Void
+    ) {
+        var query: [URLQueryItem] = [
+            URLQueryItem(name: "organizationId", value: organizationID.uuidString.lowercased())
+        ]
         if let statusFilter = statusFilter {
             query.append(URLQueryItem(name: "status", value: statusFilter))
         }
@@ -172,9 +180,13 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
             switch code {
             case "not_found":
                 return .notFound
+            case "forbidden":
+                return .forbidden
             case "validation_error":
                 return .validationError(message ?? "Некорректные данные")
             default:
+                if status == 403 { return .forbidden }
+                if status == 404 { return .notFound }
                 return .serverError(message ?? "Ошибка сервера (\(status))")
             }
         }
@@ -210,7 +222,9 @@ private struct ArchiveRequestDTO: Encodable {
     let reasonDetail: String?
 }
 
-private struct ItemRequestDTO: Encodable {
+private struct CreateItemRequestDTO: Encodable {
+    let organizationId: String
+    let heldByUserId: String?
     let name: String
     let description: String
     let categoryName: String
@@ -218,7 +232,29 @@ private struct ItemRequestDTO: Encodable {
     let expirationDate: Date?
     let imageUrl: String?
 
-    init(from item: Item) {
+    init(item: Item, organizationID: UUID) {
+        self.organizationId = organizationID.uuidString.lowercased()
+        self.heldByUserId = nil
+        self.name = item.name
+        self.description = item.description ?? ""
+        self.categoryName = item.categoryName
+        self.quantity = item.quantity
+        self.expirationDate = item.expirationDate
+        self.imageUrl = item.imageURL?.absoluteString
+    }
+}
+
+private struct UpdateItemRequestDTO: Encodable {
+    let heldByUserId: String?
+    let name: String
+    let description: String
+    let categoryName: String
+    let quantity: Int
+    let expirationDate: Date?
+    let imageUrl: String?
+
+    init(item: Item) {
+        self.heldByUserId = nil
         self.name = item.name
         self.description = item.description ?? ""
         self.categoryName = item.categoryName

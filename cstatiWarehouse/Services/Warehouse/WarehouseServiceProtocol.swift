@@ -9,6 +9,7 @@ import Foundation
 
 enum WarehouseError: Error {
     case notFound
+    case forbidden
     case validationError(String)
     case networkError(Error?)
     case serverError(String)
@@ -18,6 +19,8 @@ enum WarehouseError: Error {
         switch self {
         case .notFound:
             return "Позиция не найдена"
+        case .forbidden:
+            return "Недостаточно прав"
         case .validationError(let text):
             return text
         case .networkError:
@@ -37,11 +40,11 @@ struct ArchiveResult {
 }
 
 protocol WarehouseServiceProtocol: AnyObject {
-    func fetchActiveItems(completion: @escaping (Result<[Item], WarehouseError>) -> Void)
-    func fetchHistory(completion: @escaping (Result<[Item], WarehouseError>) -> Void)
-    func fetchArchiveEvents(completion: @escaping (Result<[ArchiveEvent], WarehouseError>) -> Void)
-    func fetchCategories(completion: @escaping (Result<[String], WarehouseError>) -> Void)
-    func createItem(_ item: Item, completion: @escaping (Result<Item, WarehouseError>) -> Void)
+    func fetchActiveItems(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void)
+    func fetchHistory(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void)
+    func fetchArchiveEvents(organizationID: UUID, completion: @escaping (Result<[ArchiveEvent], WarehouseError>) -> Void)
+    func fetchCategories(organizationID: UUID, completion: @escaping (Result<[String], WarehouseError>) -> Void)
+    func createItem(_ item: Item, organizationID: UUID, completion: @escaping (Result<Item, WarehouseError>) -> Void)
     func updateItem(_ item: Item, completion: @escaping (Result<Item, WarehouseError>) -> Void)
     func archiveItem(
         id: UUID,

@@ -319,6 +319,7 @@ struct ItemEditView: View {
 #Preview {
     ItemEditAssembly.assemble(
         mode: .create(suggestedCategory: "напитки"),
+        organizationID: UUID(),
         warehouseService: MockWarehouseService(),
         onFinish: { _ in }
     )

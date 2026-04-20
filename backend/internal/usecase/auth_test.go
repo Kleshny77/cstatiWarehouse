@@ -13,11 +13,15 @@ func newAuthUC(t *testing.T) (*AuthUseCase, *fakeUserRepo, *fakeRefreshRepo, *fa
 	t.Helper()
 	users := newFakeUserRepo()
 	refresh := newFakeRefreshRepo()
+	members := newFakeMemberRepo()
+	orgs := newFakeOrgRepo(members)
 	clock := newFakeClock(time.Date(2026, time.April, 17, 12, 0, 0, 0, time.UTC))
 	verifier := &fakeTelegramVerifier{}
+	personalOrg := &fakePersonalOrg{orgs: orgs, members: members, clock: clock}
 	uc := NewAuthUseCase(
 		users,
 		refresh,
+		personalOrg,
 		&fakeHasher{},
 		&fakeTokenIssuer{ttl: 15 * time.Minute},
 		&fakeRefreshGen{},

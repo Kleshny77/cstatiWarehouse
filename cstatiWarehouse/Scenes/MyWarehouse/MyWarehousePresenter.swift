@@ -13,6 +13,7 @@ protocol MyWarehousePresenterProtocol: AnyObject {
     func addButtonTapped()
     func profileButtonTapped()
     func filterButtonTapped()
+    func switcherButtonTapped()
 
     func editItemRequested(_ item: Item)
     func archiveItemRequested(_ item: Item)
@@ -22,6 +23,11 @@ protocol MyWarehousePresenterProtocol: AnyObject {
     func cancelArchive()
     func confirmHardDelete()
     func cancelHardDelete()
+
+    func selectOrganization(_ summary: OrganizationSummary)
+    func createOrganization(name: String)
+    func dismissSwitcher()
+    func dismissSwitcherError()
 
     func applyFilters(_ filters: WarehouseFilters)
     func editCompleted(result: ItemEditResult)
@@ -42,6 +48,9 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     var isLoading: Bool = false
     var errorMessage: String?
 
+    var activeOrganization: OrganizationSummary?
+    var switcherPresentation: SwitcherPresentation?
+
     var editPresentation: ItemEditPresentation?
     var archivePresentation: ArchivePresentation?
     var deleteConfirmation: DeleteConfirmation?
@@ -51,14 +60,19 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     var isFiltersActive: Bool { filters.isActive }
 
     private var allItems: [Item] = []
+    private var hasResolvedOrganization: Bool = false
 
     // MARK: Public Methods
 
     func viewDidLoad() {
-        loadItems()
+        guard !hasResolvedOrganization else { return }
+        hasResolvedOrganization = true
+        isLoading = true
+        interactor?.resolveActiveOrganization()
     }
 
     func addButtonTapped() {
+        guard activeOrganization != nil else { return }
         editPresentation = ItemEditPresentation(mode: .create(suggestedCategory: nil))
     }
 
@@ -71,6 +85,16 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
             availableCategories: availableCategories,
             current: filters
         )
+    }
+
+    func switcherButtonTapped() {
+        switcherPresentation = SwitcherPresentation(
+            organizations: [],
+            isLoading: true,
+            isCreating: false,
+            errorMessage: nil
+        )
+        interactor?.loadMyOrganizations()
     }
 
     func editItemRequested(_ item: Item) {
@@ -110,6 +134,33 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         deleteConfirmation = nil
     }
 
+    func selectOrganization(_ summary: OrganizationSummary) {
+        switcherPresentation = nil
+        if summary.id == activeOrganization?.id { return }
+        interactor?.selectActiveOrganization(summary.organization.id)
+        activeOrganization = summary
+        allItems = []
+        rebuildSections()
+        isLoading = true
+        interactor?.loadActiveItems(organizationID: summary.organization.id)
+    }
+
+    func createOrganization(name: String) {
+        guard var pres = switcherPresentation else { return }
+        pres.isCreating = true
+        pres.errorMessage = nil
+        switcherPresentation = pres
+        interactor?.createOrganization(name: name)
+    }
+
+    func dismissSwitcher() {
+        switcherPresentation = nil
+    }
+
+    func dismissSwitcherError() {
+        switcherPresentation?.errorMessage = nil
+    }
+
     func applyFilters(_ filters: WarehouseFilters) {
         self.filters = filters
         filtersPresentation = nil
@@ -139,11 +190,6 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         let names = Set(active.map(\.categoryName))
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         return names.sorted { $0.localizedCompare($1) == .orderedAscending }
-    }
-
-    private func loadItems() {
-        isLoading = true
-        interactor?.loadActiveItems()
     }
 
     private func rebuildSections() {
@@ -215,6 +261,33 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
 // MARK: - MyWarehouseInteractorOutputProtocol
 
 extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
+    func activeOrganizationResolved(_ summary: OrganizationSummary?) {
+        activeOrganization = summary
+        if let summary {
+            interactor?.loadActiveItems(organizationID: summary.organization.id)
+        } else {
+            isLoading = false
+            allItems = []
+            rebuildSections()
+        }
+    }
+
+    func organizationsLoaded(_ organizations: [OrganizationSummary]) {
+        guard var pres = switcherPresentation else { return }
+        pres.organizations = organizations
+        pres.isLoading = false
+        switcherPresentation = pres
+    }
+
+    func organizationCreated(_ summary: OrganizationSummary) {
+        switcherPresentation = nil
+        activeOrganization = summary
+        allItems = []
+        rebuildSections()
+        isLoading = true
+        interactor?.loadActiveItems(organizationID: summary.organization.id)
+    }
+
     func itemsLoaded(_ items: [Item]) {
         allItems = items
         isLoading = false
@@ -247,5 +320,15 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
     func failed(error: String) {
         isLoading = false
         errorMessage = error
+    }
+
+    func organizationFailed(error: String) {
+        if switcherPresentation != nil {
+            switcherPresentation?.isLoading = false
+            switcherPresentation?.isCreating = false
+            switcherPresentation?.errorMessage = error
+        } else {
+            errorMessage = error
+        }
     }
 }

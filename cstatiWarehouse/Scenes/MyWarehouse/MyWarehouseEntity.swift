@@ -13,6 +13,16 @@ struct WarehouseSection: Identifiable, Hashable {
     let items: [Item]
 }
 
+// MARK: - SwitcherPresentation
+
+struct SwitcherPresentation: Identifiable {
+    let id = UUID()
+    var organizations: [OrganizationSummary]
+    var isLoading: Bool
+    var isCreating: Bool
+    var errorMessage: String?
+}
+
 struct ItemEditPresentation: Identifiable, Hashable {
     let id = UUID()
     let mode: ItemEditMode

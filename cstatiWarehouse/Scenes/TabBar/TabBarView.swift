@@ -9,29 +9,21 @@ import SwiftUI
 
 struct TabBarView: View {
     let appCoordinator: AppCoordinatorProtocol
-    
+
     var body: some View {
         TabView {
             Tab("Мой склад", systemImage: "shippingbox") {
                 MyWarehouseAssembly.assemble(appCoordinator: appCoordinator)
             }
-            Tab("Организация", systemImage: "cancel") {
-                MockView()
+            Tab("Организация", systemImage: "person.2") {
+                OrganizationAssembly.assemble(appCoordinator: appCoordinator)
             }
-            Tab("Настройки", systemImage: "pencil") {
-                MockView()
+            Tab("Настройки", systemImage: "gearshape") {
+                SettingsAssembly.assemble(appCoordinator: appCoordinator)
             }
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-    }
-}
-
-// MARK: - Мок для оставшихся экранов
-
-struct MockView: View {
-    var body: some View {
-        GradientBackground()
     }
 }
 

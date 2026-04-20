@@ -262,12 +262,12 @@ func (r *fakeItemRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Item
 	return &clone, nil
 }
 
-func (r *fakeItemRepo) ListByOwner(ctx context.Context, ownerID uuid.UUID, filter ItemFilter) ([]domain.Item, error) {
+func (r *fakeItemRepo) ListByOrganization(ctx context.Context, orgID uuid.UUID, filter ItemFilter) ([]domain.Item, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []domain.Item
 	for _, i := range r.items {
-		if i.OwnerID != ownerID {
+		if i.OrganizationID != orgID {
 			continue
 		}
 		if filter.Status != nil && i.Status != *filter.Status {
@@ -301,12 +301,12 @@ func (r *fakeItemRepo) RecordArchiveEvent(ctx context.Context, item *domain.Item
 	return nil
 }
 
-func (r *fakeItemRepo) ListArchiveEvents(ctx context.Context, ownerID uuid.UUID) ([]domain.ArchiveEvent, error) {
+func (r *fakeItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID) ([]domain.ArchiveEvent, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []domain.ArchiveEvent
 	for _, e := range r.events {
-		if e.OwnerID == ownerID {
+		if e.OrganizationID == orgID {
 			out = append(out, e)
 		}
 	}
@@ -314,12 +314,12 @@ func (r *fakeItemRepo) ListArchiveEvents(ctx context.Context, ownerID uuid.UUID)
 	return out, nil
 }
 
-func (r *fakeItemRepo) ListCategoriesByOwner(ctx context.Context, ownerID uuid.UUID) ([]string, error) {
+func (r *fakeItemRepo) ListCategoriesByOrganization(ctx context.Context, orgID uuid.UUID) ([]string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	seen := map[string]struct{}{}
 	for _, i := range r.items {
-		if i.OwnerID != ownerID {
+		if i.OrganizationID != orgID {
 			continue
 		}
 		if i.CategoryName == "" {
@@ -333,4 +333,193 @@ func (r *fakeItemRepo) ListCategoriesByOwner(ctx context.Context, ownerID uuid.U
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+// MARK: OrganizationRepository
+
+type fakeOrgRepo struct {
+	mu      sync.Mutex
+	orgs    map[uuid.UUID]*domain.Organization
+	members *fakeMemberRepo
+}
+
+func newFakeOrgRepo(members *fakeMemberRepo) *fakeOrgRepo {
+	return &fakeOrgRepo{
+		orgs:    map[uuid.UUID]*domain.Organization{},
+		members: members,
+	}
+}
+
+func (r *fakeOrgRepo) Create(ctx context.Context, org *domain.Organization) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	clone := *org
+	r.orgs[org.ID] = &clone
+	return nil
+}
+
+func (r *fakeOrgRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Organization, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	o, ok := r.orgs[id]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	clone := *o
+	return &clone, nil
+}
+
+func (r *fakeOrgRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]OrganizationWithRole, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []OrganizationWithRole
+	for _, o := range r.orgs {
+		role, err := r.members.FindRole(ctx, o.ID, userID)
+		if err != nil {
+			continue
+		}
+		out = append(out, OrganizationWithRole{Organization: *o, Role: role})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Organization.IsPersonal != out[j].Organization.IsPersonal {
+			return out[i].Organization.IsPersonal
+		}
+		return out[i].Organization.CreatedAt.Before(out[j].Organization.CreatedAt)
+	})
+	return out, nil
+}
+
+func (r *fakeOrgRepo) Update(ctx context.Context, id uuid.UUID, patch OrganizationPatch, now time.Time) (*domain.Organization, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	o, ok := r.orgs[id]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	if patch.Name != nil {
+		o.Name = *patch.Name
+	}
+	o.UpdatedAt = now
+	clone := *o
+	return &clone, nil
+}
+
+func (r *fakeOrgRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.orgs[id]; !ok {
+		return domain.ErrNotFound
+	}
+	delete(r.orgs, id)
+	return nil
+}
+
+// MARK: OrganizationMemberRepository
+
+type memberKey struct {
+	org  uuid.UUID
+	user uuid.UUID
+}
+
+type fakeMemberRepo struct {
+	mu      sync.Mutex
+	members map[memberKey]domain.OrganizationMember
+}
+
+func newFakeMemberRepo() *fakeMemberRepo {
+	return &fakeMemberRepo{members: map[memberKey]domain.OrganizationMember{}}
+}
+
+func (r *fakeMemberRepo) Add(ctx context.Context, m *domain.OrganizationMember) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	key := memberKey{org: m.OrganizationID, user: m.UserID}
+	if _, ok := r.members[key]; ok {
+		return domain.ErrAlreadyMember
+	}
+	r.members[key] = *m
+	return nil
+}
+
+func (r *fakeMemberRepo) Remove(ctx context.Context, orgID, userID uuid.UUID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	key := memberKey{org: orgID, user: userID}
+	if _, ok := r.members[key]; !ok {
+		return domain.ErrNotFound
+	}
+	delete(r.members, key)
+	return nil
+}
+
+func (r *fakeMemberRepo) UpdateRole(ctx context.Context, orgID, userID uuid.UUID, role domain.OrgRole) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	key := memberKey{org: orgID, user: userID}
+	m, ok := r.members[key]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	m.Role = role
+	r.members[key] = m
+	return nil
+}
+
+func (r *fakeMemberRepo) FindRole(ctx context.Context, orgID, userID uuid.UUID) (domain.OrgRole, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	key := memberKey{org: orgID, user: userID}
+	m, ok := r.members[key]
+	if !ok {
+		return "", domain.ErrNotFound
+	}
+	return m.Role, nil
+}
+
+func (r *fakeMemberRepo) ListByOrganization(ctx context.Context, orgID uuid.UUID) ([]domain.OrganizationMember, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []domain.OrganizationMember
+	for _, m := range r.members {
+		if m.OrganizationID == orgID {
+			out = append(out, m)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].JoinedAt.Before(out[j].JoinedAt) })
+	return out, nil
+}
+
+// MARK: PersonalOrgCreator
+
+// fakePersonalOrg реализует узкий порт PersonalOrgCreator.
+// В тестах заодно отражает данные в общих fake-репозиториях,
+// чтобы после регистрации у пользователя реально было членство.
+type fakePersonalOrg struct {
+	orgs    *fakeOrgRepo
+	members *fakeMemberRepo
+	clock   *fakeClock
+}
+
+func (f *fakePersonalOrg) CreatePersonal(ctx context.Context, ownerID uuid.UUID, ownerName string) (*domain.Organization, error) {
+	now := f.clock.Now()
+	org := &domain.Organization{
+		ID:         uuid.New(),
+		Name:       personalOrgName(ownerName),
+		OwnerID:    ownerID,
+		IsPersonal: true,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	if err := f.orgs.Create(ctx, org); err != nil {
+		return nil, err
+	}
+	if err := f.members.Add(ctx, &domain.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         ownerID,
+		Role:           domain.OrgRoleOwner,
+		JoinedAt:       now,
+	}); err != nil {
+		return nil, err
+	}
+	return org, nil
 }

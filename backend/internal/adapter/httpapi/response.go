@@ -48,6 +48,12 @@ func mapError(err error) (int, string, string) {
 		return http.StatusNotFound, "not_found", "resource not found"
 	case errors.Is(err, domain.ErrTelegramDisabled):
 		return http.StatusServiceUnavailable, "telegram_disabled", "telegram login is not configured on the server"
+	case errors.Is(err, domain.ErrAlreadyMember):
+		return http.StatusConflict, "already_member", "user is already a member of this organization"
+	case errors.Is(err, domain.ErrOwnerCannotLeave):
+		return http.StatusConflict, "owner_cannot_leave", "owner must transfer ownership or delete the organization"
+	case errors.Is(err, domain.ErrCannotDeletePersonalOrg):
+		return http.StatusConflict, "personal_org_protected", "personal organization cannot be deleted"
 	case errors.Is(err, infrajwt.ErrInvalidToken):
 		return http.StatusUnauthorized, "invalid_access_token", "invalid access token"
 	default:

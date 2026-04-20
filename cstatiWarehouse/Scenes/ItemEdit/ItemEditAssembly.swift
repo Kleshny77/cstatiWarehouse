@@ -10,6 +10,7 @@ import SwiftUI
 final class ItemEditAssembly {
     static func assemble(
         mode: ItemEditMode,
+        organizationID: UUID,
         warehouseService: WarehouseServiceProtocol,
         uploadsService: UploadsServiceProtocol = AppServices.uploadsService(),
         onFinish: @escaping (ItemEditResult) -> Void
@@ -17,7 +18,8 @@ final class ItemEditAssembly {
         let presenter = ItemEditPresenter(mode: mode, onFinish: onFinish)
         let interactor = ItemEditInteractor(
             warehouseService: warehouseService,
-            uploadsService: uploadsService
+            uploadsService: uploadsService,
+            organizationID: organizationID
         )
         let router = ItemEditRouter()
         

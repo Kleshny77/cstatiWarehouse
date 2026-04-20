@@ -10,27 +10,34 @@ import Foundation
 final class MockWarehouseService: WarehouseServiceProtocol {
     static let shared = MockWarehouseService()
 
-    private var items: [UUID: Item] = [:]
-    private var events: [ArchiveEvent] = []
+    /// Каждая позиция хранится в привязке к organizationID, чтобы мок честно реагировал
+    /// на переключение активной организации.
+    private var items: [UUID: (orgID: UUID, item: Item)] = [:]
+    private var events: [(orgID: UUID, event: ArchiveEvent)] = []
 
     init(seed: [Item] = MockWarehouseService.defaultSeed()) {
+        let defaultOrg = UUID()
         for item in seed {
-            items[item.id] = item
+            items[item.id] = (defaultOrg, item)
         }
     }
 
     // MARK: Public Methods
 
-    func fetchActiveItems(completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
+    func fetchActiveItems(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
         respond {
-            let active = self.items.values.filter { !$0.status.isArchived }
+            let active = self.items.values
+                .filter { $0.orgID == organizationID && !$0.item.status.isArchived }
+                .map(\.item)
             completion(.success(active.sorted { $0.createdAt > $1.createdAt }))
         }
     }
 
-    func fetchHistory(completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
+    func fetchHistory(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
         respond {
-            let history = self.items.values.filter { $0.status.isArchived }
+            let history = self.items.values
+                .filter { $0.orgID == organizationID && $0.item.status.isArchived }
+                .map(\.item)
             let sorted = history.sorted { lhs, rhs in
                 guard case let .archived(_, lDate) = lhs.status,
                       case let .archived(_, rDate) = rhs.status else { return false }
@@ -40,35 +47,41 @@ final class MockWarehouseService: WarehouseServiceProtocol {
         }
     }
 
-    func fetchArchiveEvents(completion: @escaping (Result<[ArchiveEvent], WarehouseError>) -> Void) {
+    func fetchArchiveEvents(organizationID: UUID, completion: @escaping (Result<[ArchiveEvent], WarehouseError>) -> Void) {
         respond {
-            completion(.success(self.events.sorted { $0.archivedAt > $1.archivedAt }))
+            let filtered = self.events
+                .filter { $0.orgID == organizationID }
+                .map(\.event)
+                .sorted { $0.archivedAt > $1.archivedAt }
+            completion(.success(filtered))
         }
     }
 
-    func fetchCategories(completion: @escaping (Result<[String], WarehouseError>) -> Void) {
+    func fetchCategories(organizationID: UUID, completion: @escaping (Result<[String], WarehouseError>) -> Void) {
         respond {
-            let active = self.items.values.filter { !$0.status.isArchived }
+            let active = self.items.values
+                .filter { $0.orgID == organizationID && !$0.item.status.isArchived }
+                .map(\.item)
             let names = Set(active.map(\.categoryName))
                 .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             completion(.success(names.sorted { $0.localizedCompare($1) == .orderedAscending }))
         }
     }
 
-    func createItem(_ item: Item, completion: @escaping (Result<Item, WarehouseError>) -> Void) {
+    func createItem(_ item: Item, organizationID: UUID, completion: @escaping (Result<Item, WarehouseError>) -> Void) {
         respond {
-            self.items[item.id] = item
+            self.items[item.id] = (organizationID, item)
             completion(.success(item))
         }
     }
 
     func updateItem(_ item: Item, completion: @escaping (Result<Item, WarehouseError>) -> Void) {
         respond {
-            guard self.items[item.id] != nil else {
+            guard let existing = self.items[item.id] else {
                 completion(.failure(.notFound))
                 return
             }
-            self.items[item.id] = item
+            self.items[item.id] = (existing.orgID, item)
             completion(.success(item))
         }
     }
@@ -81,10 +94,11 @@ final class MockWarehouseService: WarehouseServiceProtocol {
         completion: @escaping (Result<ArchiveResult, WarehouseError>) -> Void
     ) {
         respond {
-            guard var item = self.items[id] else {
+            guard let existing = self.items[id] else {
                 completion(.failure(.notFound))
                 return
             }
+            var item = existing.item
             guard quantity > 0 else {
                 completion(.failure(.validationError("Укажите количество больше 0")))
                 return
@@ -104,7 +118,7 @@ final class MockWarehouseService: WarehouseServiceProtocol {
             if item.quantity == 0 {
                 item.status = .archived(reason: reason, at: now)
             }
-            self.items[id] = item
+            self.items[id] = (existing.orgID, item)
 
             let event = ArchiveEvent(
                 id: UUID(),
@@ -114,7 +128,7 @@ final class MockWarehouseService: WarehouseServiceProtocol {
                 reasonDetail: reasonDetail,
                 archivedAt: now
             )
-            self.events.append(event)
+            self.events.append((existing.orgID, event))
 
             completion(.success(ArchiveResult(item: item, event: event)))
         }
@@ -126,7 +140,7 @@ final class MockWarehouseService: WarehouseServiceProtocol {
                 completion(.failure(.notFound))
                 return
             }
-            self.events.removeAll { $0.itemID == id }
+            self.events.removeAll { $0.event.itemID == id }
             completion(.success(()))
         }
     }

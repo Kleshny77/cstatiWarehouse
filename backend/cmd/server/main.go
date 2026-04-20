@@ -54,6 +54,8 @@ func run() error {
 	userRepo := repo.NewUserRepo(pool)
 	refreshRepo := repo.NewRefreshTokenRepo(pool)
 	itemRepo := repo.NewItemRepo(pool)
+	orgRepo := repo.NewOrganizationRepo(pool)
+	memberRepo := repo.NewMemberRepo(pool)
 
 	issuer := infrajwt.NewIssuer(cfg.JWTSecret, cfg.JWTAccessTTL)
 	refreshGen := infrajwt.NewRefreshGenerator()
@@ -68,22 +70,25 @@ func run() error {
 		verifier = v
 	}
 
+	organizationsUC := usecase.NewOrganizationsUseCase(orgRepo, memberRepo, clock.Real{})
+
 	authUC := usecase.NewAuthUseCase(
-		userRepo, refreshRepo, hasher, issuer, refreshGen, verifier, clock.Real{},
+		userRepo, refreshRepo, organizationsUC, hasher, issuer, refreshGen, verifier, clock.Real{},
 		usecase.AuthConfig{
 			RefreshTTL:         cfg.JWTRefreshTTL,
 			TelegramConfigured: cfg.TelegramConfigured(),
 		},
 	)
-	warehouseUC := usecase.NewWarehouseUseCase(itemRepo, clock.Real{})
+	warehouseUC := usecase.NewWarehouseUseCase(itemRepo, memberRepo, clock.Real{})
 
 	uploadsHandler := httpapi.NewUploadsHandler(cfg.UploadsDir, cfg.PublicBaseURL, cfg.MaxUploadBytes)
 
 	handler := httpapi.NewRouter(httpapi.RouterDeps{
-		Auth:      httpapi.NewAuthHandler(authUC),
-		Warehouse: httpapi.NewWarehouseHandler(warehouseUC),
-		Uploads:   uploadsHandler,
-		Tokens:    issuer,
+		Auth:          httpapi.NewAuthHandler(authUC),
+		Warehouse:     httpapi.NewWarehouseHandler(warehouseUC),
+		Organizations: httpapi.NewOrganizationHandler(organizationsUC),
+		Uploads:       uploadsHandler,
+		Tokens:        issuer,
 	})
 
 	server := &http.Server{

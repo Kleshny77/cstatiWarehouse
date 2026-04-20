@@ -34,18 +34,24 @@ func newTestServer(t *testing.T) *testServer {
 	refreshGen := infrajwt.NewRefreshGenerator()
 	hasher := password.NewBcryptHasher(4)
 
+	orgsRepo := repo.NewOrganizationRepo(pool)
+	membersRepo := repo.NewMemberRepo(pool)
+	orgsUC := usecase.NewOrganizationsUseCase(orgsRepo, membersRepo, clock.Real{})
+
 	authUC := usecase.NewAuthUseCase(
 		repo.NewUserRepo(pool),
 		repo.NewRefreshTokenRepo(pool),
+		orgsUC,
 		hasher, issuer, refreshGen, nil, clock.Real{},
 		usecase.AuthConfig{RefreshTTL: time.Hour, TelegramConfigured: false},
 	)
-	warehouseUC := usecase.NewWarehouseUseCase(repo.NewItemRepo(pool), clock.Real{})
+	warehouseUC := usecase.NewWarehouseUseCase(repo.NewItemRepo(pool), membersRepo, clock.Real{})
 
 	handler := httpapi.NewRouter(httpapi.RouterDeps{
-		Auth:      httpapi.NewAuthHandler(authUC),
-		Warehouse: httpapi.NewWarehouseHandler(warehouseUC),
-		Tokens:    issuer,
+		Auth:          httpapi.NewAuthHandler(authUC),
+		Warehouse:     httpapi.NewWarehouseHandler(warehouseUC),
+		Organizations: httpapi.NewOrganizationHandler(orgsUC),
+		Tokens:        issuer,
 	})
 
 	s := httptest.NewServer(handler)
@@ -106,6 +112,26 @@ func (s *testServer) registerUser(email, name, password string) map[string]any {
 	return body
 }
 
+// personalOrgID берёт id персональной организации пользователя через /organizations.
+// Она автоматически создаётся при регистрации.
+func (s *testServer) personalOrgID(access string) string {
+	s.t.Helper()
+	status, body := s.do("GET", "/organizations", bearer(access), nil)
+	if status != http.StatusOK {
+		s.t.Fatalf("list orgs failed: %d %+v", status, body)
+	}
+	orgs, _ := body["organizations"].([]any)
+	for _, raw := range orgs {
+		o, _ := raw.(map[string]any)
+		if personal, _ := o["is_personal"].(bool); personal {
+			id, _ := o["id"].(string)
+			return id
+		}
+	}
+	s.t.Fatalf("personal organization not found in %+v", body)
+	return ""
+}
+
 func bearer(token string) map[string]string {
 	return map[string]string{"Authorization": "Bearer " + token}
 }
@@ -127,6 +153,16 @@ func TestIntegrationHTTP_RegisterLoginMe(t *testing.T) {
 		t.Errorf("unexpected /me body: %+v", body)
 	}
 
+	// Персональная организация должна автоматически появиться при регистрации.
+	status, body = s.do("GET", "/organizations", bearer(access), nil)
+	if status != http.StatusOK {
+		t.Fatalf("list orgs failed: %d %+v", status, body)
+	}
+	orgs, _ := body["organizations"].([]any)
+	if len(orgs) != 1 {
+		t.Errorf("expected 1 personal organization after register, got %+v", body)
+	}
+
 	status, body = s.do("POST", "/auth/login", nil, map[string]string{
 		"email": "alice@example.com", "password": "supersecret",
 	})
@@ -146,9 +182,14 @@ func TestIntegrationHTTP_WarehouseCRUD(t *testing.T) {
 	s := newTestServer(t)
 	reg := s.registerUser("warehouse@example.com", "W", "supersecret")
 	access, _ := reg["access_token"].(string)
+	orgID := s.personalOrgID(access)
 
 	status, body := s.do("POST", "/items", bearer(access), map[string]any{
-		"name": "Кола", "description": "0.5л", "category_name": "Напитки", "quantity": 3,
+		"organization_id": orgID,
+		"name":            "Кола",
+		"description":     "0.5л",
+		"category_name":   "Напитки",
+		"quantity":        3,
 	})
 	if status != http.StatusCreated {
 		t.Fatalf("create item failed: %d %+v", status, body)
@@ -159,7 +200,9 @@ func TestIntegrationHTTP_WarehouseCRUD(t *testing.T) {
 		t.Fatalf("created item missing id: %+v", body)
 	}
 
-	status, body = s.do("GET", "/items", bearer(access), nil)
+	orgQuery := "?organizationId=" + orgID
+
+	status, body = s.do("GET", "/items"+orgQuery, bearer(access), nil)
 	if status != http.StatusOK {
 		t.Fatalf("list failed: %d %+v", status, body)
 	}
@@ -168,19 +211,25 @@ func TestIntegrationHTTP_WarehouseCRUD(t *testing.T) {
 		t.Errorf("expected 1 item, got %d", len(items))
 	}
 
-	status, body = s.do("GET", "/items?status=in_stock", bearer(access), nil)
+	status, body = s.do("GET", "/items"+orgQuery+"&status=in_stock", bearer(access), nil)
 	if status != http.StatusOK || len(body["items"].([]any)) != 1 {
 		t.Errorf("in_stock filter failed: %d %+v", status, body)
 	}
 
-	status, body = s.do("GET", "/items?status=archived", bearer(access), nil)
+	status, body = s.do("GET", "/items"+orgQuery+"&status=archived", bearer(access), nil)
 	if status != http.StatusOK || len(body["items"].([]any)) != 0 {
 		t.Errorf("archived filter failed: %d %+v", status, body)
 	}
 
-	status, body = s.do("GET", "/items?status=bogus", bearer(access), nil)
+	status, body = s.do("GET", "/items"+orgQuery+"&status=bogus", bearer(access), nil)
 	if status != http.StatusUnprocessableEntity {
 		t.Errorf("bogus filter must return 422, got %d %+v", status, body)
+	}
+
+	// Без organizationId — ошибка валидации.
+	status, _ = s.do("GET", "/items", bearer(access), nil)
+	if status != http.StatusUnprocessableEntity {
+		t.Errorf("missing organizationId must return 422, got %d", status)
 	}
 
 	status, body = s.do("POST", fmt.Sprintf("/items/%s/archive", itemID), bearer(access), map[string]any{
@@ -204,12 +253,12 @@ func TestIntegrationHTTP_WarehouseCRUD(t *testing.T) {
 		t.Fatalf("full archive failed: %d %+v", status, body)
 	}
 
-	status, body = s.do("GET", "/items?status=archived", bearer(access), nil)
+	status, body = s.do("GET", "/items"+orgQuery+"&status=archived", bearer(access), nil)
 	if status != http.StatusOK || len(body["items"].([]any)) != 1 {
 		t.Errorf("archived list must now contain 1 item, got %d %+v", status, body)
 	}
 
-	status, body = s.do("GET", "/archive-events", bearer(access), nil)
+	status, body = s.do("GET", "/archive-events"+orgQuery, bearer(access), nil)
 	if status != http.StatusOK {
 		t.Fatalf("archive-events failed: %d %+v", status, body)
 	}
@@ -218,7 +267,7 @@ func TestIntegrationHTTP_WarehouseCRUD(t *testing.T) {
 		t.Errorf("expected 2 archive events, got %d", len(events))
 	}
 
-	status, body = s.do("GET", "/categories", bearer(access), nil)
+	status, body = s.do("GET", "/categories"+orgQuery, bearer(access), nil)
 	if status != http.StatusOK {
 		t.Fatalf("categories failed: %d %+v", status, body)
 	}
@@ -261,32 +310,98 @@ func TestIntegrationHTTP_TelegramDisabled(t *testing.T) {
 	}
 }
 
-func TestIntegrationHTTP_IsolationBetweenUsers(t *testing.T) {
+func TestIntegrationHTTP_IsolationBetweenOrgs(t *testing.T) {
 	s := newTestServer(t)
 
 	a := s.registerUser("a@example.com", "A", "supersecret")
 	b := s.registerUser("b@example.com", "B", "supersecret")
 	accessA, _ := a["access_token"].(string)
 	accessB, _ := b["access_token"].(string)
+	orgA := s.personalOrgID(accessA)
+	orgB := s.personalOrgID(accessB)
 
 	status, body := s.do("POST", "/items", bearer(accessA), map[string]any{
-		"name": "A-secret", "category_name": "A-cat", "quantity": 1,
+		"organization_id": orgA,
+		"name":            "A-secret",
+		"category_name":   "A-cat",
+		"quantity":        1,
 	})
 	if status != http.StatusCreated {
 		t.Fatalf("A create failed: %d %+v", status, body)
 	}
 	aItemID := body["item"].(map[string]any)["id"].(string)
 
-	status, body = s.do("GET", "/items", bearer(accessB), nil)
+	// B в своей организации не видит айтемы A.
+	status, body = s.do("GET", "/items?organizationId="+orgB, bearer(accessB), nil)
 	if status != http.StatusOK {
-		t.Fatalf("B list failed: %d %+v", status, body)
+		t.Fatalf("B list own failed: %d %+v", status, body)
 	}
 	if len(body["items"].([]any)) != 0 {
-		t.Errorf("B must not see A items: %+v", body)
+		t.Errorf("B must not see A items in own org: %+v", body)
 	}
 
+	// B не может запрашивать список по orgA — forbidden.
+	status, _ = s.do("GET", "/items?organizationId="+orgA, bearer(accessB), nil)
+	if status != http.StatusForbidden {
+		t.Errorf("B listing A's org must return 403, got %d", status)
+	}
+
+	// B не может удалить айтем в чужой организации — 404 (не раскрываем существование).
 	status, _ = s.do("DELETE", "/items/"+aItemID, bearer(accessB), nil)
 	if status != http.StatusNotFound {
 		t.Errorf("B deleting A item must return 404, got %d", status)
+	}
+}
+
+func TestIntegrationHTTP_Organizations(t *testing.T) {
+	s := newTestServer(t)
+
+	reg := s.registerUser("org-owner@example.com", "Owner", "supersecret")
+	access, _ := reg["access_token"].(string)
+	personal := s.personalOrgID(access)
+
+	// Создание новой организации (не персональной).
+	status, body := s.do("POST", "/organizations", bearer(access), map[string]any{"name": "Команда"})
+	if status != http.StatusCreated {
+		t.Fatalf("create org failed: %d %+v", status, body)
+	}
+	org, _ := body["organization"].(map[string]any)
+	orgID, _ := org["id"].(string)
+	if orgID == "" || org["is_personal"] != false {
+		t.Errorf("unexpected created org: %+v", body)
+	}
+
+	// Listing: должны быть 2 организации (personal + команда).
+	status, body = s.do("GET", "/organizations", bearer(access), nil)
+	if status != http.StatusOK || len(body["organizations"].([]any)) != 2 {
+		t.Errorf("expected 2 orgs, got %d %+v", status, body)
+	}
+
+	// Owner — единственный участник созданной org.
+	status, body = s.do("GET", "/organizations/"+orgID+"/members", bearer(access), nil)
+	if status != http.StatusOK {
+		t.Fatalf("list members failed: %d %+v", status, body)
+	}
+	mems, _ := body["members"].([]any)
+	if len(mems) != 1 {
+		t.Errorf("expected 1 owner member, got %d", len(mems))
+	}
+
+	// Персональную удалить нельзя — 409.
+	status, _ = s.do("DELETE", "/organizations/"+personal, bearer(access), nil)
+	if status != http.StatusConflict {
+		t.Errorf("deleting personal org must return 409, got %d", status)
+	}
+
+	// Owner не может выйти из своей org — 409.
+	status, _ = s.do("POST", "/organizations/"+orgID+"/leave", bearer(access), nil)
+	if status != http.StatusConflict {
+		t.Errorf("owner leave must return 409, got %d", status)
+	}
+
+	// А обычную — удалить можно.
+	status, _ = s.do("DELETE", "/organizations/"+orgID, bearer(access), nil)
+	if status != http.StatusNoContent {
+		t.Errorf("delete org failed: %d", status)
 	}
 }

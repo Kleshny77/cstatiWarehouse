@@ -61,21 +61,59 @@ type RefreshTokenRepository interface {
 	Revoke(ctx context.Context, hash string, at time.Time) error
 }
 
-// ItemFilter позволяет ограничить выдачу ListByOwner по статусу.
+// ItemFilter позволяет ограничить выдачу ListByOrganization по статусу.
 // Nil статус означает "любой".
 type ItemFilter struct {
 	Status *domain.ItemStatus
 }
 
-// ItemRepository — CRUD позиций склада.
+// ItemRepository — CRUD позиций склада. Все операции работают в scope одной организации.
 type ItemRepository interface {
 	Create(ctx context.Context, item *domain.Item) error
 	Update(ctx context.Context, item *domain.Item) error
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.Item, error)
-	ListByOwner(ctx context.Context, ownerID uuid.UUID, filter ItemFilter) ([]domain.Item, error)
+	ListByOrganization(ctx context.Context, orgID uuid.UUID, filter ItemFilter) ([]domain.Item, error)
 	Delete(ctx context.Context, id uuid.UUID) error
-	ListCategoriesByOwner(ctx context.Context, ownerID uuid.UUID) ([]string, error)
+	ListCategoriesByOrganization(ctx context.Context, orgID uuid.UUID) ([]string, error)
 	// RecordArchiveEvent обновляет item (quantity/status) и пишет событие списания в одной транзакции.
 	RecordArchiveEvent(ctx context.Context, item *domain.Item, event *domain.ArchiveEvent) error
-	ListArchiveEvents(ctx context.Context, ownerID uuid.UUID) ([]domain.ArchiveEvent, error)
+	ListArchiveEvents(ctx context.Context, orgID uuid.UUID) ([]domain.ArchiveEvent, error)
+}
+
+// OrganizationPatch — частичное обновление организации.
+// Поле == nil означает "не менять".
+type OrganizationPatch struct {
+	Name *string
+}
+
+// OrganizationRepository — CRUD организаций и выборка по участнику.
+type OrganizationRepository interface {
+	Create(ctx context.Context, org *domain.Organization) error
+	FindByID(ctx context.Context, id uuid.UUID) (*domain.Organization, error)
+	// ListByUser возвращает организации, в которых состоит пользователь, вместе с его ролью в каждой.
+	ListByUser(ctx context.Context, userID uuid.UUID) ([]OrganizationWithRole, error)
+	Update(ctx context.Context, id uuid.UUID, patch OrganizationPatch, now time.Time) (*domain.Organization, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// OrganizationWithRole — организация + роль текущего пользователя в ней.
+// Используется для экрана "мои организации" и для быстрых авторизационных проверок.
+type OrganizationWithRole struct {
+	Organization domain.Organization
+	Role         domain.OrgRole
+}
+
+// OrganizationMemberRepository управляет участниками организации.
+type OrganizationMemberRepository interface {
+	Add(ctx context.Context, member *domain.OrganizationMember) error
+	Remove(ctx context.Context, orgID, userID uuid.UUID) error
+	UpdateRole(ctx context.Context, orgID, userID uuid.UUID, role domain.OrgRole) error
+	FindRole(ctx context.Context, orgID, userID uuid.UUID) (domain.OrgRole, error)
+	ListByOrganization(ctx context.Context, orgID uuid.UUID) ([]domain.OrganizationMember, error)
+}
+
+// PersonalOrgCreator — узкий порт, который Auth использует для создания персональной
+// организации при регистрации нового пользователя. Реализуется OrganizationsUseCase.
+type PersonalOrgCreator interface {
+	CreatePersonal(ctx context.Context, ownerID uuid.UUID, ownerName string) (*domain.Organization, error)
 }

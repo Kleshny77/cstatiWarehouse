@@ -28,10 +28,36 @@ struct MyWarehouseView: View {
             }
         }
         .sheet(item: $presenter.editPresentation) { presentation in
-            presenter.router?.makeItemEditScene(
-                mode: presentation.mode,
-                onFinish: { result in
-                    presenter.editCompleted(result: result)
+            if let orgID = presenter.activeOrganization?.organization.id {
+                presenter.router?.makeItemEditScene(
+                    mode: presentation.mode,
+                    organizationID: orgID,
+                    onFinish: { result in
+                        presenter.editCompleted(result: result)
+                    }
+                )
+            } else {
+                EmptyView()
+            }
+        }
+        .sheet(item: $presenter.switcherPresentation) { presentation in
+            OrganizationSwitcherSheet(
+                organizations: presentation.organizations,
+                activeID: presenter.activeOrganization?.id,
+                isLoading: presentation.isLoading,
+                isCreating: presentation.isCreating,
+                errorMessage: presentation.errorMessage,
+                onSelect: { summary in
+                    presenter.selectOrganization(summary)
+                },
+                onCreate: { name in
+                    presenter.createOrganization(name: name)
+                },
+                onCancel: {
+                    presenter.dismissSwitcher()
+                },
+                onDismissError: {
+                    presenter.dismissSwitcherError()
                 }
             )
         }
@@ -93,22 +119,47 @@ struct MyWarehouseView: View {
     private var topBar: some View {
         HStack {
             profileButton
+            orgSwitcherHeader
+                .padding(.horizontal, 10)
+
+            Spacer()
+
+            addButton
+        }
+    }
+
+    private var orgSwitcherHeader: some View {
+        Button {
+            AppHaptics.selection()
+            presenter.switcherButtonTapped()
+        } label: {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Мой склад")
-                    .font(font: .bold, size: 28)
-                    .defaultTextStyle()
+                HStack(spacing: 6) {
+                    Text(orgTitle)
+                        .font(font: .bold, size: 24)
+                        .defaultTextStyle()
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
                 Text(itemsCountLabel)
-                    .font(font: .semiBold, size: 20)
+                    .font(font: .semiBold, size: 18)
                     .secondaryTextStyle()
                     .contentTransition(.numericText())
                     .appAnimation(AppAnimation.snap, value: presenter.totalItemsCount)
             }
-            .padding(.horizontal, 10)
-            
-            Spacer()
-            
-            addButton
         }
+        .buttonStyle(.pressable)
+        .appAnimation(AppAnimation.snap, value: presenter.activeOrganization?.id)
+    }
+
+    private var orgTitle: String {
+        if let active = presenter.activeOrganization {
+            return active.organization.isPersonal ? "Мой склад" : active.organization.name
+        }
+        return "Мой склад"
     }
     
     private var profileButton: some View {

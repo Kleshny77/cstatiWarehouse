@@ -9,7 +9,11 @@ import SwiftUI
 
 protocol MyWarehouseRouterProtocol: AnyObject {
     func navigateToProfile()
-    func makeItemEditScene(mode: ItemEditMode, onFinish: @escaping (ItemEditResult) -> Void) -> AnyView
+    func makeItemEditScene(
+        mode: ItemEditMode,
+        organizationID: UUID,
+        onFinish: @escaping (ItemEditResult) -> Void
+    ) -> AnyView
 }
 
 final class MyWarehouseRouter: MyWarehouseRouterProtocol {
@@ -29,10 +33,15 @@ final class MyWarehouseRouter: MyWarehouseRouterProtocol {
         appCoordinator?.navigate(to: .profile)
     }
     
-    func makeItemEditScene(mode: ItemEditMode, onFinish: @escaping (ItemEditResult) -> Void) -> AnyView {
+    func makeItemEditScene(
+        mode: ItemEditMode,
+        organizationID: UUID,
+        onFinish: @escaping (ItemEditResult) -> Void
+    ) -> AnyView {
         AnyView(
             ItemEditAssembly.assemble(
                 mode: mode,
+                organizationID: organizationID,
                 warehouseService: warehouseService,
                 onFinish: onFinish
             )

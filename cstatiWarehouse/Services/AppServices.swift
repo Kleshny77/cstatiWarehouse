@@ -13,6 +13,8 @@ import Foundation
 enum AppServices {
     static let sessionStorage: UserSessionStorageProtocol = UserDefaultsUserSessionStorage()
 
+    static let activeOrganizationStorage: ActiveOrganizationStorageProtocol = UserDefaultsActiveOrganizationStorage()
+
     static let apiClient: APIClient = APIClient(sessionStorage: sessionStorage)
 
     static func authService() -> AuthServiceProtocol {
@@ -25,5 +27,9 @@ enum AppServices {
 
     static func uploadsService() -> UploadsServiceProtocol {
         ApiUploadsService(client: apiClient)
+    }
+
+    static func organizationsService() -> OrganizationsServiceProtocol {
+        ApiOrganizationsService(client: apiClient)
     }
 }

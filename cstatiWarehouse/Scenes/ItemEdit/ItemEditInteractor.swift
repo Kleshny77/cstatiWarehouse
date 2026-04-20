@@ -24,16 +24,22 @@ final class ItemEditInteractor: ItemEditInteractorInputProtocol {
 
     private let warehouseService: WarehouseServiceProtocol
     private let uploadsService: UploadsServiceProtocol
+    private let organizationID: UUID
 
-    init(warehouseService: WarehouseServiceProtocol, uploadsService: UploadsServiceProtocol) {
+    init(
+        warehouseService: WarehouseServiceProtocol,
+        uploadsService: UploadsServiceProtocol,
+        organizationID: UUID
+    ) {
         self.warehouseService = warehouseService
         self.uploadsService = uploadsService
+        self.organizationID = organizationID
     }
 
     // MARK: Public Methods
 
     func loadCategories() {
-        warehouseService.fetchCategories { [weak self] result in
+        warehouseService.fetchCategories(organizationID: organizationID) { [weak self] result in
             switch result {
             case .success(let categories):
                 self?.presenter?.categoriesLoaded(categories)
@@ -73,7 +79,7 @@ final class ItemEditInteractor: ItemEditInteractorInputProtocol {
         }
 
         if isNew {
-            warehouseService.createItem(item, completion: completion)
+            warehouseService.createItem(item, organizationID: organizationID, completion: completion)
         } else {
             warehouseService.updateItem(item, completion: completion)
         }

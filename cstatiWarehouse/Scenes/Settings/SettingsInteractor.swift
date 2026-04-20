@@ -29,17 +29,20 @@ final class SettingsInteractor: SettingsInteractorInputProtocol {
     private let sessionStorage: UserSessionStorageProtocol
     private let authService: AuthServiceProtocol
     private let uploadsService: UploadsServiceProtocol
+    private let activeOrgStorage: ActiveOrganizationStorageProtocol
 
     // MARK: Lifecycle
 
     init(
         sessionStorage: UserSessionStorageProtocol,
         authService: AuthServiceProtocol,
-        uploadsService: UploadsServiceProtocol
+        uploadsService: UploadsServiceProtocol,
+        activeOrgStorage: ActiveOrganizationStorageProtocol
     ) {
         self.sessionStorage = sessionStorage
         self.authService = authService
         self.uploadsService = uploadsService
+        self.activeOrgStorage = activeOrgStorage
     }
 
     // MARK: Public Methods
@@ -82,6 +85,7 @@ final class SettingsInteractor: SettingsInteractorInputProtocol {
 
     func logout() {
         sessionStorage.clear()
+        activeOrgStorage.clear()
         presenter?.didLogout()
     }
 

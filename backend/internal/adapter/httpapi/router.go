@@ -7,10 +7,11 @@ import (
 )
 
 type RouterDeps struct {
-	Auth      *AuthHandler
-	Warehouse *WarehouseHandler
-	Uploads   *UploadsHandler
-	Tokens    usecase.TokenIssuer
+	Auth          *AuthHandler
+	Warehouse     *WarehouseHandler
+	Organizations *OrganizationHandler
+	Uploads       *UploadsHandler
+	Tokens        usecase.TokenIssuer
 }
 
 // NewRouter собирает net/http ServeMux поверх входных хендлеров.
@@ -42,6 +43,14 @@ func NewRouter(deps RouterDeps) http.Handler {
 	mux.Handle("DELETE /items/{id}", auth(http.HandlerFunc(deps.Warehouse.Delete)))
 	mux.Handle("GET /categories", auth(http.HandlerFunc(deps.Warehouse.Categories)))
 	mux.Handle("GET /archive-events", auth(http.HandlerFunc(deps.Warehouse.ArchiveEvents)))
+
+	mux.Handle("GET /organizations", auth(http.HandlerFunc(deps.Organizations.List)))
+	mux.Handle("POST /organizations", auth(http.HandlerFunc(deps.Organizations.Create)))
+	mux.Handle("GET /organizations/{id}", auth(http.HandlerFunc(deps.Organizations.Get)))
+	mux.Handle("PATCH /organizations/{id}", auth(http.HandlerFunc(deps.Organizations.Update)))
+	mux.Handle("DELETE /organizations/{id}", auth(http.HandlerFunc(deps.Organizations.Delete)))
+	mux.Handle("GET /organizations/{id}/members", auth(http.HandlerFunc(deps.Organizations.Members)))
+	mux.Handle("POST /organizations/{id}/leave", auth(http.HandlerFunc(deps.Organizations.Leave)))
 
 	// Uploads: загрузка — за auth, выдача — публичный static (URL и так непредсказуемый).
 	if deps.Uploads != nil {

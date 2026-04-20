@@ -20,6 +20,7 @@ type AuthConfig struct {
 type AuthUseCase struct {
 	users         UserRepository
 	refreshTokens RefreshTokenRepository
+	personalOrg   PersonalOrgCreator
 	hasher        PasswordHasher
 	tokens        TokenIssuer
 	refreshGen    RefreshTokenGenerator
@@ -31,6 +32,7 @@ type AuthUseCase struct {
 func NewAuthUseCase(
 	users UserRepository,
 	refreshTokens RefreshTokenRepository,
+	personalOrg PersonalOrgCreator,
 	hasher PasswordHasher,
 	tokens TokenIssuer,
 	refreshGen RefreshTokenGenerator,
@@ -41,6 +43,7 @@ func NewAuthUseCase(
 	return &AuthUseCase{
 		users:         users,
 		refreshTokens: refreshTokens,
+		personalOrg:   personalOrg,
 		hasher:        hasher,
 		tokens:        tokens,
 		refreshGen:    refreshGen,
@@ -100,6 +103,10 @@ func (uc *AuthUseCase) Register(ctx context.Context, in RegisterInput) (*domain.
 		UpdatedAt:    now,
 	}
 	if err := uc.users.Create(ctx, user); err != nil {
+		return nil, domain.AuthTokens{}, err
+	}
+
+	if _, err := uc.personalOrg.CreatePersonal(ctx, user.ID, user.Name); err != nil {
 		return nil, domain.AuthTokens{}, err
 	}
 
@@ -188,6 +195,10 @@ func (uc *AuthUseCase) LoginWithTelegram(ctx context.Context, idToken string) (*
 		UpdatedAt:   now,
 	}
 	if err := uc.users.Create(ctx, user); err != nil {
+		return nil, domain.AuthTokens{}, err
+	}
+
+	if _, err := uc.personalOrg.CreatePersonal(ctx, user.ID, user.Name); err != nil {
 		return nil, domain.AuthTokens{}, err
 	}
 

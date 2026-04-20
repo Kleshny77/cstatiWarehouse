@@ -12,13 +12,15 @@ final class SettingsAssembly {
         appCoordinator: AppCoordinatorProtocol,
         sessionStorage: UserSessionStorageProtocol = AppServices.sessionStorage,
         authService: AuthServiceProtocol = AppServices.authService(),
-        uploadsService: UploadsServiceProtocol = AppServices.uploadsService()
+        uploadsService: UploadsServiceProtocol = AppServices.uploadsService(),
+        activeOrgStorage: ActiveOrganizationStorageProtocol = AppServices.activeOrganizationStorage
     ) -> some View {
         let presenter = SettingsPresenter()
         let interactor = SettingsInteractor(
             sessionStorage: sessionStorage,
             authService: authService,
-            uploadsService: uploadsService
+            uploadsService: uploadsService,
+            activeOrgStorage: activeOrgStorage
         )
         let router = SettingsRouter(appCoordinator: appCoordinator)
 

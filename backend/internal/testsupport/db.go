@@ -88,7 +88,10 @@ func truncate(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	stmt := strings.Join([]string{
 		"TRUNCATE",
+		"item_archive_events,",
 		"items,",
+		"organization_members,",
+		"organizations,",
 		"refresh_tokens,",
 		"users",
 		"RESTART IDENTITY CASCADE",
