@@ -12,7 +12,7 @@ import UIKit
 protocol RegisterPresenterProtocol: AnyObject {
     func viewDidLoad()
     func validatePassword(_ password: String) -> PasswordValidation
-    func registerButtonTapped(name: String, email: String, password: String, avatar: UIImage?)
+    func registerButtonTapped(name: String, lastName: String, email: String, password: String, avatar: UIImage?)
     func loginButtonTapped()
     func telegramLoginButtonTapped()
 }
@@ -48,8 +48,8 @@ final class RegisterPresenter: RegisterPresenterProtocol {
         return result
     }
     
-    func registerButtonTapped(name: String, email: String, password: String, avatar: UIImage?) {
-        interactor?.register(name: name, email: email, password: password, avatar: avatar)
+    func registerButtonTapped(name: String, lastName: String, email: String, password: String, avatar: UIImage?) {
+        interactor?.register(name: name, lastName: lastName, email: email, password: password, avatar: avatar)
     }
     
     func loginButtonTapped() {

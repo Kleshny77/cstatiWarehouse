@@ -50,6 +50,7 @@ type organizationMemberDTO struct {
 	Role      string    `json:"role"`
 	JoinedAt  time.Time `json:"joined_at"`
 	Name      string    `json:"name"`
+	LastName  string    `json:"last_name"`
 	Email     string    `json:"email"`
 	AvatarURL *string   `json:"avatar_url,omitempty"`
 }
@@ -474,6 +475,7 @@ func memberToDTO(m usecase.MemberWithProfile) organizationMemberDTO {
 		Role:      string(m.Member.Role),
 		JoinedAt:  m.Member.JoinedAt,
 		Name:      m.Name,
+		LastName:  m.LastName,
 		Email:     m.Email,
 		AvatarURL: m.AvatarURL,
 	}

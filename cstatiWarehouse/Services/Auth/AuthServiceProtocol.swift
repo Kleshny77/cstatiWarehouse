@@ -46,6 +46,7 @@ struct LoginResponse {
 
 struct RegisterRequest {
     let name: String
+    let lastName: String
     let email: String
     let password: String
     let avatarURL: URL?
@@ -64,6 +65,7 @@ struct TelegramLoginRequest {
 struct UpdateProfileRequest {
     /// nil — не менять имя.
     let name: String?
+    let lastName: String?
     /// nil — не менять аватар. URL без значения означает "сбросить".
     let avatarURL: URL??
 }
@@ -71,6 +73,7 @@ struct UpdateProfileRequest {
 struct UserDTO {
     let id: String
     let name: String
+    let lastName: String
     let email: String
     let avatarURL: URL?
 }

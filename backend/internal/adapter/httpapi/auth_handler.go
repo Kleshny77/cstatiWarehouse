@@ -22,6 +22,7 @@ func NewAuthHandler(auth *usecase.AuthUseCase) *AuthHandler {
 type userDTO struct {
 	ID        string  `json:"id"`
 	Name      string  `json:"name"`
+	LastName  string  `json:"last_name"`
 	Email     string  `json:"email"`
 	AvatarURL *string `json:"avatar_url,omitempty"`
 }
@@ -30,6 +31,7 @@ func userToDTO(u *domain.User) userDTO {
 	return userDTO{
 		ID:        u.ID.String(),
 		Name:      u.Name,
+		LastName:  u.LastName,
 		Email:     u.Email,
 		AvatarURL: u.AvatarURL,
 	}
@@ -55,6 +57,7 @@ func buildAuthResponse(user *domain.User, tokens domain.AuthTokens) authResponse
 
 type registerRequest struct {
 	Name      string  `json:"name"`
+	LastName  string  `json:"last_name"`
 	Email     string  `json:"email"`
 	Password  string  `json:"password"`
 	AvatarURL *string `json:"avatar_url,omitempty"`
@@ -67,7 +70,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, tokens, err := h.auth.Register(r.Context(), usecase.RegisterInput{
-		Name: req.Name, Email: req.Email, Password: req.Password,
+		Name: req.Name, LastName: req.LastName, Email: req.Email, Password: req.Password,
 		AvatarURL: req.AvatarURL,
 	})
 	if err != nil {
@@ -79,6 +82,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 type updateProfileRequest struct {
 	Name      *string `json:"name,omitempty"`
+	LastName  *string `json:"last_name,omitempty"`
 	AvatarURL *string `json:"avatar_url,omitempty"`
 }
 
@@ -95,7 +99,7 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, err := h.auth.UpdateProfile(r.Context(), userID, usecase.UpdateProfileInput{
-		Name: req.Name, AvatarURL: req.AvatarURL,
+		Name: req.Name, LastName: req.LastName, AvatarURL: req.AvatarURL,
 	})
 	if err != nil {
 		writeError(w, r, err)

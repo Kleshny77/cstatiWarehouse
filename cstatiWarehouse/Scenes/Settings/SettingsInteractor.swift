@@ -10,7 +10,7 @@ import UIKit
 
 protocol SettingsInteractorInputProtocol: AnyObject {
     func loadUser()
-    func updateProfile(name: String?, avatarImage: UIImage?, removeAvatar: Bool)
+    func updateProfile(name: String?, lastName: String?, avatarImage: UIImage?, removeAvatar: Bool)
     func logout()
 }
 
@@ -51,7 +51,7 @@ final class SettingsInteractor: SettingsInteractorInputProtocol {
         presenter?.userLoaded(sessionStorage.currentUser)
     }
 
-    func updateProfile(name: String?, avatarImage: UIImage?, removeAvatar: Bool) {
+    func updateProfile(name: String?, lastName: String?, avatarImage: UIImage?, removeAvatar: Bool) {
         uploadAvatarIfNeeded(image: avatarImage) { [weak self] avatarURL in
             guard let self else { return }
 
@@ -64,7 +64,7 @@ final class SettingsInteractor: SettingsInteractorInputProtocol {
                 avatarPatch = nil
             }
 
-            let request = UpdateProfileRequest(name: name, avatarURL: avatarPatch)
+            let request = UpdateProfileRequest(name: name, lastName: lastName, avatarURL: avatarPatch)
             self.authService.updateProfile(request: request) { [weak self] result in
                 switch result {
                 case .success(let dto):
@@ -72,6 +72,7 @@ final class SettingsInteractor: SettingsInteractorInputProtocol {
                         id: dto.id,
                         email: dto.email,
                         name: dto.name,
+                        lastName: dto.lastName,
                         avatarURL: dto.avatarURL
                     )
                     self?.sessionStorage.updateUser(user)

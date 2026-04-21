@@ -256,16 +256,7 @@ func (uc *OrganizationsUseCase) TransferOwnership(ctx context.Context, actorID, 
 		return err
 	}
 	now := uc.clock.Now()
-	// Последовательность: target → owner, actor → admin, organizations.owner_id → target.
-	// Без транзакции может остаться несогласованное состояние; для dev-этапа ок,
-	// владелец при необходимости может вызвать ChangeRole руками.
-	if err := uc.members.UpdateRole(ctx, orgID, targetID, domain.OrgRoleOwner); err != nil {
-		return err
-	}
-	if err := uc.members.UpdateRole(ctx, orgID, actorID, domain.OrgRoleAdmin); err != nil {
-		return err
-	}
-	if err := uc.orgs.SetOwner(ctx, orgID, targetID, now); err != nil {
+	if err := uc.orgs.TransferOwnershipAtomic(ctx, orgID, actorID, targetID, now); err != nil {
 		return err
 	}
 	uc.logActivity(ctx, orgID, actorID, domain.ActivityOwnershipTransferred, "member", &targetID, "владелец организации передал права новому владельцу")

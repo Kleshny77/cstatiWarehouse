@@ -154,7 +154,6 @@ struct OrganizationView: View {
                         .buttonStyle(.pressable)
                     }
                 }
-                infoRow(title: "ID", value: summary.organization.id.uuidString.prefix(8).lowercased() + "…")
                 infoRow(title: "Тип", value: summary.organization.isPersonal ? "Персональная" : "Общая")
                 infoRow(title: "Создана", value: formattedDate(summary.organization.createdAt))
             }
@@ -514,8 +513,7 @@ struct OrganizationView: View {
 
     private func displayName(for row: OrganizationMemberRow) -> String {
         if row.isCurrentUser { return "Вы" }
-        let name = row.member.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !name.isEmpty { return name }
+        if let full = row.member.fullName, !full.isEmpty { return full }
         if let email = row.member.email, !email.isEmpty { return email }
         return shortenedID(row.member.userID)
     }
@@ -525,7 +523,7 @@ struct OrganizationView: View {
         if row.isCurrentUser, let email = row.member.email, !email.isEmpty {
             return "\(email) · \(joined)"
         }
-        if let email = row.member.email, !email.isEmpty, row.member.name != nil {
+        if let email = row.member.email, !email.isEmpty, row.member.fullName != nil {
             return "\(email) · \(joined)"
         }
         return joined
@@ -570,7 +568,7 @@ private struct InvitesSheet: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 20)
+                .padding(.top, 28)
                 .padding(.bottom, 40)
             }
         }
@@ -608,9 +606,16 @@ private struct InvitesSheet: View {
                 .font(font: .bold, size: 22)
                 .defaultTextStyle()
             Spacer()
-            Button("Готово") { presenter.dismissInviteSheet() }
-                .foregroundStyle(.white.opacity(0.9))
-                .font(font: .semiBold, size: 15)
+            Button {
+                presenter.dismissInviteSheet()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .frame(width: 34, height: 34)
+                    .appGlass(in: Circle())
+            }
+            .buttonStyle(.pressable)
         }
     }
 
@@ -808,7 +813,7 @@ private struct EventsSheet: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 20)
+                .padding(.top, 28)
                 .padding(.bottom, 40)
             }
         }
@@ -844,9 +849,16 @@ private struct EventsSheet: View {
                 .font(font: .bold, size: 22)
                 .defaultTextStyle()
             Spacer()
-            Button("Готово") { presenter.dismissEventsSheet() }
-                .foregroundStyle(.white.opacity(0.9))
-                .font(font: .semiBold, size: 15)
+            Button {
+                presenter.dismissEventsSheet()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .frame(width: 34, height: 34)
+                    .appGlass(in: Circle())
+            }
+            .buttonStyle(.pressable)
         }
     }
 
@@ -983,7 +995,7 @@ private struct CategoriesSheet: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 20)
+                .padding(.top, 28)
                 .padding(.bottom, 40)
             }
         }
@@ -1014,9 +1026,16 @@ private struct CategoriesSheet: View {
                 .font(font: .bold, size: 22)
                 .defaultTextStyle()
             Spacer()
-            Button("Готово") { presenter.dismissCategoriesSheet() }
-                .foregroundStyle(.white.opacity(0.9))
-                .font(font: .semiBold, size: 15)
+            Button {
+                presenter.dismissCategoriesSheet()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .frame(width: 34, height: 34)
+                    .appGlass(in: Circle())
+            }
+            .buttonStyle(.pressable)
         }
     }
 
@@ -1112,7 +1131,7 @@ private struct ActivitySheet: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 20)
+                .padding(.top, 28)
                 .padding(.bottom, 40)
             }
         }
@@ -1149,9 +1168,16 @@ private struct ActivitySheet: View {
                 .font(font: .bold, size: 22)
                 .defaultTextStyle()
             Spacer()
-            Button("Готово") { presenter.dismissActivitySheet() }
-                .foregroundStyle(.white.opacity(0.9))
-                .font(font: .semiBold, size: 15)
+            Button {
+                presenter.dismissActivitySheet()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .frame(width: 34, height: 34)
+                    .appGlass(in: Circle())
+            }
+            .buttonStyle(.pressable)
         }
     }
 

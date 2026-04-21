@@ -57,8 +57,16 @@ struct OrganizationMember: Identifiable, Hashable, Codable {
     var role: OrgRole
     let joinedAt: Date
     let name: String?
+    let lastName: String?
     let email: String?
     let avatarURL: URL?
+
+    var fullName: String? {
+        let fn = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let ln = lastName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let result = ln.isEmpty ? fn : fn + " " + ln
+        return result.isEmpty ? nil : result
+    }
 }
 
 // MARK: - OrganizationSummary

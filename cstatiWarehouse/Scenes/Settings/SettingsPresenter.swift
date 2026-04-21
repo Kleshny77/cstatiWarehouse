@@ -24,6 +24,7 @@ final class SettingsPresenter: SettingsPresenterProtocol {
 
     var user: User?
     var draftName: String = ""
+    var draftLastName: String = ""
     var pickedAvatar: UIImage?
     var removeAvatarRequested: Bool = false
 
@@ -40,20 +41,23 @@ final class SettingsPresenter: SettingsPresenterProtocol {
     func saveButtonTapped() {
         guard !isSaving else { return }
 
-        let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let nameChanged = trimmed != (user?.name ?? "") && !trimmed.isEmpty
+        let trimmedName = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLastName = draftLastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nameChanged = !trimmedName.isEmpty && trimmedName != (user?.name ?? "")
+        let lastNameChanged = trimmedLastName != (user?.lastName ?? "")
         let avatarChanged = pickedAvatar != nil || removeAvatarRequested
 
-        guard nameChanged || avatarChanged else { return }
+        guard nameChanged || lastNameChanged || avatarChanged else { return }
 
-        if trimmed.isEmpty && nameChanged {
+        if trimmedName.isEmpty {
             errorMessage = "Имя не может быть пустым"
             return
         }
 
         isSaving = true
         interactor?.updateProfile(
-            name: nameChanged ? trimmed : nil,
+            name: nameChanged ? trimmedName : nil,
+            lastName: lastNameChanged ? trimmedLastName : nil,
             avatarImage: pickedAvatar,
             removeAvatar: removeAvatarRequested && pickedAvatar == nil
         )
@@ -65,10 +69,12 @@ final class SettingsPresenter: SettingsPresenterProtocol {
 
     var hasPendingChanges: Bool {
         guard let user else { return false }
-        let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let nameChanged = !trimmed.isEmpty && trimmed != user.name
+        let trimmedName = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLastName = draftLastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nameChanged = !trimmedName.isEmpty && trimmedName != user.name
+        let lastNameChanged = trimmedLastName != user.lastName
         let avatarChanged = pickedAvatar != nil || removeAvatarRequested
-        return nameChanged || avatarChanged
+        return nameChanged || lastNameChanged || avatarChanged
     }
 }
 
@@ -76,6 +82,7 @@ extension SettingsPresenter: SettingsInteractorOutputProtocol {
     func userLoaded(_ user: User?) {
         self.user = user
         self.draftName = user?.name ?? ""
+        self.draftLastName = user?.lastName ?? ""
         self.pickedAvatar = nil
         self.removeAvatarRequested = false
     }
@@ -83,6 +90,7 @@ extension SettingsPresenter: SettingsInteractorOutputProtocol {
     func profileUpdated(_ user: User) {
         self.user = user
         self.draftName = user.name
+        self.draftLastName = user.lastName
         self.pickedAvatar = nil
         self.removeAvatarRequested = false
         self.isSaving = false

@@ -10,7 +10,7 @@ import UIKit
 
 protocol RegisterInteractorInputProtocol: AnyObject {
     func validatePassword(_ password: String) -> PasswordValidation
-    func register(name: String, email: String, password: String, avatar: UIImage?)
+    func register(name: String, lastName: String, email: String, password: String, avatar: UIImage?)
     func registerWithTelegram()
 }
 
@@ -43,7 +43,7 @@ final class RegisterInteractor: RegisterInteractorInputProtocol {
         PasswordValidation.validate(password)
     }
 
-    func register(name: String, email: String, password: String, avatar: UIImage?) {
+    func register(name: String, lastName: String, email: String, password: String, avatar: UIImage?) {
         let nameTrimmed = name.trimmingCharacters(in: .whitespaces)
         guard !nameTrimmed.isEmpty else {
             presenter?.registrationFailure(error: "Введите имя")
@@ -66,6 +66,7 @@ final class RegisterInteractor: RegisterInteractorInputProtocol {
         uploadAvatarIfNeeded(avatar) { [weak self] avatarURL in
             self?.performRegister(
                 name: nameTrimmed,
+                lastName: lastName.trimmingCharacters(in: .whitespaces),
                 email: email,
                 password: password,
                 avatarURL: avatarURL
@@ -86,6 +87,7 @@ final class RegisterInteractor: RegisterInteractorInputProtocol {
                             id: response.user.id,
                             email: response.user.email,
                             name: response.user.name,
+                            lastName: response.user.lastName,
                             avatarURL: response.user.avatarURL
                         )
                         self?.sessionStorage.save(
@@ -125,8 +127,8 @@ final class RegisterInteractor: RegisterInteractorInputProtocol {
         }
     }
 
-    private func performRegister(name: String, email: String, password: String, avatarURL: URL?) {
-        let request = RegisterRequest(name: name, email: email, password: password, avatarURL: avatarURL)
+    private func performRegister(name: String, lastName: String, email: String, password: String, avatarURL: URL?) {
+        let request = RegisterRequest(name: name, lastName: lastName, email: email, password: password, avatarURL: avatarURL)
         authService.register(request: request) { [weak self] result in
             switch result {
             case .success(let response):
@@ -134,6 +136,7 @@ final class RegisterInteractor: RegisterInteractorInputProtocol {
                     id: response.user.id,
                     email: response.user.email,
                     name: response.user.name,
+                    lastName: response.user.lastName,
                     avatarURL: response.user.avatarURL
                 )
                 self?.sessionStorage.save(

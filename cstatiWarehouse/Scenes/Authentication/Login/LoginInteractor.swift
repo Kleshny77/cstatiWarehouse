@@ -56,6 +56,7 @@ final class LoginInteractor: LoginInteractorInputProtocol {
                     id: response.user.id,
                     email: response.user.email,
                     name: response.user.name,
+                    lastName: response.user.lastName,
                     avatarURL: response.user.avatarURL
                 )
                 self?.sessionStorage.save(
@@ -83,6 +84,7 @@ final class LoginInteractor: LoginInteractorInputProtocol {
                             id: response.user.id,
                             email: response.user.email,
                             name: response.user.name,
+                            lastName: response.user.lastName,
                             avatarURL: response.user.avatarURL
                         )
                         self?.sessionStorage.save(

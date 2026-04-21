@@ -292,6 +292,7 @@ private struct MemberDTO: Decodable {
     let role: String
     let joinedAt: Date
     let name: String?
+    let lastName: String?
     let email: String?
     let avatarUrl: String?
 
@@ -304,6 +305,7 @@ private struct MemberDTO: Decodable {
             role: role,
             joinedAt: joinedAt,
             name: name,
+            lastName: lastName,
             email: email,
             avatarURL: avatarUrl.flatMap { URL(string: $0) }
         )

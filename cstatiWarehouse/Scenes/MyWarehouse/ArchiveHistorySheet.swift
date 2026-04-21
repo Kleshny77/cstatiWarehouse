@@ -19,6 +19,8 @@ struct ArchiveHistorySheet: View {
         .hour()
         .minute()
 
+    @State private var selectedEvent: ArchiveEvent? = nil
+
     var body: some View {
         ZStack {
             GradientBackground()
@@ -40,14 +42,25 @@ struct ArchiveHistorySheet: View {
                     ScrollView {
                         LazyVStack(spacing: 10) {
                             ForEach(events) { event in
-                                eventCard(event)
+                                Button {
+                                    AppHaptics.selection()
+                                    selectedEvent = event
+                                } label: {
+                                    eventCard(event)
+                                }
+                                .buttonStyle(.plain)
+                                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             }
                         }
                         .padding(.horizontal, 20)
+                        .padding(.top, 4)
                         .padding(.bottom, 28)
                     }
                 }
             }
+        }
+        .sheet(item: $selectedEvent) { event in
+            ArchiveEventDetailSheet(event: event, onDismiss: { selectedEvent = nil })
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -55,19 +68,24 @@ struct ArchiveHistorySheet: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(alignment: .top) {
             Text("Списания")
                 .font(font: .bold, size: 22)
                 .defaultTextStyle()
-            Spacer()
-            Button("Закрыть") {
+            Spacer(minLength: 12)
+            Button {
                 onDismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .frame(width: 34, height: 34)
+                    .appGlass(in: Circle())
             }
-            .foregroundStyle(.white.opacity(0.9))
-            .font(font: .semiBold, size: 16)
+            .buttonStyle(.pressable)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 12)
+        .padding(.top, 28)
         .padding(.bottom, 16)
     }
 
@@ -123,6 +141,116 @@ struct ArchiveHistorySheet: View {
     private func actorLabel(_ event: ArchiveEvent) -> String {
         let s = event.archivedByDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !s.isEmpty { return s }
-        return "id • " + event.archivedByUserID.uuidString.prefix(8).lowercased()
+        return "участник"
+    }
+}
+
+// MARK: - ArchiveEventDetailSheet
+
+struct ArchiveEventDetailSheet: View {
+    let event: ArchiveEvent
+    let onDismiss: () -> Void
+
+    private static let dateTime: Date.FormatStyle = .dateTime
+        .locale(Locale(identifier: "ru_RU"))
+        .day(.twoDigits)
+        .month(.abbreviated)
+        .year()
+        .hour()
+        .minute()
+
+    var body: some View {
+        ZStack {
+            GradientBackground()
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        detailsCard
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 28)
+                }
+            }
+        }
+        .presentationDetents([.height(420), .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(.clear)
+    }
+
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(event.itemName)
+                    .font(font: .bold, size: 22)
+                    .defaultTextStyle()
+                    .lineLimit(2)
+                Text("списание · \(event.archivedAt.formatted(Self.dateTime))")
+                    .font(font: .semiBold, size: 13)
+                    .secondaryTextStyle()
+            }
+            Spacer(minLength: 12)
+            Button {
+                onDismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .frame(width: 34, height: 34)
+                    .appGlass(in: Circle())
+            }
+            .buttonStyle(.pressable)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 28)
+        .padding(.bottom, 16)
+    }
+
+    private var detailsCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            row(icon: "archivebox", label: "Количество", value: "\(event.quantity) шт.")
+            divider
+            row(icon: "tag", label: "Причина", value: event.reason.title)
+            if !event.reasonDetail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                divider
+                row(icon: "text.alignleft", label: "Комментарий",
+                    value: event.reasonDetail.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            divider
+            row(icon: "person.fill", label: "Кто списал", value: actorName)
+        }
+        .appGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var divider: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.08))
+            .frame(height: 1)
+            .padding(.horizontal, 16)
+    }
+
+    private func row(icon: String, label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.55))
+                .frame(width: 20)
+            Text(label)
+                .font(font: .semiBold, size: 14)
+                .foregroundStyle(.white.opacity(0.65))
+                .frame(minWidth: 90, alignment: .leading)
+            Spacer()
+            Text(value)
+                .font(font: .semiBold, size: 14)
+                .foregroundStyle(.white.opacity(0.95))
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+
+    private var actorName: String {
+        let s = event.archivedByDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return s.isEmpty ? "участник" : s
     }
 }

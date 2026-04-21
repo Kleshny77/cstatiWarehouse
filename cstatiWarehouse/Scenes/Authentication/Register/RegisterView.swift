@@ -10,6 +10,7 @@ import SwiftUI
 struct RegisterView: View {
     @Bindable var presenter: RegisterPresenter
     @State private var name: String = ""
+    @State private var lastName: String = ""
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var avatarImage: UIImage?
@@ -111,6 +112,11 @@ struct RegisterView: View {
                 text: $name
             )
             GlassTextField(
+                title: "Фамилия",
+                placeholder: "Ваша фамилия",
+                text: $lastName
+            )
+            GlassTextField(
                 title: "Email",
                 placeholder: "your@email.com",
                 text: $email,
@@ -195,7 +201,7 @@ struct RegisterView: View {
     
     private var registerButton: some View {
         Button(action: {
-            presenter.registerButtonTapped(name: name, email: email, password: password, avatar: avatarImage)
+            presenter.registerButtonTapped(name: name, lastName: lastName, email: email, password: password, avatar: avatarImage)
         }) {
             Text("Зарегистрироваться")
                 .foregroundStyle(.white.opacity(0.9))

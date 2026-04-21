@@ -106,6 +106,41 @@ func (r *OrganizationRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (r *OrganizationRepo) TransferOwnershipAtomic(ctx context.Context, orgID, fromID, toID uuid.UUID, now time.Time) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	tag, err := tx.Exec(ctx,
+		`UPDATE organization_members SET role = 'owner' WHERE organization_id = $1 AND user_id = $2`,
+		orgID, toID,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE organization_members SET role = 'admin' WHERE organization_id = $1 AND user_id = $2`,
+		orgID, fromID,
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE organizations SET owner_id = $2, updated_at = $3 WHERE id = $1`,
+		orgID, toID, now,
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
 func scanOrganization(row pgx.Row) (*domain.Organization, error) {
 	var org domain.Organization
 	err := row.Scan(&org.ID, &org.Name, &org.OwnerID, &org.IsPersonal, &org.CreatedAt, &org.UpdatedAt)

@@ -318,19 +318,26 @@ func (uc *WarehouseUseCase) requireMember(ctx context.Context, userID, orgID uui
 	return role, nil
 }
 
-// requireAccessibleItem загружает айтем и проверяет, что пользователь — участник его организации.
-// Если айтема нет или пользователь не в организации — возвращаем ErrNotFound,
-// чтобы не раскрывать существование чужих записей.
+// requireAccessibleItem загружает айтем и проверяет доступ пользователя для его изменения.
+// Обычный участник (member) может изменять только те позиции, за которые отвечает сам
+// (HeldByUserID == userID) — аналогично фильтрации в List.
+// Администратор и владелец могут менять любую позицию организации.
+// ErrNotFound возвращается и при отсутствии айтема, и при запрете — чтобы не раскрывать
+// существование чужих записей.
 func (uc *WarehouseUseCase) requireAccessibleItem(ctx context.Context, itemID, userID uuid.UUID) (*domain.Item, error) {
 	item, err := uc.items.FindByID(ctx, itemID)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := uc.members.FindRole(ctx, item.OrganizationID, userID); err != nil {
+	role, err := uc.members.FindRole(ctx, item.OrganizationID, userID)
+	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			return nil, domain.ErrNotFound
 		}
 		return nil, err
+	}
+	if !role.CanManageMembers() && item.HeldByUserID != userID {
+		return nil, domain.ErrNotFound
 	}
 	return item, nil
 }

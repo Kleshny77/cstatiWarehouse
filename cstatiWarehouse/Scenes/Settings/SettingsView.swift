@@ -141,23 +141,28 @@ struct SettingsView: View {
     }
 
     private func initials(for user: User) -> String {
-        let trimmed = user.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "?" }
-        let parts = trimmed.split(separator: " ")
-        if parts.count >= 2,
-           let first = parts.first?.first,
-           let second = parts[1].first {
-            return (String(first) + String(second)).uppercased()
+        let fn = user.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ln = user.lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !fn.isEmpty else { return "?" }
+        if let fi = fn.first, let li = ln.first {
+            return (String(fi) + String(li)).uppercased()
         }
-        return String(trimmed.prefix(1)).uppercased()
+        return String(fn.prefix(1)).uppercased()
     }
 
     private var nameField: some View {
-        GlassTextField(
-            title: "Имя",
-            placeholder: "Имя",
-            text: $presenter.draftName
-        )
+        VStack(spacing: 10) {
+            GlassTextField(
+                title: "Имя",
+                placeholder: "Имя",
+                text: $presenter.draftName
+            )
+            GlassTextField(
+                title: "Фамилия",
+                placeholder: "Фамилия",
+                text: $presenter.draftLastName
+            )
+        }
     }
 
     private var saveButton: some View {

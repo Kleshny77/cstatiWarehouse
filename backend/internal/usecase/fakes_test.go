@@ -165,6 +165,9 @@ func (r *fakeUserRepo) UpdateProfile(ctx context.Context, id uuid.UUID, patch Us
 	if patch.Name != nil {
 		u.Name = *patch.Name
 	}
+	if patch.LastName != nil {
+		u.LastName = *patch.LastName
+	}
 	if patch.AvatarURL != nil {
 		trimmed := *patch.AvatarURL
 		if trimmed == "" {
@@ -431,6 +434,16 @@ func (r *fakeOrgRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 	delete(r.orgs, id)
 	return nil
+}
+
+func (r *fakeOrgRepo) TransferOwnershipAtomic(ctx context.Context, orgID, fromID, toID uuid.UUID, now time.Time) error {
+	if err := r.members.UpdateRole(ctx, orgID, toID, domain.OrgRoleOwner); err != nil {
+		return err
+	}
+	if err := r.members.UpdateRole(ctx, orgID, fromID, domain.OrgRoleAdmin); err != nil {
+		return err
+	}
+	return r.SetOwner(ctx, orgID, toID, now)
 }
 
 // MARK: OrganizationMemberRepository

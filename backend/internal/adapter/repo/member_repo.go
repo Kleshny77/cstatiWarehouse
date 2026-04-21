@@ -75,7 +75,7 @@ func (r *MemberRepo) FindRole(ctx context.Context, orgID, userID uuid.UUID) (dom
 
 func (r *MemberRepo) ListWithProfilesByOrganization(ctx context.Context, orgID uuid.UUID) ([]usecase.MemberWithProfile, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT m.organization_id, m.user_id, m.role, m.joined_at, u.name, u.email, u.avatar_url
+		SELECT m.organization_id, m.user_id, m.role, m.joined_at, u.name, u.last_name, u.email, u.avatar_url
 		FROM organization_members m
 		JOIN users u ON u.id = m.user_id
 		WHERE m.organization_id = $1
@@ -89,19 +89,21 @@ func (r *MemberRepo) ListWithProfilesByOrganization(ctx context.Context, orgID u
 	var out []usecase.MemberWithProfile
 	for rows.Next() {
 		var (
-			m      domain.OrganizationMember
-			role   string
-			name   string
-			email  string
-			avatar *string
+			m        domain.OrganizationMember
+			role     string
+			name     string
+			lastName string
+			email    string
+			avatar   *string
 		)
-		if err := rows.Scan(&m.OrganizationID, &m.UserID, &role, &m.JoinedAt, &name, &email, &avatar); err != nil {
+		if err := rows.Scan(&m.OrganizationID, &m.UserID, &role, &m.JoinedAt, &name, &lastName, &email, &avatar); err != nil {
 			return nil, err
 		}
 		m.Role = domain.OrgRole(role)
 		out = append(out, usecase.MemberWithProfile{
 			Member:    m,
 			Name:      name,
+			LastName:  lastName,
 			Email:     email,
 			AvatarURL: avatar,
 		})

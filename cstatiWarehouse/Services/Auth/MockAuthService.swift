@@ -17,7 +17,7 @@ final class MockAuthService: AuthServiceProtocol {
 
     func login(request: LoginRequest, completion: @escaping (Result<LoginResponse, AuthError>) -> Void) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            let user = UserDTO(id: "1", name: "User", email: request.email, avatarURL: nil)
+            let user = UserDTO(id: "1", name: "User", lastName: "", email: request.email, avatarURL: nil)
             self?.currentUser = user
             completion(.success(LoginResponse(
                 accessToken: "mock-access",
@@ -29,7 +29,7 @@ final class MockAuthService: AuthServiceProtocol {
 
     func register(request: RegisterRequest, completion: @escaping (Result<RegisterResponse, AuthError>) -> Void) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            let user = UserDTO(id: "1", name: request.name, email: request.email, avatarURL: request.avatarURL)
+            let user = UserDTO(id: "1", name: request.name, lastName: request.lastName, email: request.email, avatarURL: request.avatarURL)
             self?.currentUser = user
             completion(.success(RegisterResponse(
                 accessToken: "mock-access",
@@ -51,7 +51,7 @@ final class MockAuthService: AuthServiceProtocol {
             let email = payload.preferredUsername.map { "\($0)@telegram.local" }
                 ?? "tg_\(payload.sub)@telegram.local"
             let avatar = payload.pictureURL.flatMap { URL(string: $0) }
-            let user = UserDTO(id: payload.sub, name: displayName, email: email, avatarURL: avatar)
+            let user = UserDTO(id: payload.sub, name: displayName, lastName: "", email: email, avatarURL: avatar)
             self?.currentUser = user
             completion(.success(LoginResponse(
                 accessToken: "mock-tg-access",
@@ -68,12 +68,13 @@ final class MockAuthService: AuthServiceProtocol {
                 return
             }
             let newName = request.name?.trimmingCharacters(in: .whitespaces) ?? current.name
+            let newLastName = request.lastName?.trimmingCharacters(in: .whitespaces) ?? current.lastName
             let newAvatar: URL?
             switch request.avatarURL {
             case .some(let inner): newAvatar = inner
             case .none: newAvatar = current.avatarURL
             }
-            let updated = UserDTO(id: current.id, name: newName, email: current.email, avatarURL: newAvatar)
+            let updated = UserDTO(id: current.id, name: newName, lastName: newLastName, email: current.email, avatarURL: newAvatar)
             self.currentUser = updated
             completion(.success(updated))
         }

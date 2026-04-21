@@ -55,6 +55,7 @@ func NewAuthUseCase(
 
 type RegisterInput struct {
 	Name      string
+	LastName  string
 	Email     string
 	Password  string
 	AvatarURL *string
@@ -97,6 +98,7 @@ func (uc *AuthUseCase) Register(ctx context.Context, in RegisterInput) (*domain.
 		ID:           uuid.New(),
 		Email:        email,
 		Name:         name,
+		LastName:     strings.TrimSpace(in.LastName),
 		AvatarURL:    avatar,
 		PasswordHash: &hash,
 		CreatedAt:    now,
@@ -106,7 +108,7 @@ func (uc *AuthUseCase) Register(ctx context.Context, in RegisterInput) (*domain.
 		return nil, domain.AuthTokens{}, err
 	}
 
-	if _, err := uc.personalOrg.CreatePersonal(ctx, user.ID, user.Name); err != nil {
+	if _, err := uc.personalOrg.CreatePersonal(ctx, user.ID, user.FullName()); err != nil {
 		return nil, domain.AuthTokens{}, err
 	}
 
@@ -267,6 +269,7 @@ func (uc *AuthUseCase) CurrentUser(ctx context.Context, userID uuid.UUID) (*doma
 // Поле nil означает "не менять".
 type UpdateProfileInput struct {
 	Name      *string
+	LastName  *string
 	AvatarURL *string
 }
 
@@ -280,11 +283,15 @@ func (uc *AuthUseCase) UpdateProfile(ctx context.Context, userID uuid.UUID, in U
 		}
 		patch.Name = &trimmed
 	}
+	if in.LastName != nil {
+		trimmed := strings.TrimSpace(*in.LastName)
+		patch.LastName = &trimmed
+	}
 	if in.AvatarURL != nil {
 		trimmed := strings.TrimSpace(*in.AvatarURL)
 		patch.AvatarURL = &trimmed
 	}
-	if patch.Name == nil && patch.AvatarURL == nil {
+	if patch.Name == nil && patch.LastName == nil && patch.AvatarURL == nil {
 		return uc.users.FindByID(ctx, userID)
 	}
 	return uc.users.UpdateProfile(ctx, userID, patch, uc.clock.Now())

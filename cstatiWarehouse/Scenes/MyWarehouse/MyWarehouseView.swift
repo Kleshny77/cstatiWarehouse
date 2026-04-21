@@ -10,7 +10,8 @@ import SwiftUI
 struct MyWarehouseView: View {
     @Bindable var presenter: MyWarehousePresenter
     @Namespace private var scopePickerNamespace
-    
+    @State private var selectedItem: Item? = nil
+
     init(presenter: MyWarehousePresenter) {
         self.presenter = presenter
     }
@@ -97,6 +98,18 @@ struct MyWarehouseView: View {
                 onCancel: {
                     presenter.filtersPresentation = nil
                 }
+            )
+        }
+        .sheet(item: $selectedItem) { item in
+            ItemDetailSheet(
+                item: item,
+                onEdit: {
+                    selectedItem = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        presenter.editItemRequested(item)
+                    }
+                },
+                onDismiss: { selectedItem = nil }
             )
         }
         .sheet(isPresented: $presenter.isArchiveHistoryPresented) {
@@ -403,29 +416,36 @@ struct MyWarehouseView: View {
             ForEach(presenter.sections) { section in
                 Section {
                     ForEach(section.items) { item in
-                        WarehouseItemCard(item: item)
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                            .contextMenu {
-                                itemContextMenu(for: item)
+                        Button {
+                            AppHaptics.selection()
+                            selectedItem = item
+                        } label: {
+                            WarehouseItemCard(item: item)
+                                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .contextMenu {
+                            itemContextMenu(for: item)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button {
+                                AppHaptics.impact(.medium)
+                                presenter.archiveItemRequested(item)
+                            } label: {
+                                Label("Списать", systemImage: "archivebox")
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button {
-                                    AppHaptics.impact(.medium)
-                                    presenter.archiveItemRequested(item)
-                                } label: {
-                                    Label("Списать", systemImage: "archivebox")
-                                }
-                                .tint(.red)
-                                Button {
-                                    AppHaptics.selection()
-                                    presenter.editItemRequested(item)
-                                } label: {
-                                    Label("Изменить", systemImage: "pencil")
-                                }
-                                .tint(.indigo)
+                            .tint(.red)
+                            Button {
+                                AppHaptics.selection()
+                                presenter.editItemRequested(item)
+                            } label: {
+                                Label("Изменить", systemImage: "pencil")
                             }
+                            .tint(.indigo)
+                        }
                     }
                 } header: {
                     sectionHeader(section)

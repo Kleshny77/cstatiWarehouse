@@ -36,6 +36,7 @@ final class MockOrganizationsService: OrganizationsServiceProtocol {
                     role: .owner,
                     joinedAt: .now,
                     name: nil,
+                    lastName: nil,
                     email: nil,
                     avatarURL: nil
                 )
@@ -89,6 +90,7 @@ final class MockOrganizationsService: OrganizationsServiceProtocol {
                     role: .owner,
                     joinedAt: .now,
                     name: nil,
+                    lastName: nil,
                     email: nil,
                     avatarURL: nil
                 )

@@ -38,6 +38,7 @@ final class ApiAuthService: AuthServiceProtocol {
     func register(request: RegisterRequest, completion: @escaping (Result<RegisterResponse, AuthError>) -> Void) {
         let body = RegisterRequestDTO(
             name: request.name,
+            lastName: request.lastName,
             email: request.email,
             password: request.password,
             avatarUrl: request.avatarURL?.absoluteString
@@ -84,7 +85,7 @@ final class ApiAuthService: AuthServiceProtocol {
             avatarPayload = nil
         }
 
-        let body = UpdateProfileRequestDTO(name: request.name, avatarUrl: avatarPayload)
+        let body = UpdateProfileRequestDTO(name: request.name, lastName: request.lastName, avatarUrl: avatarPayload)
         client.request(
             path: "/auth/me",
             method: .patch,
@@ -117,7 +118,7 @@ final class ApiAuthService: AuthServiceProtocol {
 
     private static func mapUser(_ dto: AuthUserDTO) -> UserDTO {
         let avatar = dto.avatarUrl.flatMap { URL(string: $0) }
-        return UserDTO(id: dto.id, name: dto.name, email: dto.email, avatarURL: avatar)
+        return UserDTO(id: dto.id, name: dto.name, lastName: dto.lastName, email: dto.email, avatarURL: avatar)
     }
 
     private static func mapAuthError(_ error: APIError) -> AuthError {
@@ -157,6 +158,7 @@ private struct LoginRequestDTO: Encodable {
 
 private struct RegisterRequestDTO: Encodable {
     let name: String
+    let lastName: String
     let email: String
     let password: String
     let avatarUrl: String?
@@ -182,12 +184,16 @@ private enum NullableString: Encodable {
 
 private struct UpdateProfileRequestDTO: Encodable {
     let name: String?
+    let lastName: String?
     let avatarUrl: NullableString?
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: DynamicCodingKey.self)
         if let name = name {
             try container.encode(name, forKey: .name)
+        }
+        if let lastName = lastName {
+            try container.encode(lastName, forKey: .lastName)
         }
         if let avatarUrl = avatarUrl {
             try container.encode(avatarUrl, forKey: .avatarUrl)
@@ -197,6 +203,7 @@ private struct UpdateProfileRequestDTO: Encodable {
 
 private enum DynamicCodingKey: String, CodingKey {
     case name
+    case lastName
     case avatarUrl
 }
 
@@ -213,6 +220,7 @@ private struct UserResponseDTO: Decodable {
 private struct AuthUserDTO: Decodable {
     let id: String
     let name: String
+    let lastName: String
     let email: String
     let avatarUrl: String?
 }

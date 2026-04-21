@@ -42,6 +42,7 @@ type TelegramVerifier interface {
 // Поле == nil означает "не менять".
 type UserProfileUpdate struct {
 	Name      *string
+	LastName  *string
 	AvatarURL *string
 }
 
@@ -96,6 +97,9 @@ type OrganizationRepository interface {
 	Update(ctx context.Context, id uuid.UUID, patch OrganizationPatch, now time.Time) (*domain.Organization, error)
 	SetOwner(ctx context.Context, id uuid.UUID, newOwnerID uuid.UUID, now time.Time) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	// TransferOwnershipAtomic атомарно: переводит toID → owner, fromID → admin и обновляет
+	// organizations.owner_id — всё в одной транзакции БД.
+	TransferOwnershipAtomic(ctx context.Context, orgID, fromID, toID uuid.UUID, now time.Time) error
 }
 
 // OrganizationWithRole — организация + роль текущего пользователя в ней.
@@ -120,6 +124,7 @@ type OrganizationMemberRepository interface {
 type MemberWithProfile struct {
 	Member    domain.OrganizationMember
 	Name      string
+	LastName  string
 	Email     string
 	AvatarURL *string
 }

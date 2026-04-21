@@ -21,13 +21,13 @@ func NewUserRepo(pool *pgxpool.Pool) *UserRepo {
 	return &UserRepo{pool: pool}
 }
 
-const userColumns = `id, email, name, avatar_url, password_hash, telegram_sub, created_at, updated_at`
+const userColumns = `id, email, name, last_name, avatar_url, password_hash, telegram_sub, created_at, updated_at`
 
 func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO users (id, email, name, avatar_url, password_hash, telegram_sub, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`, user.ID, user.Email, user.Name, user.AvatarURL, user.PasswordHash, user.TelegramSub, user.CreatedAt, user.UpdatedAt)
+		INSERT INTO users (id, email, name, last_name, avatar_url, password_hash, telegram_sub, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, user.ID, user.Email, user.Name, user.LastName, user.AvatarURL, user.PasswordHash, user.TelegramSub, user.CreatedAt, user.UpdatedAt)
 	if err != nil {
 		return mapPgError(err, "users_email_key", domain.ErrEmailAlreadyUsed)
 	}
@@ -55,10 +55,11 @@ func (r *UserRepo) UpdateProfile(ctx context.Context, id uuid.UUID, patch usecas
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE users SET
 			name       = COALESCE($2, name),
-			avatar_url = CASE WHEN $3::BOOLEAN THEN NULLIF($4::text, '') ELSE avatar_url END,
-			updated_at = $5
+			last_name  = COALESCE($3, last_name),
+			avatar_url = CASE WHEN $4::BOOLEAN THEN NULLIF($5::text, '') ELSE avatar_url END,
+			updated_at = $6
 		WHERE id = $1
-	`, id, patch.Name, patch.AvatarURL != nil, deref(patch.AvatarURL), now)
+	`, id, patch.Name, patch.LastName, patch.AvatarURL != nil, deref(patch.AvatarURL), now)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +71,7 @@ func (r *UserRepo) UpdateProfile(ctx context.Context, id uuid.UUID, patch usecas
 
 func scanUser(row pgx.Row) (*domain.User, error) {
 	var u domain.User
-	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.PasswordHash, &u.TelegramSub, &u.CreatedAt, &u.UpdatedAt)
+	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.LastName, &u.AvatarURL, &u.PasswordHash, &u.TelegramSub, &u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrNotFound
 	}

@@ -331,7 +331,7 @@ private struct ArchiveEventDTO: Decodable {
     let itemId: String
     let archivedByUserId: String
     let itemName: String?
-    let archivedByName: String?
+    let archivedByDisplayName: String?
     let quantity: Int
     let reason: String
     let reasonDetail: String?
@@ -343,7 +343,7 @@ private struct ArchiveEventDTO: Decodable {
               let actorId = UUID(uuidString: archivedByUserId) else { return nil }
         let reason = ArchiveReason(rawValue: reason) ?? .other
         let name = (itemName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let actorName = (archivedByName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let actorName = (archivedByDisplayName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return ArchiveEvent(
             id: id,
             itemID: itemId,

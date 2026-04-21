@@ -49,7 +49,7 @@ struct WarehouseFiltersSheet: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 28)
-                .padding(.bottom, 24)
+                .padding(.bottom, 8)
             }
         }
         .presentationDetents([.large])
