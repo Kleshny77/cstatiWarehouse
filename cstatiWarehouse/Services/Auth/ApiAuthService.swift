@@ -91,10 +91,10 @@ final class ApiAuthService: AuthServiceProtocol {
             method: .patch,
             body: body,
             authenticated: true
-        ) { (result: Result<UserResponseDTO, APIError>) in
+        ) { (result: Result<AuthUserDTO, APIError>) in
             switch result {
             case .success(let dto):
-                completion(.success(Self.mapUser(dto.user)))
+                completion(.success(Self.mapUser(dto)))
             case .failure(let error):
                 completion(.failure(Self.mapAuthError(error)))
             }
@@ -210,10 +210,6 @@ private enum DynamicCodingKey: String, CodingKey {
 private struct AuthResponseDTO: Decodable {
     let accessToken: String
     let refreshToken: String
-    let user: AuthUserDTO
-}
-
-private struct UserResponseDTO: Decodable {
     let user: AuthUserDTO
 }
 

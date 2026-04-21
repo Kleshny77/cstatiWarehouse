@@ -16,6 +16,10 @@ struct GlassTextField: View {
     /// Когда `true`, поле растягивается по ширине контейнера (как на экранах с `padding(.horizontal, 20)`).
     /// По умолчанию — фиксированная ширина 331 (экраны входа/регистрации).
     var useFullWidth: Bool = false
+    var submitLabel: SubmitLabel = .done
+    var onSubmit: (() -> Void)? = nil
+    var isFocused: FocusState<Bool>.Binding? = nil
+    var autocapitalization: TextInputAutocapitalization = .never
 
     @State private var isPasswordVisible: Bool = false
 
@@ -35,24 +39,37 @@ struct GlassTextField: View {
         }
     }
 
+    @ViewBuilder
+    private func applyFocus<V: View>(to view: V) -> some View {
+        if let f = isFocused {
+            view.focused(f)
+        } else {
+            view
+        }
+    }
+
     private var regularFieldView: some View {
-        TextField(
-            "",
-            text: $text,
-            prompt: Text(placeholder)
-                .foregroundColor(.white.opacity(0.4))
-                .font(font: .semiBold, size: 14)
+        applyFocus(to:
+            TextField(
+                "",
+                text: $text,
+                prompt: Text(placeholder)
+                    .foregroundColor(.white.opacity(0.4))
+                    .font(font: .semiBold, size: 14)
+            )
+            .tint(.white.opacity(0.8))
+            .foregroundStyle(.white.opacity(0.8))
+            .font(font: .semiBold, size: 14)
+            .padding(.horizontal, 17)
+            .padding(.vertical, 15)
+            .frame(maxWidth: useFullWidth ? .infinity : nil, minHeight: 47)
+            .frame(width: useFullWidth ? nil : 331, height: 47)
+            .appGlass()
+            .textInputAutocapitalization(autocapitalization)
+            .keyboardType(keyboardType)
+            .submitLabel(submitLabel)
+            .onSubmit { onSubmit?() }
         )
-        .tint(.white.opacity(0.8))
-        .foregroundStyle(.white.opacity(0.8))
-        .font(font: .semiBold, size: 14)
-        .padding(.horizontal, 17)
-        .padding(.vertical, 15)
-        .frame(maxWidth: useFullWidth ? .infinity : nil, minHeight: 47)
-        .frame(width: useFullWidth ? nil : 331, height: 47)
-        .appGlass()
-        .autocapitalization(.none)
-        .keyboardType(keyboardType)
     }
 
     private var secureFieldView: some View {
@@ -64,20 +81,28 @@ struct GlassTextField: View {
 
             Group {
                 if isPasswordVisible {
-                    TextField(
-                        "",
-                        text: $text,
-                        prompt: Text(placeholder)
-                            .foregroundColor(.white.opacity(0.4))
-                            .font(font: .semiBold, size: 14)
+                    applyFocus(to:
+                        TextField(
+                            "",
+                            text: $text,
+                            prompt: Text(placeholder)
+                                .foregroundColor(.white.opacity(0.4))
+                                .font(font: .semiBold, size: 14)
+                        )
+                        .submitLabel(submitLabel)
+                        .onSubmit { onSubmit?() }
                     )
                 } else {
-                    SecureField(
-                        "",
-                        text: $text,
-                        prompt: Text(placeholder)
-                            .foregroundColor(.white.opacity(0.4))
-                            .font(font: .semiBold, size: 14)
+                    applyFocus(to:
+                        SecureField(
+                            "",
+                            text: $text,
+                            prompt: Text(placeholder)
+                                .foregroundColor(.white.opacity(0.4))
+                                .font(font: .semiBold, size: 14)
+                        )
+                        .submitLabel(submitLabel)
+                        .onSubmit { onSubmit?() }
                     )
                 }
             }
@@ -89,7 +114,7 @@ struct GlassTextField: View {
             .padding(.vertical, 15)
             .frame(maxWidth: useFullWidth ? .infinity : nil, minHeight: 47)
             .frame(width: useFullWidth ? nil : 331, height: 47)
-            .autocapitalization(.none)
+            .textInputAutocapitalization(autocapitalization)
 
             Button(action: { isPasswordVisible.toggle() }) {
                 Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")

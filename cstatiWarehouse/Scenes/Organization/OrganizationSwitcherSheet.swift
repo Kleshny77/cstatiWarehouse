@@ -34,26 +34,28 @@ struct OrganizationSwitcherSheet: View {
     // MARK: Body
 
     var body: some View {
-        ZStack {
-            GradientBackground()
-            ScrollView {
-                VStack(spacing: 16) {
-                    header
-                    listSection
-                    joinSection
-                    createSection
-                    if let errorMessage {
-                        errorBanner(errorMessage)
-                    }
+        ScrollView {
+            VStack(spacing: 16) {
+                header
+                listSection
+                joinSection
+                createSection
+                if let errorMessage {
+                    errorBanner(errorMessage)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-                .padding(.bottom, 40)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 28)
+            .padding(.bottom, 40)
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.height(contentHeight)])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.clear)
+        .presentationBackground(SheetPresentationChrome.organizationManagementGradient)
+    }
+
+    private var contentHeight: CGFloat {
+        let rows = CGFloat(max(1, organizations.count)) * 60
+        return 28 + 36 + 16 + rows + 16 + 70 + 16 + 70 + 40
     }
 
     // MARK: UI Configuration

@@ -16,10 +16,15 @@ struct RegisterView: View {
     @State private var avatarImage: UIImage?
     @State private var isPhotoSheetPresented: Bool = false
 
+    @FocusState private var nameIsFocused: Bool
+    @FocusState private var lastNameIsFocused: Bool
+    @FocusState private var emailIsFocused: Bool
+    @FocusState private var passwordIsFocused: Bool
+
     init(presenter: RegisterPresenter) {
         self.presenter = presenter
     }
-    
+
     var body: some View {
         ZStack {
             AnimatedGradientBackground()
@@ -34,6 +39,7 @@ struct RegisterView: View {
                 .padding(.horizontal, 22)
                 .appAnimation(AppAnimation.smooth, value: password.isEmpty)
             }
+            .scrollIndicators(.hidden)
         }
         .onChange(of: password) { _, newValue in
             _ = presenter.validatePassword(newValue)
@@ -56,11 +62,11 @@ struct RegisterView: View {
     }
     
     private var header: some View {
-        VStack(spacing: 26) {
-            avatarPicker
+        VStack(spacing: 20) {
             welcome
+            avatarPicker
         }
-        .padding(.top, 20)
+        .padding(.top, 2)
         .padding(.bottom, 8)
     }
 
@@ -109,24 +115,40 @@ struct RegisterView: View {
             GlassTextField(
                 title: "Имя",
                 placeholder: "Ваше имя",
-                text: $name
+                text: $name,
+                submitLabel: .next,
+                onSubmit: { lastNameIsFocused = true },
+                isFocused: $nameIsFocused,
+                autocapitalization: .words
             )
             GlassTextField(
                 title: "Фамилия",
                 placeholder: "Ваша фамилия",
-                text: $lastName
+                text: $lastName,
+                submitLabel: .next,
+                onSubmit: { emailIsFocused = true },
+                isFocused: $lastNameIsFocused,
+                autocapitalization: .words
             )
             GlassTextField(
                 title: "Email",
                 placeholder: "your@email.com",
                 text: $email,
-                keyboardType: .emailAddress
+                keyboardType: .emailAddress,
+                submitLabel: .next,
+                onSubmit: { passwordIsFocused = true },
+                isFocused: $emailIsFocused
             )
             GlassTextField(
                 title: "Пароль",
                 placeholder: "*******",
                 text: $password,
-                isSecure: true
+                isSecure: true,
+                submitLabel: .done,
+                onSubmit: {
+                    presenter.registerButtonTapped(name: name, lastName: lastName, email: email, password: password, avatar: avatarImage)
+                },
+                isFocused: $passwordIsFocused
             )
             if !password.isEmpty {
                 passwordStrength

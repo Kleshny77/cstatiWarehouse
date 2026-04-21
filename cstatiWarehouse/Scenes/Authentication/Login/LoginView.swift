@@ -11,7 +11,10 @@ struct LoginView: View {
     @Bindable var presenter: LoginPresenter
     @State private var email: String = ""
     @State private var password: String = ""
-    
+
+    @FocusState private var emailIsFocused: Bool
+    @FocusState private var passwordIsFocused: Bool
+
     init(presenter: LoginPresenter) {
         self.presenter = presenter
     }
@@ -72,19 +75,23 @@ struct LoginView: View {
     
     private var loginForm: some View {
         VStack(spacing: 14) {
-            
             GlassTextField(
                 title: "Email",
                 placeholder: "your@email.com",
                 text: $email,
-                keyboardType: .emailAddress
+                keyboardType: .emailAddress,
+                submitLabel: .next,
+                onSubmit: { passwordIsFocused = true },
+                isFocused: $emailIsFocused
             )
-            
             GlassTextField(
                 title: "Пароль",
                 placeholder: "*******",
                 text: $password,
-                isSecure: true
+                isSecure: true,
+                submitLabel: .done,
+                onSubmit: { presenter.loginButtonTapped(email: email, password: password) },
+                isFocused: $passwordIsFocused
             )
         }
     }

@@ -202,61 +202,60 @@ struct ItemEditView: View {
     }
 
     private var newCategorySheet: some View {
-        ZStack {
-            GradientBackground()
-            VStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("Новая категория")
+                    .foregroundStyle(.white.opacity(0.95))
                     .font(font: .bold, size: 22)
-                    .defaultTextStyle()
-
                 Text("Будет доступна всем участникам организации")
-                    .font(font: .semiBold, size: 12)
-                    .secondaryTextStyle()
-                    .multilineTextAlignment(.center)
-
-                GlassTextField(
-                    title: "Название",
-                    placeholder: "например, напитки",
-                    text: $newCategoryDraft,
-                    useFullWidth: true
-                )
-
-                HStack(spacing: 10) {
-                    Button {
-                        presenter.isNewCategorySheetPresented = false
-                    } label: {
-                        Text("Отмена")
-                            .foregroundStyle(.white.opacity(0.82))
-                            .font(font: .bold, size: 15)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-                    .buttonStyle(.pressable)
-                    .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                    Button {
-                        presenter.createNewCategory(name: newCategoryDraft)
-                    } label: {
-                        Text("Создать")
-                            .foregroundStyle(.white.opacity(0.96))
-                            .font(font: .bold, size: 15)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-                    .buttonStyle(.pressable)
-                    .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .disabled(newCategoryDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
+                    .foregroundStyle(.white.opacity(0.6))
+                    .font(font: .semiBold, size: 13)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 18)
-            .frame(maxHeight: .infinity, alignment: .top)
+
+            GlassTextField(
+                title: "Название",
+                placeholder: "например, напитки",
+                text: $newCategoryDraft,
+                useFullWidth: true
+            )
+
+            HStack(spacing: 10) {
+                Button {
+                    presenter.isNewCategorySheetPresented = false
+                } label: {
+                    Text("Отмена")
+                        .foregroundStyle(.white.opacity(0.95))
+                        .font(font: .bold, size: 15)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 50)
+                        .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.pressable)
+                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                Button {
+                    presenter.createNewCategory(name: newCategoryDraft)
+                } label: {
+                    Text("Создать")
+                        .foregroundStyle(.white.opacity(0.96))
+                        .font(font: .bold, size: 15)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 50)
+                        .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.pressable)
+                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .disabled(newCategoryDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
         }
-        .presentationDetents([.height(220)])
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 22)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .presentationDetents([.height(298)])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.clear)
+        .presentationBackground(SheetPresentationChrome.organizationManagementGradient)
     }
 
     private var holderField: some View {

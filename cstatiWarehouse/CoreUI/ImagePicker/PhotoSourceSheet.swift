@@ -107,19 +107,17 @@ private struct PhotoSourceOptionsView: View {
     let onCancel: () -> Void
 
     var body: some View {
-        ZStack {
-            GradientBackground()
-            VStack(spacing: 14) {
-                header
-                buttons
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 24)
+        VStack(spacing: 14) {
+            header
+            buttons
         }
+        .padding(.horizontal, 24)
+        .padding(.top, 16)
+        .padding(.bottom, 24)
+        .frame(maxWidth: .infinity, alignment: .top)
         .presentationDetents([.height(sheetHeight)])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.clear)
+        .presentationBackground(SheetPresentationChrome.organizationManagementGradient)
     }
 
     private var header: some View {
@@ -160,17 +158,29 @@ private struct PhotoSourceOptionsView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            Group {
                 if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 15, weight: .semibold))
+                    HStack(spacing: 12) {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(tint)
+                            .frame(width: 36, height: 36)
+                            .appGlass(in: Circle())
+                        Text(title)
+                            .font(font: .bold, size: 15)
+                            .foregroundStyle(tint)
+                        Spacer(minLength: 0)
+                    }
+                } else {
+                    Text(title)
+                        .font(font: .bold, size: 15)
+                        .foregroundStyle(tint)
+                        .frame(maxWidth: .infinity)
                 }
-                Text(title)
-                    .font(font: .bold, size: 15)
             }
-            .foregroundStyle(tint)
+            .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
-            .frame(height: 52)
+            .frame(minHeight: 52)
             .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.pressable)

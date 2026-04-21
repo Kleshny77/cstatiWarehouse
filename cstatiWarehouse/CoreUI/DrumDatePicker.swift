@@ -5,8 +5,8 @@
 
 import SwiftUI
 
-/// Три колонки `Picker(.wheel)` + общий `appGlass`. Декор поверх колеса — только с
-/// `allowsHitTesting(false)` (раньше `mask`/`overlay` без этого съедали скролл).
+/// Три колонки `Picker(.wheel)` внутри одного `appGlass`; без отдельных фонов/оверлеев на колонках,
+/// чтобы не дублировать границы и «таблетку» поверх системного wheel.
 struct DrumDatePicker: View {
 
     @Binding var selection: Date
@@ -20,16 +20,23 @@ struct DrumDatePicker: View {
 
     init(selection: Binding<Date>) {
         _selection = selection
-        let comps = Calendar.current.dateComponents([.day, .month, .year], from: selection.wrappedValue)
+        let cal = Calendar.current
+        let startOfToday = cal.startOfDay(for: Date())
+        let boundDay = cal.startOfDay(for: selection.wrappedValue)
+        let base = boundDay < startOfToday ? startOfToday : boundDay
+        if base != boundDay {
+            selection.wrappedValue = base
+        }
+        let comps = cal.dateComponents([.day, .month, .year], from: base)
         let d = comps.day   ?? 1
         let m = comps.month ?? 1
-        let y = comps.year  ?? Calendar.current.component(.year, from: Date())
+        let y = comps.year  ?? cal.component(.year, from: Date())
         _day   = State(initialValue: d)
         _month = State(initialValue: m)
         _year  = State(initialValue: y)
 
-        let currentYear = Calendar.current.component(.year, from: Date())
-        years = Array((currentYear - 5)...(currentYear + 20))
+        let currentYear = cal.component(.year, from: Date())
+        years = Array(currentYear...(currentYear + 20))
     }
 
     var body: some View {
@@ -45,15 +52,15 @@ struct DrumDatePicker: View {
             }
             .padding(.horizontal, 2)
 
-            HStack(spacing: 8) {
-                wheelColumn(title: "День", width: 88) { dayColumn }
-                wheelColumn(title: "Месяц", width: 118) { monthColumn }
-                wheelColumn(title: "Год", width: 98) { yearColumn }
+            HStack(spacing: 10) {
+                wheelColumn(title: "День", width: 80) { dayColumn }
+                wheelColumn(title: "Месяц", width: 108) { monthColumn }
+                wheelColumn(title: "Год", width: 92) { yearColumn }
             }
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
-            .appGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .appGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .foregroundStyle(.white.opacity(0.92))
         .colorScheme(.dark)
@@ -63,7 +70,7 @@ struct DrumDatePicker: View {
 
     private var dayColumn: some View {
         Picker("", selection: $day) {
-            ForEach(1...daysInSelectedMonth, id: \.self) { d in
+            ForEach(minDayInSelectedMonth...daysInSelectedMonth, id: \.self) { d in
                 Text(String(format: "%02d", d))
                     .font(font: .bold, size: 20)
                     .tag(d)
@@ -77,7 +84,7 @@ struct DrumDatePicker: View {
 
     private var monthColumn: some View {
         Picker("", selection: $month) {
-            ForEach(1...12, id: \.self) { m in
+            ForEach(minMonthInSelectedYear...12, id: \.self) { m in
                 Text(monthLabel(m))
                     .font(font: .bold, size: 18)
                     .tag(m)
@@ -87,7 +94,7 @@ struct DrumDatePicker: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .onChange(of: month) {
-            clampDay()
+            clampMonthAndDay()
             commit()
         }
     }
@@ -104,7 +111,7 @@ struct DrumDatePicker: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .onChange(of: year) {
-            clampDay()
+            clampMonthAndDay()
             commit()
         }
     }
@@ -134,9 +141,37 @@ struct DrumDatePicker: View {
         return Calendar.current.range(of: .day, in: .month, for: date)?.count ?? 31
     }
 
+    /// Год / месяц / день «сегодня» в текущем календаре (нижняя граница выбора).
+    private var todayYMD: (y: Int, m: Int, d: Int) {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        return (c.year ?? 0, c.month ?? 1, c.day ?? 1)
+    }
+
+    private var minMonthInSelectedYear: Int {
+        let (ty, tm, _) = todayYMD
+        return year > ty ? 1 : tm
+    }
+
+    private var minDayInSelectedMonth: Int {
+        let (ty, tm, td) = todayYMD
+        if year > ty { return 1 }
+        if year < ty { return 1 }
+        if month > tm { return 1 }
+        if month < tm { return 1 }
+        return td
+    }
+
+    private func clampMonthAndDay() {
+        let minM = minMonthInSelectedYear
+        if month < minM { month = minM }
+        clampDay()
+    }
+
     private func clampDay() {
         let maxDay = daysInSelectedMonth
         if day > maxDay { day = maxDay }
+        let minD = minDayInSelectedMonth
+        if day < minD { day = minD }
     }
 
     private func monthLabel(_ month: Int) -> String {
@@ -150,37 +185,8 @@ struct DrumDatePicker: View {
                 .foregroundStyle(.white.opacity(0.55))
 
             content()
-                .frame(width: width, height: 108)
-                .background {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.white.opacity(0.06))
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5)
-                        .allowsHitTesting(false)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.white.opacity(0.1))
-                        .frame(height: 34)
-                        .padding(.horizontal, 6)
-                        .allowsHitTesting(false)
-                }
-                .overlay {
-                    LinearGradient(
-                        stops: [
-                            .init(color: .black.opacity(0.5), location: 0),
-                            .init(color: .clear, location: 0.2),
-                            .init(color: .clear, location: 0.8),
-                            .init(color: .black.opacity(0.5), location: 1)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .allowsHitTesting(false)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(width: width, height: 120)
+                .clipped()
         }
     }
 

@@ -16,7 +16,7 @@ enum AppEnvironment {
     /// - Физическое устройство в той же Wi-Fi-сети: замените на LAN-IP, например `http://192.168.1.42:8080`.
     /// - Удалённый сервер: публичный домен с HTTPS.
     static let backendBaseURL: URL = {
-        guard let url = URL(string: "http://localhost:8080") else {
+        guard let url = URL(string: "http://192.168.1.65:8080") else {
             fatalError("Invalid backend base URL")
         }
         return url

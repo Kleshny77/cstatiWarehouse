@@ -55,12 +55,49 @@ enum ItemEditResult {
 struct WarehouseFilters: Equatable {
     var selectedCategories: Set<String> = []
     var expirationSet: Set<ExpirationFilter> = []
+    var smartFilters: Set<SmartFilter> = []
     var sort: WarehouseSortOption = .newest
 
     static let none = WarehouseFilters()
 
     var isActive: Bool {
-        !selectedCategories.isEmpty || !expirationSet.isEmpty || sort != .newest
+        !selectedCategories.isEmpty || !expirationSet.isEmpty || !smartFilters.isEmpty || sort != .newest
+    }
+}
+
+enum SmartFilter: String, CaseIterable, Identifiable, Hashable {
+    case noPhoto
+    case addedThisWeek
+    case emptyStock
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .noPhoto: return "Без фото"
+        case .addedThisWeek: return "За последнюю неделю"
+        case .emptyStock: return "Пустые остатки"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .noPhoto: return "photo.slash"
+        case .addedThisWeek: return "calendar.badge.plus"
+        case .emptyStock: return "archivebox"
+        }
+    }
+
+    func matches(_ item: Item) -> Bool {
+        switch self {
+        case .noPhoto:
+            return item.imageURL == nil
+        case .addedThisWeek:
+            let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .now
+            return item.createdAt >= weekAgo
+        case .emptyStock:
+            return item.quantity == 0
+        }
     }
 }
 

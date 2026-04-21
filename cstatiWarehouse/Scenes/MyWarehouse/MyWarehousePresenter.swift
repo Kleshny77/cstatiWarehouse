@@ -287,12 +287,13 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         let active = allItems.filter { !$0.status.isArchived }
 
         let searched: [Item]
-        if searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        if query.isEmpty {
             searched = active
         } else {
             searched = active.filter {
-                $0.name.localizedCaseInsensitiveContains(searchText)
-                || ($0.description?.localizedCaseInsensitiveContains(searchText) ?? false)
+                $0.name.localizedCaseInsensitiveContains(query)
+                || ($0.description?.localizedCaseInsensitiveContains(query) ?? false)
             }
         }
 
@@ -319,6 +320,11 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
             result = result.filter { item in
                 let status = item.expirationStatus()
                 return filters.expirationSet.contains { $0.matches(status) }
+            }
+        }
+        if !filters.smartFilters.isEmpty {
+            result = result.filter { item in
+                filters.smartFilters.allSatisfy { $0.matches(item) }
             }
         }
         return result

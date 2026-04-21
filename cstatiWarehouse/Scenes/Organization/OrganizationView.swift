@@ -428,7 +428,8 @@ struct OrganizationView: View {
                     .defaultTextStyle()
                 GlassTextField(
                     placeholder: "Название",
-                    text: $renameDraft
+                    text: $renameDraft,
+                    useFullWidth: true
                 )
                 HStack(spacing: 10) {
                     Button {
@@ -549,32 +550,29 @@ private struct InvitesSheet: View {
     @State private var maxUses: Int? = nil
 
     var body: some View {
-        ZStack {
-            GradientBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    header
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
 
-                    createCard
+                newInviteSection
 
-                    if presenter.isLoadingInvites && presenter.invites.isEmpty {
-                        skeletonList
-                    } else if presenter.invites.isEmpty {
-                        emptyState
-                    } else {
-                        ForEach(presenter.invites) { invite in
-                            inviteRow(invite)
-                        }
+                if presenter.isLoadingInvites && presenter.invites.isEmpty {
+                    skeletonList
+                } else if presenter.invites.isEmpty {
+                    emptyState
+                } else {
+                    ForEach(presenter.invites) { invite in
+                        inviteRow(invite)
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 28)
-                .padding(.bottom, 40)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 28)
+            .padding(.bottom, 40)
         }
-        .presentationDetents([.large])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.clear)
+        .presentationBackground(SheetPresentationChrome.organizationManagementGradient)
     }
 
     private var skeletonList: some View {
@@ -601,29 +599,35 @@ private struct InvitesSheet: View {
     )
 
     private var header: some View {
-        HStack {
-            Text("Приглашения")
-                .font(font: .bold, size: 22)
-                .defaultTextStyle()
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Приглашения")
+                    .foregroundStyle(.white.opacity(0.95))
+                    .font(font: .bold, size: 22)
+                Text("Коды для новых участников")
+                    .foregroundStyle(.white.opacity(0.6))
+                    .font(font: .semiBold, size: 13)
+            }
             Spacer()
             Button {
                 presenter.dismissInviteSheet()
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .frame(width: 34, height: 34)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .frame(width: 36, height: 36)
                     .appGlass(in: Circle())
             }
             .buttonStyle(.pressable)
         }
     }
 
-    private var createCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private var newInviteSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Новый код")
-                .font(font: .bold, size: 16)
-                .defaultTextStyle()
+                .foregroundStyle(.white.opacity(0.8))
+                .font(font: .semiBold, size: 13)
+                .padding(.leading, 4)
 
             expiresPicker
 
@@ -635,16 +639,13 @@ private struct InvitesSheet: View {
             } label: {
                 Text("Создать код")
                     .font(font: .bold, size: 15)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.white.opacity(0.95))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .appGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .frame(minHeight: 50)
+                    .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.pressable)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var expiresPicker: some View {
@@ -662,8 +663,9 @@ private struct InvitesSheet: View {
                 Text(expiresLabel)
                     .font(font: .semiBold, size: 14)
                     .foregroundStyle(.white.opacity(0.9))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .frame(minHeight: 44)
                     .appGlass(in: Capsule())
             }
         }
@@ -684,8 +686,9 @@ private struct InvitesSheet: View {
                 Text(usesLabel)
                     .font(font: .semiBold, size: 14)
                     .foregroundStyle(.white.opacity(0.9))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .frame(minHeight: 44)
                     .appGlass(in: Capsule())
             }
         }
@@ -794,32 +797,29 @@ private struct EventsSheet: View {
     @State private var hasStartsAt: Bool = false
 
     var body: some View {
-        ZStack {
-            GradientBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    header
-                    if presenter.summary?.role.canManageMembers ?? false {
-                        createCard
-                    }
-                    if presenter.isLoadingEvents && presenter.events.isEmpty {
-                        skeletonList
-                    } else if presenter.events.isEmpty {
-                        emptyState
-                    } else {
-                        ForEach(presenter.events) { event in
-                            eventRow(event)
-                        }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                if presenter.summary?.role.canManageMembers ?? false {
+                    newEventSection
+                }
+                if presenter.isLoadingEvents && presenter.events.isEmpty {
+                    skeletonList
+                } else if presenter.events.isEmpty {
+                    emptyState
+                } else {
+                    ForEach(presenter.events) { event in
+                        eventRow(event)
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 28)
-                .padding(.bottom, 40)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 28)
+            .padding(.bottom, 40)
         }
-        .presentationDetents([.large])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.clear)
+        .presentationBackground(SheetPresentationChrome.organizationManagementGradient)
     }
 
     private var skeletonList: some View {
@@ -844,44 +844,57 @@ private struct EventsSheet: View {
     )
 
     private var header: some View {
-        HStack {
-            Text("Мероприятия")
-                .font(font: .bold, size: 22)
-                .defaultTextStyle()
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Мероприятия")
+                    .foregroundStyle(.white.opacity(0.95))
+                    .font(font: .bold, size: 22)
+                Text("События организации")
+                    .foregroundStyle(.white.opacity(0.6))
+                    .font(font: .semiBold, size: 13)
+            }
             Spacer()
             Button {
                 presenter.dismissEventsSheet()
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .frame(width: 34, height: 34)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .frame(width: 36, height: 36)
                     .appGlass(in: Circle())
             }
             .buttonStyle(.pressable)
         }
     }
 
-    private var createCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private var newEventSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Новое мероприятие")
-                .font(font: .bold, size: 16)
-                .defaultTextStyle()
-            GlassTextField(placeholder: "Название", text: $name)
-            GlassTextField(placeholder: "Описание (необязательно)", text: $description)
-            Toggle(isOn: $hasStartsAt) {
+                .foregroundStyle(.white.opacity(0.8))
+                .font(font: .semiBold, size: 13)
+                .padding(.leading, 4)
+
+            GlassTextField(placeholder: "Название", text: $name, useFullWidth: true)
+            GlassTextField(placeholder: "Описание (необязательно)", text: $description, useFullWidth: true)
+
+            HStack {
                 Text("Задать дату")
                     .font(font: .semiBold, size: 14)
                     .foregroundStyle(.white.opacity(0.85))
+                Spacer()
+                Toggle("", isOn: $hasStartsAt)
+                    .labelsHidden()
+                    .tint(.white.opacity(0.85))
             }
-            .tint(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(minHeight: 44)
+            .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
             if hasStartsAt {
-                DatePicker("Когда", selection: $startsAt, displayedComponents: [.date, .hourAndMinute])
-                    .datePickerStyle(.compact)
-                    .environment(\.locale, Locale(identifier: "ru_RU"))
-                    .tint(.white)
-                    .foregroundStyle(.white.opacity(0.9))
+                DrumDatePicker(selection: $startsAt)
             }
+
             Button {
                 AppHaptics.impact(.medium)
                 let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -897,17 +910,14 @@ private struct EventsSheet: View {
             } label: {
                 Text("Создать")
                     .font(font: .bold, size: 15)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.white.opacity(0.95))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .appGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .frame(minHeight: 50)
+                    .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.pressable)
             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func eventRow(_ event: OrgEvent) -> some View {
@@ -964,7 +974,13 @@ private struct EventsSheet: View {
     }
 
     private func formatted(_ date: Date) -> String {
-        date.formatted(.dateTime.locale(Locale(identifier: "ru_RU")).day(.twoDigits).month(.twoDigits).year(.twoDigits).hour().minute())
+        date.formatted(
+            .dateTime
+                .locale(Locale(identifier: "ru_RU"))
+                .day(.twoDigits)
+                .month(.twoDigits)
+                .year(.twoDigits)
+        )
     }
 }
 
@@ -976,32 +992,29 @@ private struct CategoriesSheet: View {
     @State private var name: String = ""
 
     var body: some View {
-        ZStack {
-            GradientBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    header
-                    if presenter.summary?.role.canManageMembers ?? false {
-                        createCard
-                    }
-                    if presenter.isLoadingCategories && presenter.categories.isEmpty {
-                        skeletonList
-                    } else if presenter.categories.isEmpty {
-                        emptyState
-                    } else {
-                        ForEach(presenter.categories) { category in
-                            categoryRow(category)
-                        }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                if presenter.summary?.role.canManageMembers ?? false {
+                    newCategorySection
+                }
+                if presenter.isLoadingCategories && presenter.categories.isEmpty {
+                    skeletonList
+                } else if presenter.categories.isEmpty {
+                    emptyState
+                } else {
+                    ForEach(presenter.categories) { category in
+                        categoryRow(category)
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 28)
-                .padding(.bottom, 40)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 28)
+            .padding(.bottom, 40)
         }
-        .presentationDetents([.large])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.clear)
+        .presentationBackground(SheetPresentationChrome.organizationManagementGradient)
     }
 
     private var skeletonList: some View {
@@ -1021,30 +1034,38 @@ private struct CategoriesSheet: View {
     }
 
     private var header: some View {
-        HStack {
-            Text("Категории")
-                .font(font: .bold, size: 22)
-                .defaultTextStyle()
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Категории")
+                    .foregroundStyle(.white.opacity(0.95))
+                    .font(font: .bold, size: 22)
+                Text("Общий справочник для склада")
+                    .foregroundStyle(.white.opacity(0.6))
+                    .font(font: .semiBold, size: 13)
+            }
             Spacer()
             Button {
                 presenter.dismissCategoriesSheet()
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .frame(width: 34, height: 34)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .frame(width: 36, height: 36)
                     .appGlass(in: Circle())
             }
             .buttonStyle(.pressable)
         }
     }
 
-    private var createCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private var newCategorySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Новая категория")
-                .font(font: .bold, size: 16)
-                .defaultTextStyle()
-            GlassTextField(placeholder: "Название", text: $name)
+                .foregroundStyle(.white.opacity(0.8))
+                .font(font: .semiBold, size: 13)
+                .padding(.leading, 4)
+
+            GlassTextField(placeholder: "Название", text: $name, useFullWidth: true)
+
             Button {
                 AppHaptics.impact(.medium)
                 let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1054,17 +1075,14 @@ private struct CategoriesSheet: View {
             } label: {
                 Text("Добавить")
                     .font(font: .bold, size: 15)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.white.opacity(0.95))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .appGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .frame(minHeight: 50)
+                    .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.pressable)
             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func categoryRow(_ category: OrgCategory) -> some View {

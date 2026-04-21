@@ -44,6 +44,7 @@ struct WarehouseFiltersSheet: View {
                     header
                     sortSection
                     expirationSection
+                    smartFiltersSection
                     categoriesSection
                     actions
                 }
@@ -106,6 +107,19 @@ struct WarehouseFiltersSheet: View {
         }
     }
 
+    private var smartFiltersSection: some View {
+        sectionContainer(title: "Умные фильтры") {
+            flowLayout(items: SmartFilter.allCases) { filter in
+                chip(
+                    title: filter.title,
+                    isSelected: draft.smartFilters.contains(filter)
+                ) {
+                    toggleSmart(filter)
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private var categoriesSection: some View {
         if !availableCategories.isEmpty {
@@ -162,6 +176,15 @@ struct WarehouseFiltersSheet: View {
             draft.selectedCategories.remove(name)
         } else {
             draft.selectedCategories.insert(name)
+        }
+    }
+
+    private func toggleSmart(_ filter: SmartFilter) {
+        AppHaptics.selection()
+        if draft.smartFilters.contains(filter) {
+            draft.smartFilters.remove(filter)
+        } else {
+            draft.smartFilters.insert(filter)
         }
     }
 

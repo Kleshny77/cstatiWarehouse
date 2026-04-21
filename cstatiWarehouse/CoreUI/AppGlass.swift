@@ -37,3 +37,19 @@ struct PressableButtonStyle: ButtonStyle {
 extension ButtonStyle where Self == PressableButtonStyle {
     static var pressable: PressableButtonStyle { PressableButtonStyle() }
 }
+
+// MARK: - Sheet presentation (как у переключателя организаций)
+
+enum SheetPresentationChrome {
+    /// Фон модальных шторок управления организацией / форм на градиенте.
+    static let organizationManagementGradient = LinearGradient(
+        colors: [
+            Color(hex: "#2C2C3E"),
+            Color(hex: "#1C1C2E"),
+            Color(hex: "#3D2C52"),
+            Color(hex: "#2E1F3E")
+        ],
+        startPoint: .bottomLeading,
+        endPoint: .topTrailing
+    )
+}

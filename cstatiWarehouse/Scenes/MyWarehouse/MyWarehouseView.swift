@@ -21,7 +21,7 @@ struct MyWarehouseView: View {
             GradientBackground()
             VStack {
                 topBar
-                    .padding(.bottom, presenter.canSwitchScope ? 20 : 50)
+                    .padding(.bottom, 20)
                     .padding(.horizontal, 20)
                 if presenter.canSwitchScope {
                     scopePicker
