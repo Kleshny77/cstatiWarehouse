@@ -19,7 +19,7 @@ struct LoginInteractorTelegramTests {
         let authService = SpyAuthService(telegramResult: .success(LoginResponse(
             accessToken: "srv-token",
             refreshToken: "srv-refresh",
-            user: UserDTO(id: "42", name: "Иван", email: "ivan@tg.local", avatarURL: nil)
+            user: UserDTO(id: "42", name: "Иван", lastName: "", email: "ivan@tg.local", avatarURL: nil)
         )))
         let telegramService = MockTelegramAuthService(result: .success(
             TelegramAuthResult(idToken: "any-token")
@@ -49,7 +49,7 @@ struct LoginInteractorTelegramTests {
         let storage = SpySessionStorage()
         let authService = SpyAuthService(telegramResult: .success(LoginResponse(
             accessToken: "unused", refreshToken: "unused-r",
-            user: UserDTO(id: "x", name: "x", email: "x", avatarURL: nil)
+            user: UserDTO(id: "x", name: "x", lastName: "", email: "x", avatarURL: nil)
         )))
         let telegramService = MockTelegramAuthService(result: .failure(.cancelled))
         let sut = LoginInteractor(
@@ -75,7 +75,7 @@ struct LoginInteractorTelegramTests {
         let storage = SpySessionStorage()
         let authService = SpyAuthService(telegramResult: .success(LoginResponse(
             accessToken: "unused", refreshToken: "unused-r",
-            user: UserDTO(id: "x", name: "x", email: "x", avatarURL: nil)
+            user: UserDTO(id: "x", name: "x", lastName: "", email: "x", avatarURL: nil)
         )))
         let telegramService = MockTelegramAuthService(result: .failure(.notConfigured))
         let sut = LoginInteractor(
