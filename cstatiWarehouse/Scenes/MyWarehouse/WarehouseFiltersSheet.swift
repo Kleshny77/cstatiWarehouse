@@ -61,22 +61,7 @@ struct WarehouseFiltersSheet: View {
     // MARK: UI Configuration
 
     private var header: some View {
-        HStack {
-            Text("Фильтры")
-                .foregroundStyle(.white.opacity(0.95))
-                .font(font: .bold, size: 22)
-            Spacer()
-            Button {
-                onCancel()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .frame(width: 34, height: 34)
-                    .appGlass(in: Circle())
-            }
-            .buttonStyle(.pressable)
-        }
+        SheetHeader(title: "Фильтры", onClose: onCancel)
     }
 
     private var sortSection: some View {
@@ -97,7 +82,7 @@ struct WarehouseFiltersSheet: View {
     private var expirationSection: some View {
         sectionContainer(title: "Срок годности") {
             flowLayout(items: ExpirationFilter.allCases) { filter in
-                chip(
+                GlassChip(
                     title: filter.title,
                     isSelected: draft.expirationSet.contains(filter)
                 ) {
@@ -110,7 +95,7 @@ struct WarehouseFiltersSheet: View {
     private var smartFiltersSection: some View {
         sectionContainer(title: "Умные фильтры") {
             flowLayout(items: SmartFilter.allCases) { filter in
-                chip(
+                GlassChip(
                     title: filter.title,
                     isSelected: draft.smartFilters.contains(filter)
                 ) {
@@ -125,7 +110,7 @@ struct WarehouseFiltersSheet: View {
         if !availableCategories.isEmpty {
             sectionContainer(title: "Категории") {
                 flowLayout(items: availableCategories) { name in
-                    chip(
+                    GlassChip(
                         title: name,
                         isSelected: draft.selectedCategories.contains(name)
                     ) {
@@ -138,32 +123,13 @@ struct WarehouseFiltersSheet: View {
 
     private var actions: some View {
         VStack(spacing: 10) {
-            Button {
-                AppHaptics.impact(.light)
+            GlassPillButton("Применить", role: .primary) {
                 onApply(draft)
-            } label: {
-                Text("Применить")
-                    .foregroundStyle(.white.opacity(0.95))
-                    .font(font: .bold, size: 15)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-            .buttonStyle(.pressable)
-
-            Button {
-                AppHaptics.selection()
+            GlassPillButton("Сбросить", role: .secondary) {
                 draft = .none
                 onReset()
-            } label: {
-                Text("Сбросить")
-                    .foregroundStyle(.white.opacity(0.75))
-                    .font(font: .bold, size: 15)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-            .buttonStyle(.pressable)
         }
         .padding(.top, 8)
     }
@@ -232,23 +198,6 @@ struct WarehouseFiltersSheet: View {
                     .fill(isSelected ? Color.white.opacity(0.12) : Color.clear)
             )
             .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
-        .buttonStyle(.pressable)
-        .appAnimation(AppAnimation.snap, value: isSelected)
-    }
-
-    private func chip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(font: .semiBold, size: 13)
-                .foregroundStyle(isSelected ? .white : .white.opacity(0.75))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? Color.white.opacity(0.22) : Color.clear)
-                )
-                .appGlass(in: Capsule())
         }
         .buttonStyle(.pressable)
         .appAnimation(AppAnimation.snap, value: isSelected)

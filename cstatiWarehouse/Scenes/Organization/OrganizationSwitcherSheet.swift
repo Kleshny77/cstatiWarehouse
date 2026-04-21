@@ -94,27 +94,11 @@ struct OrganizationSwitcherSheet: View {
     // MARK: UI Configuration
 
     private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Организация")
-                    .foregroundStyle(.white.opacity(0.95))
-                    .font(font: .bold, size: 22)
-                Text("Выберите активную или создайте новую")
-                    .foregroundStyle(.white.opacity(0.6))
-                    .font(font: .semiBold, size: 13)
-            }
-            Spacer()
-            Button {
-                onCancel()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .frame(width: 36, height: 36)
-                    .appGlass(in: Circle())
-            }
-            .buttonStyle(.pressable)
-        }
+        SheetHeader(
+            title: "Организация",
+            subtitle: "Выберите активную или создайте новую",
+            onClose: onCancel
+        )
     }
 
     @ViewBuilder

@@ -166,10 +166,14 @@ struct ItemEditView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(presenter.orgCategories) { cat in
-                    categoryChip(cat.name, isSelected: isCategorySelected(cat.name))
+                    GlassChip(title: cat.name, isSelected: isCategorySelected(cat.name)) {
+                        presenter.selectCategory(name: cat.name)
+                    }
                 }
                 ForEach(presenter.extraCategoryNames, id: \.self) { name in
-                    categoryChip(name, isSelected: isCategorySelected(name))
+                    GlassChip(title: name, isSelected: isCategorySelected(name)) {
+                        presenter.selectCategory(name: name)
+                    }
                 }
             }
             .padding(.vertical, 2)
@@ -180,38 +184,13 @@ struct ItemEditView: View {
         presenter.draft.categoryName.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(name) == .orderedSame
     }
 
-    private func categoryChip(_ name: String, isSelected: Bool) -> some View {
-        Button {
-            AppHaptics.selection()
-            presenter.selectCategory(name: name)
-        } label: {
-            Text(name)
-                .font(font: .semiBold, size: 13)
-                .foregroundStyle(isSelected ? .white : .white.opacity(0.75))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? Color.white.opacity(0.22) : Color.clear)
-                )
-                .appGlass(in: Capsule())
-                .appAnimation(AppAnimation.snap, value: isSelected)
-        }
-        .buttonStyle(.pressable)
-        .contentShape(Capsule())
-    }
-
     private var newCategorySheet: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Новая категория")
-                    .foregroundStyle(.white.opacity(0.95))
-                    .font(font: .bold, size: 22)
-                Text("Будет доступна всем участникам организации")
-                    .foregroundStyle(.white.opacity(0.6))
-                    .font(font: .semiBold, size: 13)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            SheetHeader(
+                title: "Новая категория",
+                subtitle: "Будет доступна всем участникам организации",
+                onClose: { presenter.isNewCategorySheetPresented = false }
+            )
 
             GlassTextField(
                 title: "Название",
@@ -221,32 +200,16 @@ struct ItemEditView: View {
             )
 
             HStack(spacing: 10) {
-                Button {
+                GlassPillButton("Отмена", role: .secondary) {
                     presenter.isNewCategorySheetPresented = false
-                } label: {
-                    Text("Отмена")
-                        .foregroundStyle(.white.opacity(0.95))
-                        .font(font: .bold, size: 15)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 50)
-                        .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .buttonStyle(.pressable)
-                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                Button {
+                GlassPillButton(
+                    "Создать",
+                    role: .primary,
+                    isEnabled: !newCategoryDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ) {
                     presenter.createNewCategory(name: newCategoryDraft)
-                } label: {
-                    Text("Создать")
-                        .foregroundStyle(.white.opacity(0.96))
-                        .font(font: .bold, size: 15)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 50)
-                        .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .buttonStyle(.pressable)
-                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .disabled(newCategoryDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(.horizontal, 20)
@@ -512,15 +475,7 @@ private struct HolderPickerSheet: View {
     }
 
     private var header: some View {
-        HStack {
-            Text("Кто держит позицию")
-                .font(font: .bold, size: 20)
-                .defaultTextStyle()
-            Spacer()
-            Button("Отмена") { onCancel() }
-                .foregroundStyle(.white.opacity(0.9))
-                .font(font: .semiBold, size: 15)
-        }
+        SheetHeader(title: "Кто держит позицию", onClose: onCancel)
     }
 
     private func row(_ member: OrganizationMember) -> some View {
