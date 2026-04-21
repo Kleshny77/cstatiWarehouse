@@ -75,7 +75,7 @@ func run() error {
 		verifier = v
 	}
 
-	inviteGen := invitecode.NewGenerator(8)
+	inviteGen := invitecode.NewGenerator(invitecode.DefaultLength)
 	organizationsUC := usecase.NewOrganizationsUseCase(orgRepo, memberRepo, inviteRepo, inviteGen, clock.Real{}).
 		WithActivity(activityRepo)
 

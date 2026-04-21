@@ -225,8 +225,9 @@ final class ApiOrganizationsService: OrganizationsServiceProtocol {
                 return .validationError(message ?? "Некорректные данные")
             case "invite_not_usable":
                 return .inviteNotUsable
-            case "already_member",
-                 "owner_cannot_leave",
+            case "already_member":
+                return .alreadyMember
+            case "owner_cannot_leave",
                  "personal_org_protected",
                  "invite_wrong_org",
                  "cannot_target_owner",

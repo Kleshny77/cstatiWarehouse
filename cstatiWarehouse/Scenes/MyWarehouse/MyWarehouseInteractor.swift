@@ -33,8 +33,13 @@ protocol MyWarehouseInteractorOutputProtocol: AnyObject {
     func itemChangedExternally(_ item: Item, isNew: Bool)
     func archiveEventsLoaded(_ events: [ArchiveEvent])
     func archiveHistoryFailed(_ message: String)
+    /// Фоновая загрузка (список организаций / позиций) — без модального алерта.
+    func initialLoadFailed(message: String)
+    func itemsLoadFailed(message: String)
     func failed(error: String)
     func organizationFailed(error: String)
+    /// Попытка вступить по коду, когда пользователь уже в организации.
+    func joinAlreadyInOrganization()
 }
 
 final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
@@ -78,7 +83,7 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
                 }
                 self.presenter?.activeOrganizationResolved(resolved)
             case .failure(let error):
-                self.presenter?.failed(error: error.message)
+                self.presenter?.initialLoadFailed(message: error.message)
             }
         }
     }
@@ -89,7 +94,7 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
             case .success(let items):
                 self?.presenter?.itemsLoaded(items)
             case .failure(let error):
-                self?.presenter?.failed(error: error.message)
+                self?.presenter?.itemsLoadFailed(message: error.message)
             }
         }
     }
@@ -139,7 +144,11 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
                 self?.activeOrgStorage.setActive(summary.organization.id)
                 self?.presenter?.organizationJoined(summary)
             case .failure(let error):
-                self?.presenter?.organizationFailed(error: error.message)
+                if case .alreadyMember = error {
+                    self?.presenter?.joinAlreadyInOrganization()
+                } else {
+                    self?.presenter?.organizationFailed(error: error.message)
+                }
             }
         }
     }

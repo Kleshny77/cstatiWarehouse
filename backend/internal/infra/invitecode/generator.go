@@ -8,15 +8,18 @@ import (
 // alphabet — без визуально похожих символов (0/O, 1/I/L).
 const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
-// Generator выпускает короткие читаемые коды инвайтов.
+// DefaultLength — длина кода по умолчанию (≈100 бит энтропии при алфавите из 32 символов).
+const DefaultLength = 20
+
+// Generator выпускает читаемые коды инвайтов.
 type Generator struct {
 	length int
 }
 
-// NewGenerator возвращает генератор кодов заданной длины. length <= 0 заменяется на 8.
+// NewGenerator возвращает генератор кодов заданной длины. length <= 0 заменяется на DefaultLength.
 func NewGenerator(length int) *Generator {
 	if length <= 0 {
-		length = 8
+		length = DefaultLength
 	}
 	return &Generator{length: length}
 }

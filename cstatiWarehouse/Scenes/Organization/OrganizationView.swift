@@ -26,6 +26,13 @@ struct OrganizationView: View {
             GradientBackground()
                 ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if let notice = presenter.passiveNoticeMessage {
+                        PassiveNetworkBanner(
+                            message: notice,
+                            onRetry: { presenter.refresh() },
+                            onDismiss: { presenter.passiveNoticeMessage = nil }
+                        )
+                    }
                     header
                     if let summary = presenter.summary {
                         infoCard
@@ -37,6 +44,8 @@ struct OrganizationView: View {
                         dangerSection
                     } else if presenter.isLoading {
                         loadingPlaceholder
+                    } else if presenter.passiveNoticeMessage != nil {
+                        summaryLoadFailedHint
                     } else {
                         emptyState
                     }
@@ -419,52 +428,86 @@ struct OrganizationView: View {
         .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
-    private var renameSheet: some View {
-        ZStack {
-            GradientBackground()
-            VStack(spacing: 18) {
-                Text("Переименовать")
-                    .font(font: .bold, size: 20)
-                    .defaultTextStyle()
-                GlassTextField(
-                    placeholder: "Название",
-                    text: $renameDraft,
-                    useFullWidth: true
-                )
-                HStack(spacing: 10) {
-                    Button {
-                        presenter.cancelRename()
-                    } label: {
-                        Text("Отмена")
-                            .foregroundStyle(.white.opacity(0.75))
-                            .font(font: .bold, size: 15)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-                    .buttonStyle(.pressable)
+    private var summaryLoadFailedHint: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Не удалось загрузить организацию")
+                .font(font: .bold, size: 18)
+                .defaultTextStyle()
+            Text("Потяните экран вниз для обновления или нажмите «Повторить» в уведомлении выше.")
+                .font(font: .semiBold, size: 14)
+                .secondaryTextStyle()
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
 
-                    Button {
-                        presenter.submitRename(renameDraft)
-                    } label: {
-                        Text("Сохранить")
-                            .foregroundStyle(.white.opacity(0.95))
-                            .font(font: .bold, size: 15)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-                    .buttonStyle(.pressable)
-                    .disabled(renameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    private var renameSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Переименовать")
+                        .foregroundStyle(.white.opacity(0.95))
+                        .font(font: .bold, size: 22)
+                    Text("Название для всех участников организации")
+                        .foregroundStyle(.white.opacity(0.6))
+                        .font(font: .semiBold, size: 13)
                 }
                 Spacer()
+                Button {
+                    presenter.cancelRename()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .frame(width: 36, height: 36)
+                        .appGlass(in: Circle())
+                }
+                .buttonStyle(.pressable)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
+
+            GlassTextField(
+                title: "Название",
+                placeholder: "Например, Антикстати",
+                text: $renameDraft,
+                useFullWidth: true,
+                roundedGlassCornerRadius: 14
+            )
+
+            HStack(spacing: 10) {
+                Button {
+                    presenter.cancelRename()
+                } label: {
+                    Text("Отмена")
+                        .foregroundStyle(.white.opacity(0.75))
+                        .font(font: .bold, size: 15)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.pressable)
+
+                Button {
+                    presenter.submitRename(renameDraft)
+                } label: {
+                    Text("Сохранить")
+                        .foregroundStyle(.white.opacity(0.95))
+                        .font(font: .bold, size: 15)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.pressable)
+                .disabled(renameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
         }
-        .presentationDetents([.height(260)])
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity)
+        .presentationDetents([.height(254)])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.clear)
+        .presentationBackground(SheetPresentationChrome.organizationManagementGradient)
     }
 
     private func sectionHeader(_ title: String, count: Int) -> some View {
@@ -588,7 +631,7 @@ private struct InvitesSheet: View {
     private static let skeletonInvite = OrganizationInvite(
         id: UUID(),
         organizationID: UUID(),
-        code: "XXXXXX",
+        code: String(repeating: "X", count: 20),
         createdByID: UUID(),
         createdAt: Date(),
         expiresAt: Date().addingTimeInterval(60 * 60 * 24 * 7),
@@ -696,11 +739,14 @@ private struct InvitesSheet: View {
 
     private func inviteRow(_ invite: OrganizationInvite) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
                 Text(invite.code)
-                    .font(font: .bold, size: 20)
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.white.opacity(invite.isActive ? 0.95 : 0.45))
-                Spacer()
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                    .minimumScaleFactor(0.85)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if invite.isActive {
                     Button {
                         UIPasteboard.general.string = invite.code

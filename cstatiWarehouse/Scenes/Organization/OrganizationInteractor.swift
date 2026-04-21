@@ -47,6 +47,8 @@ protocol OrganizationInteractorOutputProtocol: AnyObject {
     func eventsLoaded(_ events: [OrgEvent])
     func categoriesLoaded(_ categories: [OrgCategory])
     func activityLoaded(_ entries: [ActivityEntry])
+    /// Ошибка цепочки `fetchOrganization` / `fetchMembers` при открытии экрана — без модального алерта.
+    func loadSummaryFailed(message: String)
     func failed(error: String)
 }
 
@@ -94,7 +96,7 @@ final class OrganizationInteractor: OrganizationInteractorInputProtocol {
             case .success(let summary):
                 self.loadMembers(for: summary)
             case .failure(let error):
-                self.presenter?.failed(error: error.message)
+                self.presenter?.loadSummaryFailed(message: error.message)
             }
         }
     }
@@ -300,7 +302,7 @@ final class OrganizationInteractor: OrganizationInteractorInputProtocol {
                     self.loadInvites(organizationID: summary.organization.id)
                 }
             case .failure(let error):
-                self.presenter?.failed(error: error.message)
+                self.presenter?.loadSummaryFailed(message: error.message)
             }
         }
     }

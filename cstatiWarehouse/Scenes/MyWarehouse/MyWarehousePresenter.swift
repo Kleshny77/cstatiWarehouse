@@ -36,6 +36,9 @@ protocol MyWarehousePresenterProtocol: AnyObject {
 
     func archiveHistoryButtonTapped()
     func dismissArchiveHistory()
+
+    /// Повторить загрузку после ошибки сети (баннер на «Мой склад»).
+    func retryWarehouseDataLoad()
 }
 
 @Observable
@@ -55,9 +58,13 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
     var isLoading: Bool = false
     var errorMessage: String?
+    /// Ошибка фоновой загрузки (организации / позиции) — показываем баннер, не модальный алерт.
+    var passiveNoticeMessage: String?
 
     var activeOrganization: OrganizationSummary?
     var switcherPresentation: SwitcherPresentation?
+    /// Краткий тост при «уже в организации» (переключатель организаций).
+    var switcherToastMessage: String?
 
     var editPresentation: ItemEditPresentation?
     var archivePresentation: ArchivePresentation?
@@ -86,6 +93,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
 
     private var allItems: [Item] = []
+    private var switcherToastDismissTask: Task<Void, Never>?
     private var hasResolvedOrganization: Bool = false
     private var searchTextByScope: [WarehouseScope: String] = [:]
     private var filtersByScope: [WarehouseScope: WarehouseFilters] = [:]
@@ -172,6 +180,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
 
     func selectOrganization(_ summary: OrganizationSummary) {
+        dismissSwitcherToast()
         switcherPresentation = nil
         if summary.id == activeOrganization?.id { return }
         interactor?.selectActiveOrganization(summary.organization.id)
@@ -200,6 +209,9 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
 
     func dismissSwitcher() {
+        switcherToastDismissTask?.cancel()
+        switcherToastDismissTask = nil
+        switcherToastMessage = nil
         switcherPresentation = nil
     }
 
@@ -225,6 +237,17 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     func dismissArchiveHistory() {
         isArchiveHistoryPresented = false
         isArchiveHistoryLoading = false
+    }
+
+    func retryWarehouseDataLoad() {
+        passiveNoticeMessage = nil
+        errorMessage = nil
+        isLoading = true
+        if let orgID = activeOrganization?.organization.id {
+            interactor?.loadActiveItems(organizationID: orgID, scope: scope)
+        } else {
+            interactor?.resolveActiveOrganization()
+        }
     }
 
     func selectScope(_ newScope: WarehouseScope) {
@@ -359,6 +382,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
 
 extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
     func activeOrganizationResolved(_ summary: OrganizationSummary?) {
+        passiveNoticeMessage = nil
         activeOrganization = summary
         if let summary {
             resetScopeStateForNewOrganization()
@@ -378,6 +402,7 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
     }
 
     func organizationCreated(_ summary: OrganizationSummary) {
+        dismissSwitcherToast()
         switcherPresentation = nil
         activeOrganization = summary
         resetScopeStateForNewOrganization()
@@ -392,6 +417,7 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
     }
 
     func itemsLoaded(_ items: [Item]) {
+        passiveNoticeMessage = nil
         loadedScopes.insert(scope)
         allItems = items
         isLoading = false
@@ -431,6 +457,20 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
         rebuildSections()
     }
 
+    func initialLoadFailed(message: String) {
+        isLoading = false
+        activeOrganization = nil
+        allItems = []
+        rebuildSections()
+        passiveNoticeMessage = message
+    }
+
+    func itemsLoadFailed(message: String) {
+        loadedScopes.insert(scope)
+        isLoading = false
+        passiveNoticeMessage = message
+    }
+
     func failed(error: String) {
         loadedScopes.insert(scope)
         isLoading = false
@@ -448,7 +488,29 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
         }
     }
 
+    func joinAlreadyInOrganization() {
+        if var pres = switcherPresentation {
+            pres.isJoining = false
+            pres.errorMessage = nil
+            switcherPresentation = pres
+        }
+        switcherToastDismissTask?.cancel()
+        switcherToastMessage = OrganizationsError.alreadyMember.message
+        AppHaptics.warning()
+        switcherToastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_800_000_000)
+            switcherToastMessage = nil
+        }
+    }
+
+    func dismissSwitcherToast() {
+        switcherToastDismissTask?.cancel()
+        switcherToastDismissTask = nil
+        switcherToastMessage = nil
+    }
+
     func organizationJoined(_ summary: OrganizationSummary) {
+        dismissSwitcherToast()
         switcherPresentation = nil
         if summary.id == activeOrganization?.id {
             isLoading = true

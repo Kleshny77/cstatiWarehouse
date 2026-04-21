@@ -16,6 +16,8 @@ struct GlassTextField: View {
     /// Когда `true`, поле растягивается по ширине контейнера (как на экранах с `padding(.horizontal, 20)`).
     /// По умолчанию — фиксированная ширина 331 (экраны входа/регистрации).
     var useFullWidth: Bool = false
+    /// Если задан — стекло в `RoundedRectangle` с этим радиусом (как карточки/рулетки); иначе капсула.
+    var roundedGlassCornerRadius: CGFloat? = nil
     var submitLabel: SubmitLabel = .done
     var onSubmit: (() -> Void)? = nil
     var isFocused: FocusState<Bool>.Binding? = nil
@@ -48,23 +50,33 @@ struct GlassTextField: View {
         }
     }
 
+    @ViewBuilder
+    private func fieldGlass<Content: View>(_ content: Content) -> some View {
+        if let r = roundedGlassCornerRadius {
+            content.appGlass(in: RoundedRectangle(cornerRadius: r, style: .continuous))
+        } else {
+            content.appGlass()
+        }
+    }
+
     private var regularFieldView: some View {
         applyFocus(to:
-            TextField(
-                "",
-                text: $text,
-                prompt: Text(placeholder)
-                    .foregroundColor(.white.opacity(0.4))
-                    .font(font: .semiBold, size: 14)
+            fieldGlass(
+                TextField(
+                    "",
+                    text: $text,
+                    prompt: Text(placeholder)
+                        .foregroundColor(.white.opacity(0.4))
+                        .font(font: .semiBold, size: 14)
+                )
+                .tint(.white.opacity(0.8))
+                .foregroundStyle(.white.opacity(0.8))
+                .font(font: .semiBold, size: 14)
+                .padding(.horizontal, 17)
+                .padding(.vertical, 15)
+                .frame(maxWidth: useFullWidth ? .infinity : nil, minHeight: 47)
+                .frame(width: useFullWidth ? nil : 331, height: 47)
             )
-            .tint(.white.opacity(0.8))
-            .foregroundStyle(.white.opacity(0.8))
-            .font(font: .semiBold, size: 14)
-            .padding(.horizontal, 17)
-            .padding(.vertical, 15)
-            .frame(maxWidth: useFullWidth ? .infinity : nil, minHeight: 47)
-            .frame(width: useFullWidth ? nil : 331, height: 47)
-            .appGlass()
             .textInputAutocapitalization(autocapitalization)
             .keyboardType(keyboardType)
             .submitLabel(submitLabel)
@@ -74,10 +86,11 @@ struct GlassTextField: View {
 
     private var secureFieldView: some View {
         ZStack(alignment: .trailing) {
-            Color.clear
-                .frame(maxWidth: useFullWidth ? .infinity : nil, minHeight: 47)
-                .frame(width: useFullWidth ? nil : 331, height: 47)
-                .appGlass()
+            fieldGlass(
+                Color.clear
+                    .frame(maxWidth: useFullWidth ? .infinity : nil, minHeight: 47)
+                    .frame(width: useFullWidth ? nil : 331, height: 47)
+            )
 
             Group {
                 if isPasswordVisible {

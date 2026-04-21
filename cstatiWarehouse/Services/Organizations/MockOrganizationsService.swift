@@ -217,7 +217,7 @@ final class MockOrganizationsService: OrganizationsServiceProtocol {
             let invite = OrganizationInvite(
                 id: UUID(),
                 organizationID: organizationID,
-                code: String(UUID().uuidString.prefix(8)).uppercased(),
+                code: Self.mockInviteCode(),
                 createdByID: self.currentUserID,
                 createdAt: .now,
                 expiresAt: expiresInDays.map { Date().addingTimeInterval(TimeInterval($0) * 86_400) },
@@ -259,6 +259,13 @@ final class MockOrganizationsService: OrganizationsServiceProtocol {
     }
 
     // MARK: Private Methods
+
+    /// Совпадает с бэкендом: `invitecode.DefaultLength` и алфавит без O/0/I/1.
+    private static let mockInviteAlphabet: [Character] = Array("ABCDEFGHJKMNPQRSTUVWXYZ23456789")
+
+    private static func mockInviteCode() -> String {
+        String((0..<20).map { _ in mockInviteAlphabet.randomElement()! })
+    }
 
     private func respond(_ block: @escaping () -> Void) {
         DispatchQueue.main.async(execute: block)

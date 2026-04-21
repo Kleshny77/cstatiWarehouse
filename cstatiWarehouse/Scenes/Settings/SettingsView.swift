@@ -83,9 +83,7 @@ struct SettingsView: View {
                     .font(font: .semiBold, size: 14)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
-            .padding(.horizontal, 20)
-            .appGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .padding(.vertical, 8)
         } else {
             Text("Нет активной сессии")
                 .foregroundStyle(.white.opacity(0.6))
@@ -102,17 +100,17 @@ struct SettingsView: View {
         } label: {
             ZStack(alignment: .bottomTrailing) {
                 avatarContent(for: user)
-                    .frame(width: 96, height: 96)
+                    .frame(width: 128, height: 128)
                     .clipShape(Circle())
                     .appGlass(in: Circle())
 
                 Image(systemName: "pencil")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.95))
-                    .frame(width: 30, height: 30)
+                    .frame(width: 34, height: 34)
                     .background(.black.opacity(0.35), in: Circle())
                     .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 1))
-                    .offset(x: 2, y: 2)
+                    .offset(x: 3, y: 3)
             }
         }
         .buttonStyle(.pressable)
@@ -136,7 +134,7 @@ struct SettingsView: View {
     private func initialsView(for user: User) -> some View {
         Text(initials(for: user))
             .foregroundStyle(.white.opacity(0.95))
-            .font(font: .extraBold, size: 28)
+            .font(font: .extraBold, size: 36)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -151,18 +149,25 @@ struct SettingsView: View {
     }
 
     private var nameField: some View {
-        VStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
             GlassTextField(
                 title: "Имя",
                 placeholder: "Имя",
-                text: $presenter.draftName
+                text: $presenter.draftName,
+                useFullWidth: true,
+                roundedGlassCornerRadius: 14,
+                autocapitalization: .words
             )
             GlassTextField(
                 title: "Фамилия",
                 placeholder: "Фамилия",
-                text: $presenter.draftLastName
+                text: $presenter.draftLastName,
+                useFullWidth: true,
+                roundedGlassCornerRadius: 14,
+                autocapitalization: .words
             )
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var saveButton: some View {

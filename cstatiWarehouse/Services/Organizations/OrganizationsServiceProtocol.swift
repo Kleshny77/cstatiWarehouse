@@ -12,6 +12,8 @@ enum OrganizationsError: Error {
     case forbidden
     case validationError(String)
     case conflict(String)
+    /// Уже состоите в этой организации (вступление по коду).
+    case alreadyMember
     case inviteNotUsable
     case networkError(Error?)
     case serverError(String)
@@ -27,6 +29,8 @@ enum OrganizationsError: Error {
             return text
         case .conflict(let text):
             return text.isEmpty ? "Операция недоступна" : text
+        case .alreadyMember:
+            return "Вы уже участник этой организации"
         case .inviteNotUsable:
             return "Код приглашения больше не действителен"
         case .networkError:

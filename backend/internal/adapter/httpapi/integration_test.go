@@ -42,7 +42,7 @@ func newTestServer(t *testing.T) *testServer {
 	categoriesRepo := repo.NewCategoryRepo(pool)
 	activityRepo := repo.NewActivityRepo(pool)
 	itemsRepo := repo.NewItemRepo(pool)
-	inviteGen := invitecode.NewGenerator(8)
+	inviteGen := invitecode.NewGenerator(invitecode.DefaultLength)
 	orgsUC := usecase.NewOrganizationsUseCase(orgsRepo, membersRepo, invitesRepo, inviteGen, clock.Real{}).
 		WithActivity(activityRepo)
 

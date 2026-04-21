@@ -139,7 +139,7 @@ type InviteRepository interface {
 	Revoke(ctx context.Context, id uuid.UUID, at time.Time) error
 }
 
-// InviteCodeGenerator генерирует короткие читаемые коды приглашений.
+// InviteCodeGenerator генерирует криптостойкие читаемые коды приглашений (длина — см. infra/invitecode).
 type InviteCodeGenerator interface {
 	Generate() (string, error)
 }

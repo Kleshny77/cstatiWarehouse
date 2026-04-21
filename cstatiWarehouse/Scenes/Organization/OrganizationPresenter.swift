@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import UIKit
 
 protocol OrganizationPresenterProtocol: AnyObject {
     func viewDidLoad()
@@ -59,6 +60,8 @@ final class OrganizationPresenter: OrganizationPresenterProtocol {
     var invites: [OrganizationInvite] = []
     var isLoading: Bool = false
     var errorMessage: String?
+    /// Ошибка фоновой загрузки сводки организации — баннер, не модальный алерт.
+    var passiveNoticeMessage: String?
     var infoMessage: String?
 
     var leaveConfirmation: LeaveConfirmation?
@@ -95,6 +98,7 @@ final class OrganizationPresenter: OrganizationPresenterProtocol {
     }
 
     func refresh() {
+        passiveNoticeMessage = nil
         isLoading = true
         interactor?.loadSummary()
     }
@@ -291,6 +295,7 @@ final class OrganizationPresenter: OrganizationPresenterProtocol {
 
 extension OrganizationPresenter: OrganizationInteractorOutputProtocol {
     func noActiveOrganization() {
+        passiveNoticeMessage = nil
         isLoading = false
         summary = nil
         memberRows = []
@@ -298,7 +303,13 @@ extension OrganizationPresenter: OrganizationInteractorOutputProtocol {
         lastActiveOrgID = nil
     }
 
+    func loadSummaryFailed(message: String) {
+        isLoading = false
+        passiveNoticeMessage = message
+    }
+
     func summaryLoaded(_ summary: OrganizationSummary, members: [OrganizationMember], currentUserID: UUID?) {
+        passiveNoticeMessage = nil
         self.isLoading = false
         self.summary = summary
         self.currentUserID = currentUserID
@@ -335,7 +346,9 @@ extension OrganizationPresenter: OrganizationInteractorOutputProtocol {
     }
 
     func inviteCreated(_ invite: OrganizationInvite) {
-        infoMessage = "Код готов: \(invite.code)"
+        UIPasteboard.general.string = invite.code
+        AppHaptics.success()
+        infoMessage = "Код скопирован в буфер обмена"
         invites.insert(invite, at: 0)
     }
 

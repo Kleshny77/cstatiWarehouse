@@ -19,11 +19,14 @@ struct OrganizationSwitcherSheet: View {
     let isCreating: Bool
     let isJoining: Bool
     let errorMessage: String?
+    /// Краткое уведомление (например «уже в организации»), без красного баннера ошибки.
+    let toastMessage: String?
     let onSelect: (OrganizationSummary) -> Void
     let onCreate: (String) -> Void
     let onJoin: (String) -> Void
     let onCancel: () -> Void
     let onDismissError: () -> Void
+    let onDismissToast: () -> Void
 
     @State private var newOrgName: String = ""
     @State private var joinCode: String = ""
@@ -34,20 +37,50 @@ struct OrganizationSwitcherSheet: View {
     // MARK: Body
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                header
-                listSection
-                joinSection
-                createSection
-                if let errorMessage {
-                    errorBanner(errorMessage)
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                VStack(spacing: 16) {
+                    header
+                    listSection
+                    joinSection
+                    createSection
+                    if let errorMessage {
+                        errorBanner(errorMessage)
+                    }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 28)
+                .padding(.bottom, toastMessage == nil ? 40 : 72)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 28)
-            .padding(.bottom, 40)
+
+            if let toast = toastMessage, !toast.isEmpty {
+                Button {
+                    AppHaptics.selection()
+                    onDismissToast()
+                } label: {
+                    HStack(alignment: .center, spacing: 10) {
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+                        Text(toast)
+                            .font(font: .semiBold, size: 14)
+                            .foregroundStyle(.white.opacity(0.95))
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.pressable)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .animation(.spring(duration: 0.35), value: toastMessage)
         .presentationDetents([.height(contentHeight)])
         .presentationDragIndicator(.visible)
         .presentationBackground(SheetPresentationChrome.organizationManagementGradient)

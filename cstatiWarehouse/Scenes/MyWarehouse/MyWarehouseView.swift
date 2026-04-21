@@ -20,6 +20,15 @@ struct MyWarehouseView: View {
         ZStack {
             GradientBackground()
             VStack {
+                if let notice = presenter.passiveNoticeMessage {
+                    PassiveNetworkBanner(
+                        message: notice,
+                        onRetry: { presenter.retryWarehouseDataLoad() },
+                        onDismiss: { presenter.passiveNoticeMessage = nil }
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
+                }
                 topBar
                     .padding(.bottom, 20)
                     .padding(.horizontal, 20)
@@ -55,6 +64,7 @@ struct MyWarehouseView: View {
                 isCreating: presentation.isCreating,
                 isJoining: presentation.isJoining,
                 errorMessage: presentation.errorMessage,
+                toastMessage: presenter.switcherToastMessage,
                 onSelect: { summary in
                     presenter.selectOrganization(summary)
                 },
@@ -69,6 +79,9 @@ struct MyWarehouseView: View {
                 },
                 onDismissError: {
                     presenter.dismissSwitcherError()
+                },
+                onDismissToast: {
+                    presenter.dismissSwitcherToast()
                 }
             )
         }
@@ -148,7 +161,7 @@ struct MyWarehouseView: View {
     }
     
     // MARK: UI Configuration
-    
+
     private var topBar: some View {
         HStack {
             profileButton
