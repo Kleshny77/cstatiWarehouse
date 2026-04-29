@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,6 +24,10 @@ const (
 	adminDatabaseURL       = "postgres://cstati:cstati@localhost:5432/postgres?sslmode=disable"
 	testDatabaseName       = "cstatiwarehouse_test"
 )
+
+// integrationBootstrapMu сериализует создание тестовой БД и прогон миграций, чтобы при параллельных
+// пакетах не было гонок на CREATE DATABASE / DDL миграций.
+var integrationBootstrapMu sync.Mutex
 
 func DatabaseURL() string {
 	if v := os.Getenv("TEST_DATABASE_URL"); v != "" {
@@ -54,14 +59,21 @@ func ensureDatabase(t *testing.T) {
 		return
 	}
 	if _, err := admin.ExecContext(ctx, `CREATE DATABASE `+testDatabaseName); err != nil {
+		// Параллельные пакеты могли создать БД между SELECT и CREATE.
+		if strings.Contains(err.Error(), "23505") {
+			return
+		}
 		t.Fatalf("create test database: %v", err)
 	}
 }
 
 func SetupDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	ensureDatabase(t)
 
+	integrationBootstrapMu.Lock()
+	defer integrationBootstrapMu.Unlock()
+
+	ensureDatabase(t)
 	ctx := context.Background()
 	if err := db.RunMigrationsUp(ctx, DatabaseURL()); err != nil {
 		t.Fatalf("run migrations: %v", err)

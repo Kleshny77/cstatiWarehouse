@@ -11,7 +11,7 @@ struct ItemDetailSheet: View {
     let item: Item
     let parentName: String?
     let holderDisplayName: String?
-    let onEdit: () -> Void
+    let onEdit: (() -> Void)?
     let onArchive: (() -> Void)?
     let onDismiss: () -> Void
 
@@ -19,7 +19,7 @@ struct ItemDetailSheet: View {
         item: Item,
         parentName: String? = nil,
         holderDisplayName: String? = nil,
-        onEdit: @escaping () -> Void,
+        onEdit: (() -> Void)? = nil,
         onArchive: (() -> Void)? = nil,
         onDismiss: @escaping () -> Void
     ) {
@@ -78,16 +78,18 @@ struct ItemDetailSheet: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Button {
-                    onEdit()
-                } label: {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .frame(width: 34, height: 34)
-                        .appGlass(in: Circle())
+                if let onEdit {
+                    Button {
+                        onEdit()
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .frame(width: 34, height: 34)
+                            .appGlass(in: Circle())
+                    }
+                    .buttonStyle(.pressable)
                 }
-                .buttonStyle(.pressable)
                 Button {
                     onDismiss()
                 } label: {

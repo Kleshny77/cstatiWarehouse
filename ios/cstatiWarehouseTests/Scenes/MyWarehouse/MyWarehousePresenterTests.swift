@@ -70,30 +70,52 @@ struct MyWarehousePresenterTests {
     @Test
     func editItemRequested_setsEditPresentationForItem() {
         let (sut, _) = makeSUT()
+        sut.activeOrganization = makeOrganizationSummary()
         let item = makeItem(name: "x", category: "y")
-        
+
         sut.editItemRequested(item)
-        
+
         guard case .edit(let captured) = sut.editPresentation?.mode else {
             Issue.record("Expected .edit mode")
             return
         }
         #expect(captured.id == item.id)
     }
+
+    @Test
+    func memberRole_doesNotOpenEditFlows() {
+        let (sut, _) = makeSUT()
+        sut.activeOrganization = makeOrganizationSummary(role: .member)
+        let item = makeItem(name: "x", category: "y")
+
+        sut.editItemRequested(item)
+        #expect(sut.editPresentation == nil)
+
+        sut.archiveItemRequested(item)
+        #expect(sut.archivePresentation == nil)
+
+        sut.hardDeleteRequested(item)
+        #expect(sut.deleteConfirmation == nil)
+
+        sut.addButtonTapped()
+        #expect(sut.editPresentation == nil)
+    }
     
     @Test
     func archiveItemRequested_setsArchivePresentation() {
         let (sut, _) = makeSUT()
+        sut.activeOrganization = makeOrganizationSummary()
         let item = makeItem(name: "x", category: "y")
-        
+
         sut.archiveItemRequested(item)
-        
+
         #expect(sut.archivePresentation?.item.id == item.id)
     }
     
     @Test
     func confirmArchive_callsInteractor_andClearsPresentation() {
         let (sut, fake) = makeSUT()
+        sut.activeOrganization = makeOrganizationSummary()
         let item = makeItem(name: "x", category: "y")
         sut.archiveItemRequested(item)
 
@@ -124,6 +146,7 @@ struct MyWarehousePresenterTests {
     @Test
     func cancelArchive_clearsPresentation() {
         let (sut, _) = makeSUT()
+        sut.activeOrganization = makeOrganizationSummary()
         sut.archiveItemRequested(makeItem(name: "x", category: "y"))
 
         sut.cancelArchive()
@@ -134,8 +157,9 @@ struct MyWarehousePresenterTests {
     @Test
     func hardDeleteFlow_confirmAndCancel() {
         let (sut, fake) = makeSUT()
+        sut.activeOrganization = makeOrganizationSummary()
         let item = makeItem(name: "x", category: "y")
-        
+
         sut.hardDeleteRequested(item)
         #expect(sut.deleteConfirmation?.item.id == item.id)
         
@@ -212,6 +236,7 @@ struct MyWarehousePresenterTests {
     @Test
     func editCompleted_savedInEditMode_callsInteractorWithIsNewFalse() {
         let (sut, fake) = makeSUT()
+        sut.activeOrganization = makeOrganizationSummary()
         let original = makeItem(name: "orig", category: "c")
         sut.itemsLoaded([original])
         sut.editItemRequested(original)
@@ -227,8 +252,9 @@ struct MyWarehousePresenterTests {
     @Test
     func editCompleted_cancelled_doesNothing() {
         let (sut, fake) = makeSUT()
+        sut.activeOrganization = makeOrganizationSummary()
         sut.addButtonTapped()
-        
+
         sut.editCompleted(result: .cancelled)
         
         #expect(sut.editPresentation == nil)
@@ -280,9 +306,9 @@ struct MyWarehousePresenterTests {
 
         sut.warehouseActiveItemsCacheMissed()
 
-        #expect(sut.isAwaitingWarehouseCacheHydration == false)
+        #expect(sut.isAwaitingWarehouseCacheHydration == true)
         #expect(sut.isLoading == true)
-        #expect(sut.shouldShowSkeleton == true)
+        #expect(sut.shouldShowSkeleton == false)
     }
 
     private func makeSUT() -> (MyWarehousePresenter, FakeMyWarehouseInteractor) {
@@ -293,7 +319,7 @@ struct MyWarehousePresenterTests {
         return (presenter, fake)
     }
 
-    private func makeOrganizationSummary(role: OrgRole = .member) -> OrganizationSummary {
+    private func makeOrganizationSummary(role: OrgRole = .admin) -> OrganizationSummary {
         let orgID = UUID()
         return OrganizationSummary(
             organization: Organization(

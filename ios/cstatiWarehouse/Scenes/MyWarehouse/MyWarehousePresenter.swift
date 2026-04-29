@@ -87,9 +87,16 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     var isFiltersActive: Bool { filters.isActive }
 
     var scope: WarehouseScope = .mine
+    /// Переключатель «Мои / Все» нужен всем участникам общей организации, не только админам.
     var canSwitchScope: Bool {
         guard let summary = activeOrganization else { return false }
-        if summary.organization.isPersonal { return false }
+        return !summary.organization.isPersonal
+    }
+
+    /// Создание и изменение позиций на общем складе — только у владельца и администраторов.
+    var canEditWarehouseItems: Bool {
+        guard let summary = activeOrganization else { return false }
+        if summary.organization.isPersonal { return true }
         return summary.role.canManageMembers
     }
 
@@ -117,7 +124,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
 
     func addButtonTapped() {
-        guard activeOrganization != nil else { return }
+        guard canEditWarehouseItems, activeOrganization != nil else { return }
         editPresentation = ItemEditPresentation(mode: .create(suggestedCategory: nil))
     }
 
@@ -144,14 +151,17 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
 
     func editItemRequested(_ item: Item) {
+        guard canEditWarehouseItems else { return }
         editPresentation = ItemEditPresentation(mode: .edit(item))
     }
 
     func addVariantTapped(parent: Item) {
+        guard canEditWarehouseItems else { return }
         editPresentation = ItemEditPresentation(mode: .createVariant(parent: parent))
     }
 
     func archiveItemRequested(_ item: Item) {
+        guard canEditWarehouseItems else { return }
         if item.isProductGroup {
             errorMessage = "Чтобы списать, откройте карточку и выберите конкретный вариант."
             return
@@ -160,6 +170,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
 
     func hardDeleteRequested(_ item: Item) {
+        guard canEditWarehouseItems else { return }
         deleteConfirmation = DeleteConfirmation(item: item)
     }
 
@@ -354,8 +365,13 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         searchTextByScope = [:]
         filtersByScope = [:]
         loadedScopes = []
-        isAwaitingWarehouseCacheHydration = false
-        scope = .mine
+        // Пока грузим кэш/сеть — не показываем скелетон (избегаем мигания при смене орг/сегмента).
+        isAwaitingWarehouseCacheHydration = true
+        if activeOrganization?.organization.isPersonal == true {
+            scope = .mine
+        } else {
+            scope = .all
+        }
         if !searchText.isEmpty { searchText = "" }
         if filters != .none { filters = .none }
     }
@@ -522,7 +538,7 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
     }
 
     func warehouseActiveItemsCacheMissed() {
-        isAwaitingWarehouseCacheHydration = false
+        // Не сбрасываем isAwaitingWarehouseCacheHydration — иначе на мгновение включается скелетон до ответа сети.
         isLoading = true
     }
 

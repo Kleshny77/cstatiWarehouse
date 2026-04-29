@@ -74,8 +74,12 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*do
 	if in.Quantity < 0 {
 		return nil, domain.NewValidationError("quantity must be >= 0")
 	}
-	if _, err := uc.requireMember(ctx, in.UserID, in.OrganizationID); err != nil {
+	role, err := uc.requireMember(ctx, in.UserID, in.OrganizationID)
+	if err != nil {
 		return nil, err
+	}
+	if !role.CanManageMembers() {
+		return nil, domain.ErrForbidden
 	}
 
 	mu := domain.MeasureUnitPiece
@@ -114,7 +118,7 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*do
 		if parent.ParentItemID != nil {
 			return nil, domain.NewValidationError("cannot attach variant to another variant")
 		}
-		if _, err := uc.requireAccessibleItem(ctx, parent.ID, in.UserID); err != nil {
+		if _, err := uc.requireMutableItem(ctx, parent.ID, in.UserID); err != nil {
 			return nil, err
 		}
 		if variantLabel == "" {
@@ -182,7 +186,7 @@ func (uc *WarehouseUseCase) Update(ctx context.Context, in UpdateItemInput) (*do
 	if in.Quantity < 0 {
 		return nil, domain.NewValidationError("quantity must be >= 0")
 	}
-	item, err := uc.requireAccessibleItem(ctx, in.ID, in.UserID)
+	item, err := uc.requireMutableItem(ctx, in.ID, in.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +277,7 @@ func (uc *WarehouseUseCase) Archive(ctx context.Context, in ArchiveItemInput) (*
 		return nil, nil, domain.NewValidationError("event_id is only allowed for 'usedAtEvent'")
 	}
 
-	item, err := uc.requireAccessibleItem(ctx, in.ItemID, in.UserID)
+	item, err := uc.requireMutableItem(ctx, in.ItemID, in.UserID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -352,7 +356,7 @@ func (uc *WarehouseUseCase) ListArchiveEvents(ctx context.Context, userID, orgID
 }
 
 func (uc *WarehouseUseCase) Delete(ctx context.Context, id, userID uuid.UUID) error {
-	item, err := uc.requireAccessibleItem(ctx, id, userID)
+	item, err := uc.requireMutableItem(ctx, id, userID)
 	if err != nil {
 		return err
 	}
@@ -364,13 +368,8 @@ func (uc *WarehouseUseCase) Delete(ctx context.Context, id, userID uuid.UUID) er
 }
 
 func (uc *WarehouseUseCase) List(ctx context.Context, userID, orgID uuid.UUID, filter ItemFilter) ([]domain.Item, error) {
-	role, err := uc.requireMember(ctx, userID, orgID)
-	if err != nil {
+	if _, err := uc.requireMember(ctx, userID, orgID); err != nil {
 		return nil, err
-	}
-	if !role.CanManageMembers() {
-		uid := userID
-		filter.HeldByUserID = &uid
 	}
 	return uc.items.ListByOrganization(ctx, orgID, filter)
 }
@@ -416,7 +415,7 @@ func (uc *WarehouseUseCase) requireMember(ctx context.Context, userID, orgID uui
 	return role, nil
 }
 
-func (uc *WarehouseUseCase) requireAccessibleItem(ctx context.Context, itemID, userID uuid.UUID) (*domain.Item, error) {
+func (uc *WarehouseUseCase) requireMutableItem(ctx context.Context, itemID, userID uuid.UUID) (*domain.Item, error) {
 	item, err := uc.items.FindByID(ctx, itemID)
 	if err != nil {
 		return nil, err
@@ -428,8 +427,8 @@ func (uc *WarehouseUseCase) requireAccessibleItem(ctx context.Context, itemID, u
 		}
 		return nil, err
 	}
-	if !role.CanManageMembers() && item.HeldByUserID != userID {
-		return nil, domain.ErrNotFound
+	if !role.CanManageMembers() {
+		return nil, domain.ErrForbidden
 	}
 	return item, nil
 }

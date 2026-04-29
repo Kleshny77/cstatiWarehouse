@@ -369,7 +369,7 @@ func TestWarehouseUseCase_CreateVariantAndArchiveParentBlocked(t *testing.T) {
 	}
 }
 
-func TestWarehouseUseCase_List_MemberSeesOnlyOwnHoldings(t *testing.T) {
+func TestWarehouseUseCase_List_MemberSeesAllItems_FilterByHeldOptional(t *testing.T) {
 	uc, _, members, clock, ownerID, orgID := newWarehouseUC(t)
 
 	memberID := uuid.New()
@@ -404,17 +404,26 @@ func TestWarehouseUseCase_List_MemberSeesOnlyOwnHoldings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("member list failed: %v", err)
 	}
-	if len(memberList) != 1 || memberList[0].Name != "Пицца" {
-		t.Errorf("member must see only own holdings, got %+v", memberList)
+	if len(memberList) != 2 {
+		t.Errorf("member must see all org items without filter, got %d", len(memberList))
 	}
 
-	other := ownerID
-	hacked, err := uc.List(context.Background(), memberID, orgID, ItemFilter{HeldByUserID: &other})
+	filterOwner := ownerID
+	byOwnerHeld, err := uc.List(context.Background(), memberID, orgID, ItemFilter{HeldByUserID: &filterOwner})
 	if err != nil {
-		t.Fatalf("member hacked list failed: %v", err)
+		t.Fatalf("member filtered list failed: %v", err)
 	}
-	if len(hacked) != 1 || hacked[0].Name != "Пицца" {
-		t.Errorf("member must not be able to override HeldByUserID, got %+v", hacked)
+	if len(byOwnerHeld) != 1 || byOwnerHeld[0].Name != "Кола" {
+		t.Errorf("HeldByUserID filter must scope to owner's holdings, got %+v", byOwnerHeld)
+	}
+
+	filterMember := memberID
+	memberMine, err := uc.List(context.Background(), memberID, orgID, ItemFilter{HeldByUserID: &filterMember})
+	if err != nil {
+		t.Fatalf("member mine list failed: %v", err)
+	}
+	if len(memberMine) != 1 || memberMine[0].Name != "Пицца" {
+		t.Errorf("member mine list unexpected: %+v", memberMine)
 	}
 
 	ownerList, err := uc.List(context.Background(), ownerID, orgID, ItemFilter{})
@@ -432,6 +441,53 @@ func TestWarehouseUseCase_List_MemberSeesOnlyOwnHoldings(t *testing.T) {
 	}
 	if len(ownerMine) != 1 || ownerMine[0].Name != "Кола" {
 		t.Errorf("owner mine list unexpected: %+v", ownerMine)
+	}
+}
+
+func TestWarehouseUseCase_MemberCannotMutateWarehouse(t *testing.T) {
+	uc, _, members, _, ownerID, orgID := newWarehouseUC(t)
+
+	memberID := uuid.New()
+	if err := members.Add(context.Background(), &domain.OrganizationMember{
+		OrganizationID: orgID,
+		UserID:         memberID,
+		Role:           domain.OrgRoleMember,
+		JoinedAt:       time.Now(),
+	}); err != nil {
+		t.Fatalf("seed member failed: %v", err)
+	}
+
+	created, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: ownerID, OrganizationID: orgID, Name: "A", Quantity: 1,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
+	})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	if _, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: memberID, OrganizationID: orgID, Name: "X", Quantity: 1,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
+	}); !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("member create: want ErrForbidden, got %v", err)
+	}
+
+	_, err = uc.Update(context.Background(), mergeItemUpdate(created, UpdateItemInput{
+		UserID: memberID, Name: "B", Quantity: 1,
+	}))
+	if !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("member update: want ErrForbidden, got %v", err)
+	}
+
+	_, _, err = uc.Archive(context.Background(), ArchiveItemInput{
+		ItemID: created.ID, UserID: memberID, Quantity: 1, Reason: domain.ArchiveReasonExpired,
+	})
+	if !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("member archive: want ErrForbidden, got %v", err)
+	}
+
+	if err := uc.Delete(context.Background(), created.ID, memberID); !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("member delete: want ErrForbidden, got %v", err)
 	}
 }
 

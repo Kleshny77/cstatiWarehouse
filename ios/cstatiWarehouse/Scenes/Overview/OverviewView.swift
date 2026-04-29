@@ -184,57 +184,63 @@ struct OverviewView: View {
                 title: "Срок годности",
                 subtitle: "Сколько складских строк (позиций/вариантов) в каждой зоне внимания."
             ) {
-                Chart(snapshot.shelfRiskRows) { row in
-                    BarMark(
-                        x: .value("Зона", row.band.chartAxisLabel),
-                        y: .value("Строк", row.lineCount)
-                    )
-                    .foregroundStyle(shelfRiskColor(row.band))
-                }
-                .chartXAxis {
-                    AxisMarks { value in
-                        AxisValueLabel {
-                            if let str = value.as(String.self) {
-                                Text(str)
-                                    .font(font: .semiBold, size: 10)
-                                    .foregroundStyle(Color.textSecondary)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.center)
+                if snapshot.categoryRows.isEmpty {
+                    Text("Нет позиций на складе")
+                        .font(font: .semiBold, size: 14)
+                        .secondaryTextStyle()
+                } else {
+                    Chart(snapshot.shelfRiskRows) { row in
+                        BarMark(
+                            x: .value("Зона", row.band.chartAxisLabel),
+                            y: .value("Строк", row.lineCount)
+                        )
+                        .foregroundStyle(shelfRiskColor(row.band))
+                    }
+                    .chartXAxis {
+                        AxisMarks { value in
+                            AxisValueLabel {
+                                if let str = value.as(String.self) {
+                                    Text(str)
+                                        .font(font: .semiBold, size: 10)
+                                        .foregroundStyle(Color.textSecondary)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.center)
+                                }
                             }
                         }
                     }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading) { value in
-                        AxisGridLine()
-                        AxisValueLabel {
-                            if let intValue = value.as(Int.self) {
-                                Text("\(intValue)")
-                                    .font(font: .semiBold, size: 11)
-                                    .foregroundStyle(Color.textSecondary)
+                    .chartYAxis {
+                        AxisMarks(position: .leading) { value in
+                            AxisGridLine()
+                            AxisValueLabel {
+                                if let intValue = value.as(Int.self) {
+                                    Text("\(intValue)")
+                                        .font(font: .semiBold, size: 11)
+                                        .foregroundStyle(Color.textSecondary)
+                                }
                             }
                         }
                     }
-                }
-                .frame(height: 240)
+                    .frame(height: 240)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(snapshot.shelfRiskRows) { row in
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Circle()
-                                .fill(shelfRiskColor(row.band))
-                                .frame(width: 8, height: 8)
-                            Text(row.band.title)
-                                .font(font: .semiBold, size: 12)
-                                .secondaryTextStyle()
-                            Spacer(minLength: 0)
-                            Text("\(row.lineCount)")
-                                .font(font: .semiBold, size: 12)
-                                .defaultTextStyle()
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(snapshot.shelfRiskRows) { row in
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Circle()
+                                    .fill(shelfRiskColor(row.band))
+                                    .frame(width: 8, height: 8)
+                                Text(row.band.title)
+                                    .font(font: .semiBold, size: 12)
+                                    .secondaryTextStyle()
+                                Spacer(minLength: 0)
+                                Text("\(row.lineCount)")
+                                    .font(font: .semiBold, size: 12)
+                                    .defaultTextStyle()
+                            }
                         }
                     }
+                    .padding(.top, 8)
                 }
-                .padding(.top, 8)
             }
         }
     }

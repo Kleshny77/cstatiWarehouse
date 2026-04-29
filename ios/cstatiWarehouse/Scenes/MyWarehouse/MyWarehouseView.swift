@@ -119,18 +119,22 @@ struct MyWarehouseView: View {
                 item: item,
                 parentName: parentName(for: item),
                 holderDisplayName: presenter.holderDisplayName(for: item),
-                onEdit: {
-                    selectedItem = nil
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        presenter.editItemRequested(item)
+                onEdit: presenter.canEditWarehouseItems
+                    ? {
+                        selectedItem = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                            presenter.editItemRequested(item)
+                        }
                     }
-                },
-                onArchive: item.status.isArchived ? nil : {
-                    selectedItem = nil
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        presenter.archiveItemRequested(item)
+                    : nil,
+                onArchive: (presenter.canEditWarehouseItems && !item.status.isArchived)
+                    ? {
+                        selectedItem = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                            presenter.archiveItemRequested(item)
+                        }
                     }
-                },
+                    : nil,
                 onDismiss: { selectedItem = nil }
             )
         }
@@ -178,7 +182,9 @@ struct MyWarehouseView: View {
 
             Spacer()
 
-            addButton
+            if presenter.canEditWarehouseItems {
+                addButton
+            }
         }
     }
 
@@ -471,8 +477,10 @@ struct MyWarehouseView: View {
                                 warehouseVariantRow(for: variant)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
                             }
-                            addVariantRow(for: item)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            if presenter.canEditWarehouseItems {
+                                addVariantRow(for: item)
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
                         }
                     }
                 } header: {
@@ -497,6 +505,54 @@ struct MyWarehouseView: View {
 
     @ViewBuilder
     private func warehouseRootRow(for item: Item) -> some View {
+        Group {
+            if presenter.canEditWarehouseItems {
+                warehouseRootRowButton(for: item)
+                    .contextMenu {
+                        itemContextMenu(for: item)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: !item.isProductGroup) {
+                        if item.isProductGroup {
+                            Button {
+                                AppHaptics.selection()
+                                presenter.editItemRequested(item)
+                            } label: {
+                                Label("Изменить", systemImage: "pencil")
+                            }
+                            .tint(.indigo)
+                            Button(role: .destructive) {
+                                AppHaptics.impact(.medium)
+                                presenter.hardDeleteRequested(item)
+                            } label: {
+                                Label("Удалить", systemImage: "trash")
+                            }
+                        } else {
+                            Button {
+                                AppHaptics.impact(.medium)
+                                presenter.archiveItemRequested(item)
+                            } label: {
+                                Label("Списать", systemImage: "archivebox")
+                            }
+                            .tint(.red)
+                            Button {
+                                AppHaptics.selection()
+                                presenter.editItemRequested(item)
+                            } label: {
+                                Label("Изменить", systemImage: "pencil")
+                            }
+                            .tint(.indigo)
+                        }
+                    }
+            } else {
+                warehouseRootRowButton(for: item)
+            }
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+    }
+
+    private func warehouseRootRowButton(for item: Item) -> some View {
         Button {
             AppHaptics.selection()
             if item.isProductGroup {
@@ -512,48 +568,42 @@ struct MyWarehouseView: View {
             .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
         .buttonStyle(.plain)
-        .contextMenu {
-            itemContextMenu(for: item)
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: !item.isProductGroup) {
-            if item.isProductGroup {
-                Button {
-                    AppHaptics.selection()
-                    presenter.editItemRequested(item)
-                } label: {
-                    Label("Изменить", systemImage: "pencil")
-                }
-                .tint(.indigo)
-                Button(role: .destructive) {
-                    AppHaptics.impact(.medium)
-                    presenter.hardDeleteRequested(item)
-                } label: {
-                    Label("Удалить", systemImage: "trash")
-                }
-            } else {
-                Button {
-                    AppHaptics.impact(.medium)
-                    presenter.archiveItemRequested(item)
-                } label: {
-                    Label("Списать", systemImage: "archivebox")
-                }
-                .tint(.red)
-                Button {
-                    AppHaptics.selection()
-                    presenter.editItemRequested(item)
-                } label: {
-                    Label("Изменить", systemImage: "pencil")
-                }
-                .tint(.indigo)
-            }
-        }
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
     }
 
     @ViewBuilder
     private func warehouseVariantRow(for variant: Item) -> some View {
+        Group {
+            if presenter.canEditWarehouseItems {
+                warehouseVariantRowButton(for: variant)
+                    .contextMenu {
+                        variantContextMenu(for: variant)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button {
+                            AppHaptics.impact(.medium)
+                            presenter.archiveItemRequested(variant)
+                        } label: {
+                            Label("Списать", systemImage: "archivebox")
+                        }
+                        .tint(.red)
+                        Button {
+                            AppHaptics.selection()
+                            presenter.editItemRequested(variant)
+                        } label: {
+                            Label("Изменить", systemImage: "pencil")
+                        }
+                        .tint(.indigo)
+                    }
+            } else {
+                warehouseVariantRowButton(for: variant)
+            }
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 4, leading: 28, bottom: 4, trailing: 16))
+    }
+
+    private func warehouseVariantRowButton(for variant: Item) -> some View {
         Button {
             AppHaptics.selection()
             selectedItem = variant
@@ -562,28 +612,6 @@ struct MyWarehouseView: View {
                 .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-        .contextMenu {
-            variantContextMenu(for: variant)
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button {
-                AppHaptics.impact(.medium)
-                presenter.archiveItemRequested(variant)
-            } label: {
-                Label("Списать", systemImage: "archivebox")
-            }
-            .tint(.red)
-            Button {
-                AppHaptics.selection()
-                presenter.editItemRequested(variant)
-            } label: {
-                Label("Изменить", systemImage: "pencil")
-            }
-            .tint(.indigo)
-        }
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 4, leading: 28, bottom: 4, trailing: 16))
     }
 
     @ViewBuilder

@@ -259,13 +259,15 @@ struct OrganizationView: View {
         guard summary.role.canManageMembers else { return false }
         if row.isCurrentUser { return false }
         if row.member.role == .owner { return false }
+        if summary.role == .admin && row.member.role == .admin { return false }
         return true
     }
 
     @ViewBuilder
     private func memberMenuItems(for row: OrganizationMemberRow) -> some View {
         if let summary = presenter.summary {
-            if summary.role == .owner {
+            switch summary.role {
+            case .owner:
                 switch row.member.role {
                 case .member:
                     Button("Сделать админом") { presenter.promoteToAdmin(row.member) }
@@ -277,11 +279,22 @@ struct OrganizationView: View {
                 if !summary.organization.isPersonal {
                     Button("Передать владение") { presenter.transferOwnership(to: row.member) }
                 }
-            }
-            Button(role: .destructive) {
-                presenter.removeMember(row.member)
-            } label: {
-                Text("Удалить")
+                Button(role: .destructive) {
+                    presenter.removeMember(row.member)
+                } label: {
+                    Text("Удалить")
+                }
+            case .admin:
+                if row.member.role == .member {
+                    Button("Сделать админом") { presenter.promoteToAdmin(row.member) }
+                    Button(role: .destructive) {
+                        presenter.removeMember(row.member)
+                    } label: {
+                        Text("Удалить")
+                    }
+                }
+            case .member:
+                EmptyView()
             }
         }
     }

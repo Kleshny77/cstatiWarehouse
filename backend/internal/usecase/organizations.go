@@ -192,7 +192,7 @@ func (uc *OrganizationsUseCase) ChangeRole(ctx context.Context, in ChangeRoleInp
 	if err != nil {
 		return err
 	}
-	if actorRole != domain.OrgRoleOwner {
+	if actorRole != domain.OrgRoleOwner && actorRole != domain.OrgRoleAdmin {
 		return domain.ErrForbidden
 	}
 	if in.ActorID == in.TargetID {
@@ -208,6 +208,22 @@ func (uc *OrganizationsUseCase) ChangeRole(ctx context.Context, in ChangeRoleInp
 	if targetRole == in.NewRole {
 		return nil
 	}
+
+	switch actorRole {
+	case domain.OrgRoleOwner:
+		// Полный контроль: повышение и понижение (включая admin → member).
+	case domain.OrgRoleAdmin:
+		// Только назначение админов: member → admin. Понижать нельзя.
+		if in.NewRole == domain.OrgRoleMember {
+			return domain.ErrForbidden
+		}
+		if targetRole != domain.OrgRoleMember {
+			return domain.ErrForbidden
+		}
+	default:
+		return domain.ErrForbidden
+	}
+
 	if err := uc.members.UpdateRole(ctx, in.OrgID, in.TargetID, in.NewRole); err != nil {
 		return err
 	}

@@ -239,21 +239,42 @@ func TestOrganizationsUseCase_RemoveMember_CannotTargetOwner(t *testing.T) {
 	}
 }
 
-func TestOrganizationsUseCase_ChangeRole_OnlyOwner(t *testing.T) {
+func TestOrganizationsUseCase_ChangeRole_OwnerAndAdmin(t *testing.T) {
 	uc, _, members, _ := newOrganizationsUC(t)
 	owner := uuid.New()
 	admin := uuid.New()
 	member := uuid.New()
+	peerAdmin := uuid.New()
 
 	org, _ := uc.Create(context.Background(), CreateOrganizationInput{OwnerID: owner, Name: "Team"})
 	_ = members.Add(context.Background(), &domain.OrganizationMember{OrganizationID: org.ID, UserID: admin, Role: domain.OrgRoleAdmin, JoinedAt: time.Now()})
+	_ = members.Add(context.Background(), &domain.OrganizationMember{OrganizationID: org.ID, UserID: peerAdmin, Role: domain.OrgRoleAdmin, JoinedAt: time.Now()})
 	_ = members.Add(context.Background(), &domain.OrganizationMember{OrganizationID: org.ID, UserID: member, Role: domain.OrgRoleMember, JoinedAt: time.Now()})
 
-	if err := uc.ChangeRole(context.Background(), ChangeRoleInput{ActorID: admin, OrgID: org.ID, TargetID: member, NewRole: domain.OrgRoleAdmin}); !errors.Is(err, domain.ErrForbidden) {
-		t.Errorf("admin must not change roles, got %v", err)
+	if err := uc.ChangeRole(context.Background(), ChangeRoleInput{ActorID: admin, OrgID: org.ID, TargetID: peerAdmin, NewRole: domain.OrgRoleMember}); !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("admin must not demote another admin, got %v", err)
 	}
+
+	if err := uc.ChangeRole(context.Background(), ChangeRoleInput{ActorID: admin, OrgID: org.ID, TargetID: member, NewRole: domain.OrgRoleAdmin}); err != nil {
+		t.Fatalf("admin promote member to admin: %v", err)
+	}
+	if r, _ := members.FindRole(context.Background(), org.ID, member); r != domain.OrgRoleAdmin {
+		t.Fatalf("expected member promoted to admin, got %s", r)
+	}
+
+	if err := uc.ChangeRole(context.Background(), ChangeRoleInput{ActorID: admin, OrgID: org.ID, TargetID: member, NewRole: domain.OrgRoleMember}); !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("admin must not demote (including promoted peers), got %v", err)
+	}
+
+	if err := uc.ChangeRole(context.Background(), ChangeRoleInput{ActorID: owner, OrgID: org.ID, TargetID: member, NewRole: domain.OrgRoleMember}); err != nil {
+		t.Fatalf("owner demote admin to member: %v", err)
+	}
+	if r, _ := members.FindRole(context.Background(), org.ID, member); r != domain.OrgRoleMember {
+		t.Errorf("expected member demoted by owner, got %s", r)
+	}
+
 	if err := uc.ChangeRole(context.Background(), ChangeRoleInput{ActorID: owner, OrgID: org.ID, TargetID: member, NewRole: domain.OrgRoleAdmin}); err != nil {
-		t.Errorf("owner change failed: %v", err)
+		t.Fatalf("owner promote member: %v", err)
 	}
 	if r, _ := members.FindRole(context.Background(), org.ID, member); r != domain.OrgRoleAdmin {
 		t.Errorf("role not updated: %s", r)
