@@ -16,6 +16,7 @@ protocol MyWarehousePresenterProtocol: AnyObject {
     func switcherButtonTapped()
 
     func editItemRequested(_ item: Item)
+    func addVariantTapped(parent: Item)
     func archiveItemRequested(_ item: Item)
     func hardDeleteRequested(_ item: Item)
 
@@ -47,8 +48,11 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
 
     var interactor: MyWarehouseInteractorInputProtocol?
     var router: MyWarehouseRouterProtocol?
+    var shelfLifeNotifier: ShelfLifeNotificationServiceProtocol = NoopShelfLifeNotificationService()
 
     var sections: [WarehouseSection] = []
+    /// Участники активной организации — чтобы показать имя по `heldByUserID` в карточке позиции.
+    var organizationMembers: [OrganizationMember] = []
     var totalItemsCount: Int = 0
     var searchText: String = "" {
         didSet {
@@ -145,7 +149,15 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         editPresentation = ItemEditPresentation(mode: .edit(item))
     }
 
+    func addVariantTapped(parent: Item) {
+        editPresentation = ItemEditPresentation(mode: .createVariant(parent: parent))
+    }
+
     func archiveItemRequested(_ item: Item) {
+        if item.isProductGroup {
+            errorMessage = "Чтобы списать, откройте карточку и выберите конкретный вариант."
+            return
+        }
         interactor?.prepareArchive(for: item)
     }
 
@@ -189,6 +201,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         allItems = []
         rebuildSections()
         isLoading = true
+        requestMembersForActiveOrganization()
         interactor?.loadActiveItems(organizationID: summary.organization.id, scope: scope)
     }
 
@@ -225,6 +238,16 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         rebuildSections()
     }
 
+    func holderDisplayName(for item: Item) -> String? {
+        guard let uid = item.heldByUserID else { return nil }
+        guard let member = organizationMembers.first(where: { $0.userID == uid }) else { return nil }
+        if let full = member.fullName, !full.isEmpty { return full }
+        if let email = member.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty {
+            return email
+        }
+        return nil
+    }
+
     func archiveHistoryButtonTapped() {
         guard let orgID = activeOrganization?.organization.id else { return }
         AppHaptics.selection()
@@ -244,6 +267,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         errorMessage = nil
         isLoading = true
         if let orgID = activeOrganization?.organization.id {
+            requestMembersForActiveOrganization()
             interactor?.loadActiveItems(organizationID: orgID, scope: scope)
         } else {
             interactor?.resolveActiveOrganization()
@@ -273,8 +297,12 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     func editCompleted(result: ItemEditResult) {
         let wasCreate: Bool = {
             guard let mode = editPresentation?.mode else { return false }
-            if case .create = mode { return true }
-            return false
+            switch mode {
+            case .create, .createVariant:
+                return true
+            case .edit:
+                return false
+            }
         }()
         editPresentation = nil
 
@@ -290,6 +318,14 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
 
     /// Сбрасывает запомнённые search/filters при смене организации, чтобы не тянуть
     /// контекст одной орги в другую. scope всегда стартует с `.mine`.
+    private func requestMembersForActiveOrganization() {
+        guard let orgID = activeOrganization?.organization.id else {
+            organizationMembers = []
+            return
+        }
+        interactor?.loadOrganizationMembers(organizationID: orgID)
+    }
+
     private func resetScopeStateForNewOrganization() {
         searchTextByScope = [:]
         filtersByScope = [:]
@@ -314,9 +350,12 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         if query.isEmpty {
             searched = active
         } else {
-            searched = active.filter {
-                $0.name.localizedCaseInsensitiveContains(query)
-                || ($0.description?.localizedCaseInsensitiveContains(query) ?? false)
+            searched = active.filter { root in
+                root.name.localizedCaseInsensitiveContains(query)
+                    || (root.description?.localizedCaseInsensitiveContains(query) ?? false)
+                    || root.variants.contains { v in
+                        v.variantLabel.localizedCaseInsensitiveContains(query)
+                    }
             }
         }
 
@@ -341,7 +380,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         }
         if !filters.expirationSet.isEmpty {
             result = result.filter { item in
-                let status = item.expirationStatus()
+                let status = item.expirationStatusConsideringVariants()
                 return filters.expirationSet.contains { $0.matches(status) }
             }
         }
@@ -353,6 +392,16 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         return result
     }
 
+    private func syncShelfLifeNotifications() {
+        guard let summary = activeOrganization else { return }
+        let lines = allItems.flatMap { $0.allStockLinesForNotifications() }
+        shelfLifeNotifier.synchronize(
+            organizationID: summary.organization.id,
+            organizationName: summary.organization.name,
+            items: lines
+        )
+    }
+
     private func sortItems(_ items: [Item], by option: WarehouseSortOption) -> [Item] {
         switch option {
         case .newest:
@@ -360,9 +409,9 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         case .oldest:
             return items.sorted { $0.createdAt < $1.createdAt }
         case .quantityAsc:
-            return items.sorted { $0.quantity < $1.quantity }
+            return items.sorted { $0.effectiveQuantityForSort < $1.effectiveQuantityForSort }
         case .quantityDesc:
-            return items.sorted { $0.quantity > $1.quantity }
+            return items.sorted { $0.effectiveQuantityForSort > $1.effectiveQuantityForSort }
         case .expirationAsc:
             return items.sorted { lhs, rhs in
                 switch (lhs.expirationDate, rhs.expirationDate) {
@@ -386,8 +435,10 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
         activeOrganization = summary
         if let summary {
             resetScopeStateForNewOrganization()
+            requestMembersForActiveOrganization()
             interactor?.loadActiveItems(organizationID: summary.organization.id, scope: scope)
         } else {
+            organizationMembers = []
             isLoading = false
             allItems = []
             rebuildSections()
@@ -409,6 +460,7 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
         allItems = []
         rebuildSections()
         isLoading = true
+        requestMembersForActiveOrganization()
         interactor?.loadActiveItems(organizationID: summary.organization.id, scope: scope)
     }
 
@@ -422,6 +474,7 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
         allItems = items
         isLoading = false
         rebuildSections()
+        syncShelfLifeNotifications()
     }
 
     func archiveEventsLoaded(_ events: [ArchiveEvent]) {
@@ -435,34 +488,71 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
     }
 
     func itemArchived(_ item: Item) {
-        if let idx = allItems.firstIndex(where: { $0.id == item.id }) {
+        if let parentID = item.parentItemID,
+           let pIdx = allItems.firstIndex(where: { $0.id == parentID }) {
+            var parent = allItems[pIdx]
+            if let vIdx = parent.variants.firstIndex(where: { $0.id == item.id }) {
+                parent.variants[vIdx] = item
+            } else {
+                parent.variants.append(item)
+            }
+            allItems[pIdx] = parent
+        } else if let idx = allItems.firstIndex(where: { $0.id == item.id }) {
             allItems[idx] = item
         }
         rebuildSections()
+        syncShelfLifeNotifications()
     }
 
     func itemDeleted(id: UUID) {
-        allItems.removeAll { $0.id == id }
+        if let pIdx = allItems.firstIndex(where: { $0.variants.contains(where: { $0.id == id }) }) {
+            var parent = allItems[pIdx]
+            parent.variants.removeAll { $0.id == id }
+            allItems[pIdx] = parent
+        } else {
+            allItems.removeAll { $0.id == id }
+        }
         rebuildSections()
+        syncShelfLifeNotifications()
     }
 
     func itemChangedExternally(_ item: Item, isNew: Bool) {
-        if isNew {
+        if let parentID = item.parentItemID,
+           let pIdx = allItems.firstIndex(where: { $0.id == parentID }) {
+            var parent = allItems[pIdx]
+            if let vIdx = parent.variants.firstIndex(where: { $0.id == item.id }) {
+                parent.variants[vIdx] = item
+            } else {
+                parent.variants.append(item)
+                parent.variants.sort { $0.createdAt > $1.createdAt }
+            }
+            allItems[pIdx] = parent
+        } else if isNew {
             allItems.append(item)
         } else if let idx = allItems.firstIndex(where: { $0.id == item.id }) {
-            allItems[idx] = item
+            var merged = item
+            if merged.variants.isEmpty, !allItems[idx].variants.isEmpty {
+                merged.variants = allItems[idx].variants
+            }
+            allItems[idx] = merged
         } else {
             allItems.append(item)
         }
         rebuildSections()
+        syncShelfLifeNotifications()
     }
 
     func initialLoadFailed(message: String) {
         isLoading = false
         activeOrganization = nil
+        organizationMembers = []
         allItems = []
         rebuildSections()
         passiveNoticeMessage = message
+    }
+
+    func membersLoaded(_ members: [OrganizationMember]) {
+        organizationMembers = members
     }
 
     func itemsLoadFailed(message: String) {
@@ -514,6 +604,7 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
         switcherPresentation = nil
         if summary.id == activeOrganization?.id {
             isLoading = true
+            requestMembersForActiveOrganization()
             interactor?.loadActiveItems(organizationID: summary.organization.id, scope: scope)
             return
         }
@@ -523,6 +614,7 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
         allItems = []
         rebuildSections()
         isLoading = true
+        requestMembersForActiveOrganization()
         interactor?.loadActiveItems(organizationID: summary.organization.id, scope: scope)
     }
 }

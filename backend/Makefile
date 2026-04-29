@@ -4,7 +4,7 @@ ENV_FILE ?= .env
 include $(ENV_FILE)
 export
 
-.PHONY: help tidy run test test-integration vet up up-all down logs psql migrate-up migrate-down migrate-status docker-build docker-up docker-down docker-logs
+.PHONY: help tidy run test test-integration vet up up-all down logs psql migrate-up migrate-down migrate-status docker-build docker-up docker-down docker-logs seed-warehouse
 
 help:
 	@echo "make up             — поднять только Postgres в docker-compose"
@@ -21,6 +21,7 @@ help:
 	@echo "make docker-build   — пересобрать образ backend"
 	@echo "make docker-up      — поднять backend+postgres через docker compose up --build"
 	@echo "make docker-logs    — логи backend"
+	@echo "make seed-warehouse — залить тестовые позиции склада в личную организацию samsonovartem00@gmail.com"
 	@echo "make vet            — go vet ./..."
 	@echo "make tidy           — go mod tidy"
 
@@ -71,3 +72,6 @@ docker-up:
 
 docker-logs:
 	docker compose logs -f backend
+
+seed-warehouse:
+	cat scripts/seed_dev_warehouse.sql | docker compose exec -T postgres psql -U cstati -d cstatiwarehouse

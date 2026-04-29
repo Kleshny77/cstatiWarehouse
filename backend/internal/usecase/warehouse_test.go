@@ -287,6 +287,44 @@ func TestWarehouseUseCase_ListAndCategories(t *testing.T) {
 	}
 }
 
+func TestWarehouseUseCase_CreateLiterRequiresVolume(t *testing.T) {
+	uc, _, _, _, userID, orgID := newWarehouseUC(t)
+	_, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: userID, OrganizationID: orgID, Name: "Сок", CategoryName: "Напитки", Quantity: 1,
+		MeasureUnit: string(domain.MeasureUnitLiter),
+	})
+	if !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("expected ErrValidation for liter without volume, got %v", err)
+	}
+}
+
+func TestWarehouseUseCase_CreateVariantAndArchiveParentBlocked(t *testing.T) {
+	uc, _, _, _, userID, orgID := newWarehouseUC(t)
+	parent, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: userID, OrganizationID: orgID, Name: "Сок", CategoryName: "Напитки", Quantity: 0,
+	})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	vol := 0.7
+	child, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: userID, OrganizationID: orgID, Name: "Сок", CategoryName: "Напитки", Quantity: 10,
+		ParentItemID: &parent.ID, VariantLabel: "0,7 л", MeasureUnit: string(domain.MeasureUnitLiter), VolumePerUnit: &vol,
+	})
+	if err != nil {
+		t.Fatalf("create variant: %v", err)
+	}
+	if child.ParentItemID == nil || *child.ParentItemID != parent.ID {
+		t.Fatalf("expected parent link on variant")
+	}
+	_, _, err = uc.Archive(context.Background(), ArchiveItemInput{
+		ItemID: parent.ID, UserID: userID, Quantity: 1, Reason: domain.ArchiveReasonDisposed, ReasonDetail: "x",
+	})
+	if !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("expected ErrValidation when archiving parent while children have stock, got %v", err)
+	}
+}
+
 func TestWarehouseUseCase_List_MemberSeesOnlyOwnHoldings(t *testing.T) {
 	uc, _, members, clock, ownerID, orgID := newWarehouseUC(t)
 

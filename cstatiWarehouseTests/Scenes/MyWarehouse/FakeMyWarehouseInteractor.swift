@@ -14,6 +14,7 @@ final class FakeMyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
 
     private(set) var resolveActiveOrganizationCallCount: Int = 0
     private(set) var loadActiveItemsCallCount: Int = 0
+    private(set) var loadOrganizationMembersCallCount: Int = 0
     private(set) var loadArchiveEventsCallCount: Int = 0
     private(set) var archiveCalls: [(UUID, Int, ArchiveReason, String, UUID?)] = []
     private(set) var deleteCalls: [UUID] = []
@@ -21,6 +22,10 @@ final class FakeMyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
 
     func resolveActiveOrganization() {
         resolveActiveOrganizationCallCount += 1
+    }
+
+    func loadOrganizationMembers(organizationID: UUID) {
+        loadOrganizationMembersCallCount += 1
     }
 
     func loadActiveItems(organizationID: UUID, scope: WarehouseScope) {

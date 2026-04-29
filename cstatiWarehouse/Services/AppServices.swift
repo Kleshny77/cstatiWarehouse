@@ -44,4 +44,6 @@ enum AppServices {
     static func activityService() -> ActivityServiceProtocol {
         ApiActivityService(client: apiClient)
     }
+
+    static let shelfLifeNotifier: ShelfLifeNotificationServiceProtocol = ShelfLifeNotificationService()
 }

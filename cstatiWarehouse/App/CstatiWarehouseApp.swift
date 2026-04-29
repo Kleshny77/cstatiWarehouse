@@ -7,6 +7,7 @@
 
 import SwiftUI
 import TelegramLogin
+import UserNotifications
 
 @main
 struct CstatiWarehouseApp: App {
@@ -22,6 +23,8 @@ struct CstatiWarehouseApp: App {
                 fallbackScheme: TelegramAuthConfig.fallbackScheme
             )
         }
+
+        UNUserNotificationCenter.current().delegate = NotificationCenterDelegate.shared
     }
     
     var body: some Scene {

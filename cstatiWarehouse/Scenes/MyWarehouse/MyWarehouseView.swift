@@ -11,6 +11,7 @@ struct MyWarehouseView: View {
     @Bindable var presenter: MyWarehousePresenter
     @Namespace private var scopePickerNamespace
     @State private var selectedItem: Item? = nil
+    @State private var expandedRoots: Set<UUID> = []
 
     init(presenter: MyWarehousePresenter) {
         self.presenter = presenter
@@ -116,10 +117,18 @@ struct MyWarehouseView: View {
         .sheet(item: $selectedItem) { item in
             ItemDetailSheet(
                 item: item,
+                parentName: parentName(for: item),
+                holderDisplayName: presenter.holderDisplayName(for: item),
                 onEdit: {
                     selectedItem = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                         presenter.editItemRequested(item)
+                    }
+                },
+                onArchive: item.status.isArchived ? nil : {
+                    selectedItem = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        presenter.archiveItemRequested(item)
                     }
                 },
                 onDismiss: { selectedItem = nil }
@@ -137,7 +146,7 @@ struct MyWarehouseView: View {
         .sheet(item: $presenter.deleteConfirmation) { confirmation in
             GlassConfirmationSheet(
                 title: "Удалить навсегда?",
-                message: "«\(confirmation.item.name)» будет удалено без возможности восстановления и не попадёт в историю.",
+                message: deleteConfirmationMessage(for: confirmation.item),
                 confirmTitle: "Удалить",
                 cancelTitle: "Отмена",
                 isDestructive: true,
@@ -429,35 +438,15 @@ struct MyWarehouseView: View {
             ForEach(presenter.sections) { section in
                 Section {
                     ForEach(section.items) { item in
-                        Button {
-                            AppHaptics.selection()
-                            selectedItem = item
-                        } label: {
-                            WarehouseItemCard(item: item)
-                                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                        .contextMenu {
-                            itemContextMenu(for: item)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button {
-                                AppHaptics.impact(.medium)
-                                presenter.archiveItemRequested(item)
-                            } label: {
-                                Label("Списать", systemImage: "archivebox")
+                        warehouseRootRow(for: item)
+
+                        if item.isProductGroup, expandedRoots.contains(item.id) {
+                            ForEach(activeVariants(for: item)) { variant in
+                                warehouseVariantRow(for: variant)
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
                             }
-                            .tint(.red)
-                            Button {
-                                AppHaptics.selection()
-                                presenter.editItemRequested(item)
-                            } label: {
-                                Label("Изменить", systemImage: "pencil")
-                            }
-                            .tint(.indigo)
+                            addVariantRow(for: item)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
                 } header: {
@@ -469,6 +458,178 @@ struct MyWarehouseView: View {
         .scrollContentBackground(.hidden)
         .navigationTitle("Склад")
         .appAnimation(AppAnimation.smooth, value: presenter.sections)
+        .appAnimation(AppAnimation.smooth, value: expandedRoots)
+    }
+
+    private func activeVariants(for parent: Item) -> [Item] {
+        parent.variants.filter { !$0.status.isArchived }
+    }
+
+    @ViewBuilder
+    private func warehouseRootRow(for item: Item) -> some View {
+        Button {
+            AppHaptics.selection()
+            if item.isProductGroup {
+                toggleExpanded(item.id)
+            } else {
+                selectedItem = item
+            }
+        } label: {
+            WarehouseItemCard(
+                item: item,
+                isExpanded: expandedRoots.contains(item.id)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            itemContextMenu(for: item)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: !item.isProductGroup) {
+            if item.isProductGroup {
+                Button {
+                    AppHaptics.selection()
+                    presenter.editItemRequested(item)
+                } label: {
+                    Label("Изменить", systemImage: "pencil")
+                }
+                .tint(.indigo)
+                Button(role: .destructive) {
+                    AppHaptics.impact(.medium)
+                    presenter.hardDeleteRequested(item)
+                } label: {
+                    Label("Удалить", systemImage: "trash")
+                }
+            } else {
+                Button {
+                    AppHaptics.impact(.medium)
+                    presenter.archiveItemRequested(item)
+                } label: {
+                    Label("Списать", systemImage: "archivebox")
+                }
+                .tint(.red)
+                Button {
+                    AppHaptics.selection()
+                    presenter.editItemRequested(item)
+                } label: {
+                    Label("Изменить", systemImage: "pencil")
+                }
+                .tint(.indigo)
+            }
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+    }
+
+    @ViewBuilder
+    private func warehouseVariantRow(for variant: Item) -> some View {
+        Button {
+            AppHaptics.selection()
+            selectedItem = variant
+        } label: {
+            VariantInlineRow(variant: variant)
+                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            variantContextMenu(for: variant)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button {
+                AppHaptics.impact(.medium)
+                presenter.archiveItemRequested(variant)
+            } label: {
+                Label("Списать", systemImage: "archivebox")
+            }
+            .tint(.red)
+            Button {
+                AppHaptics.selection()
+                presenter.editItemRequested(variant)
+            } label: {
+                Label("Изменить", systemImage: "pencil")
+            }
+            .tint(.indigo)
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 4, leading: 28, bottom: 4, trailing: 16))
+    }
+
+    @ViewBuilder
+    private func addVariantRow(for parent: Item) -> some View {
+        Button {
+            AppHaptics.selection()
+            presenter.addVariantTapped(parent: parent)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus.circle")
+                Text("Добавить вариант")
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.8))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.15), style: StrokeStyle(lineWidth: 1, dash: [4]))
+            )
+        }
+        .buttonStyle(.pressable)
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 4, leading: 28, bottom: 8, trailing: 16))
+    }
+
+    @ViewBuilder
+    private func variantContextMenu(for variant: Item) -> some View {
+        Button {
+            presenter.editItemRequested(variant)
+        } label: {
+            Label("Редактировать", systemImage: "pencil")
+        }
+        Button {
+            presenter.archiveItemRequested(variant)
+        } label: {
+            Label("Списать со склада", systemImage: "archivebox")
+        }
+        Divider()
+        Button(role: .destructive) {
+            presenter.hardDeleteRequested(variant)
+        } label: {
+            Label("Удалить навсегда", systemImage: "trash")
+        }
+    }
+
+    private func toggleExpanded(_ id: UUID) {
+        if expandedRoots.contains(id) {
+            expandedRoots.remove(id)
+        } else {
+            expandedRoots.insert(id)
+        }
+    }
+
+    /// Имя родителя для подзаголовка детального экрана варианта.
+    private func deleteConfirmationMessage(for item: Item) -> String {
+        if item.isProductGroup {
+            let n = item.variants.count
+            let variantsNote = n > 0
+                ? " Удалятся все варианты (\(n))."
+                : ""
+            return "Группа «\(item.name)» будет удалена без возможности восстановления.\(variantsNote) Запись не попадёт в историю."
+        }
+        return "«\(item.name)» будет удалено без возможности восстановления и не попадёт в историю."
+    }
+
+    private func parentName(for item: Item) -> String? {
+        guard let parentID = item.parentItemID else { return nil }
+        for section in presenter.sections {
+            if let root = section.items.first(where: { $0.id == parentID }) {
+                return root.name
+            }
+        }
+        return nil
     }
     
     @ViewBuilder
@@ -494,10 +655,20 @@ struct MyWarehouseView: View {
             Label("Редактировать", systemImage: "pencil")
         }
 
-        Button {
-            presenter.archiveItemRequested(item)
-        } label: {
-            Label("Списать со склада", systemImage: "archivebox")
+        if item.isProductGroup {
+            Button {
+                presenter.addVariantTapped(parent: item)
+            } label: {
+                Label("Добавить вариант", systemImage: "plus.circle")
+            }
+        }
+
+        if !item.isProductGroup {
+            Button {
+                presenter.archiveItemRequested(item)
+            } label: {
+                Label("Списать со склада", systemImage: "archivebox")
+            }
         }
 
         Divider()

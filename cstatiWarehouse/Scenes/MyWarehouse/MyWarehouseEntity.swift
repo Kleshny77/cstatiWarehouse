@@ -31,6 +31,8 @@ struct ItemEditPresentation: Identifiable, Hashable {
 
 enum ItemEditMode: Hashable {
     case create(suggestedCategory: String?)
+    /// Новая фасовка у уже существующей группы (родитель — корень с `variants`).
+    case createVariant(parent: Item)
     case edit(Item)
 }
 
@@ -96,7 +98,7 @@ enum SmartFilter: String, CaseIterable, Identifiable, Hashable {
             let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .now
             return item.createdAt >= weekAgo
         case .emptyStock:
-            return item.quantity == 0
+            return item.isEffectivelyOutOfStock
         }
     }
 }

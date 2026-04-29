@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Напоминания за месяц и за неделю до окончания срока годности позиций на складе.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Подключение к серверу склада в вашей Wi‑Fi сети (HTTP к компьютеру разработчика).</string>
 	<key>NSAppTransportSecurity</key>

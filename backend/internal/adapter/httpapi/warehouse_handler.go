@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,45 +20,115 @@ func NewWarehouseHandler(warehouse *usecase.WarehouseUseCase) *WarehouseHandler 
 }
 
 type itemDTO struct {
-	ID              string     `json:"id"`
-	OrganizationID  string     `json:"organization_id"`
-	HeldByUserID    string     `json:"held_by_user_id"`
-	Name            string     `json:"name"`
-	Description     string     `json:"description"`
-	CategoryName    string     `json:"category_name"`
-	Quantity        int        `json:"quantity"`
-	Status          string     `json:"status"`
-	ArchiveReason   *string    `json:"archive_reason,omitempty"`
-	ArchivedAt      *time.Time `json:"archived_at,omitempty"`
-	ExpirationDate  *time.Time `json:"expiration_date,omitempty"`
-	ImageURL        *string    `json:"image_url,omitempty"`
-	LocationAddress *string    `json:"location_address,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID                       string     `json:"id"`
+	OrganizationID           string     `json:"organization_id"`
+	HeldByUserID             string     `json:"held_by_user_id"`
+	Name                     string     `json:"name"`
+	Description              string     `json:"description"`
+	CategoryName             string     `json:"category_name"`
+	Quantity                 int        `json:"quantity"`
+	Status                   string     `json:"status"`
+	ArchiveReason            *string    `json:"archive_reason,omitempty"`
+	ArchivedAt               *time.Time `json:"archived_at,omitempty"`
+	ExpirationDate           *time.Time `json:"expiration_date,omitempty"`
+	ImageURL                 *string    `json:"image_url,omitempty"`
+	LocationAddress          *string    `json:"location_address,omitempty"`
+	ParentItemID             *string    `json:"parent_item_id,omitempty"`
+	VariantLabel             string     `json:"variant_label,omitempty"`
+	MeasureUnit              string     `json:"measure_unit"`
+	VolumePerUnit            *float64   `json:"volume_per_unit,omitempty"`
+	Variants                 []itemDTO  `json:"variants,omitempty"`
+	AggregatedVolumeLiters   *float64   `json:"aggregated_volume_liters,omitempty"`
+	CreatedAt                time.Time  `json:"created_at"`
+	UpdatedAt                time.Time  `json:"updated_at"`
 }
 
 func itemToDTO(i *domain.Item) itemDTO {
+	mu := i.MeasureUnit
+	if mu == "" {
+		mu = domain.MeasureUnitPiece
+	}
 	dto := itemDTO{
-		ID:              i.ID.String(),
-		OrganizationID:  i.OrganizationID.String(),
-		HeldByUserID:    i.HeldByUserID.String(),
-		Name:            i.Name,
-		Description:     i.Description,
-		CategoryName:    i.CategoryName,
-		Quantity:        i.Quantity,
-		Status:          string(i.Status),
-		ArchivedAt:      i.ArchivedAt,
-		ExpirationDate:  i.ExpirationDate,
-		ImageURL:        i.ImageURL,
-		LocationAddress: i.LocationAddress,
-		CreatedAt:       i.CreatedAt,
-		UpdatedAt:       i.UpdatedAt,
+		ID:                i.ID.String(),
+		OrganizationID:    i.OrganizationID.String(),
+		HeldByUserID:      i.HeldByUserID.String(),
+		Name:              i.Name,
+		Description:       i.Description,
+		CategoryName:      i.CategoryName,
+		Quantity:          i.Quantity,
+		Status:            string(i.Status),
+		ArchivedAt:        i.ArchivedAt,
+		ExpirationDate:    i.ExpirationDate,
+		ImageURL:          i.ImageURL,
+		LocationAddress:   i.LocationAddress,
+		ParentItemID:      uuidPtrToJSON(i.ParentItemID),
+		VariantLabel:      i.VariantLabel,
+		MeasureUnit:       string(mu),
+		VolumePerUnit:     i.VolumePerUnit,
+		CreatedAt:         i.CreatedAt,
+		UpdatedAt:         i.UpdatedAt,
 	}
 	if i.ArchiveReason != nil {
 		s := string(*i.ArchiveReason)
 		dto.ArchiveReason = &s
 	}
 	return dto
+}
+
+func uuidPtrToJSON(id *uuid.UUID) *string {
+	if id == nil {
+		return nil
+	}
+	s := id.String()
+	return &s
+}
+
+func itemToNestedDTO(root *domain.Item, variants []domain.Item) itemDTO {
+	dto := itemToDTO(root)
+	if len(variants) == 0 {
+		return dto
+	}
+	dto.Variants = make([]itemDTO, 0, len(variants))
+	var sum float64
+	var hasLiter bool
+	for i := range variants {
+		v := &variants[i]
+		dto.Variants = append(dto.Variants, itemToDTO(v))
+		if v.Status == domain.ItemStatusInStock && v.MeasureUnit == domain.MeasureUnitLiter && v.VolumePerUnit != nil {
+			hasLiter = true
+			sum += float64(v.Quantity) * (*v.VolumePerUnit)
+		}
+	}
+	if hasLiter {
+		dto.AggregatedVolumeLiters = &sum
+	}
+	return dto
+}
+
+func buildNestedItemDTOs(flat []domain.Item) []itemDTO {
+	byParent := make(map[uuid.UUID][]domain.Item)
+	var roots []domain.Item
+	for i := range flat {
+		it := flat[i]
+		if it.ParentItemID != nil {
+			pid := *it.ParentItemID
+			byParent[pid] = append(byParent[pid], it)
+		} else {
+			roots = append(roots, it)
+		}
+	}
+	sort.Slice(roots, func(i, j int) bool {
+		return roots[i].CreatedAt.After(roots[j].CreatedAt)
+	})
+	out := make([]itemDTO, 0, len(roots))
+	for i := range roots {
+		ch := byParent[roots[i].ID]
+		sort.Slice(ch, func(a, b int) bool {
+			return ch[a].CreatedAt.After(ch[b].CreatedAt)
+		})
+		out = append(out, itemToNestedDTO(&roots[i], ch))
+	}
+	return out
 }
 
 type itemListResponse struct {
@@ -73,26 +144,33 @@ type categoriesResponse struct {
 }
 
 type createItemRequest struct {
-	OrganizationID  string     `json:"organization_id"`
-	HeldByUserID    *string    `json:"held_by_user_id,omitempty"`
-	Name            string     `json:"name"`
-	Description     string     `json:"description"`
-	CategoryName    string     `json:"category_name"`
-	Quantity        int        `json:"quantity"`
-	ExpirationDate  *time.Time `json:"expiration_date,omitempty"`
-	ImageURL        *string    `json:"image_url,omitempty"`
+	OrganizationID   string     `json:"organization_id"`
+	HeldByUserID     *string    `json:"held_by_user_id,omitempty"`
+	Name             string     `json:"name"`
+	Description      string     `json:"description"`
+	CategoryName     string     `json:"category_name"`
+	Quantity         int        `json:"quantity"`
+	ExpirationDate   *time.Time `json:"expiration_date,omitempty"`
+	ImageURL         *string    `json:"image_url,omitempty"`
 	LocationAddress *string    `json:"location_address,omitempty"`
+	ParentItemID     *string    `json:"parent_item_id,omitempty"`
+	VariantLabel     string     `json:"variant_label"`
+	MeasureUnit      string     `json:"measure_unit"`
+	VolumePerUnit    *float64   `json:"volume_per_unit,omitempty"`
 }
 
 type updateItemRequest struct {
-	HeldByUserID    *string    `json:"held_by_user_id,omitempty"`
-	Name            string     `json:"name"`
-	Description     string     `json:"description"`
-	CategoryName    string     `json:"category_name"`
-	Quantity        int        `json:"quantity"`
-	ExpirationDate  *time.Time `json:"expiration_date,omitempty"`
-	ImageURL        *string    `json:"image_url,omitempty"`
-	LocationAddress *string    `json:"location_address,omitempty"`
+	HeldByUserID     *string    `json:"held_by_user_id,omitempty"`
+	Name             string     `json:"name"`
+	Description      string     `json:"description"`
+	CategoryName     string     `json:"category_name"`
+	Quantity         int        `json:"quantity"`
+	ExpirationDate   *time.Time `json:"expiration_date,omitempty"`
+	ImageURL         *string    `json:"image_url,omitempty"`
+	LocationAddress  *string    `json:"location_address,omitempty"`
+	VariantLabel     string     `json:"variant_label"`
+	MeasureUnit      string     `json:"measure_unit"`
+	VolumePerUnit     *float64   `json:"volume_per_unit,omitempty"`
 }
 
 type archiveRequest struct {
@@ -169,11 +247,7 @@ func (h *WarehouseHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	dtos := make([]itemDTO, 0, len(items))
-	for i := range items {
-		dtos = append(dtos, itemToDTO(&items[i]))
-	}
-	writeJSON(w, http.StatusOK, itemListResponse{Items: dtos})
+	writeJSON(w, http.StatusOK, itemListResponse{Items: buildNestedItemDTOs(items)})
 }
 
 func (h *WarehouseHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -197,6 +271,11 @@ func (h *WarehouseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
+	parentID, err := parseOptionalUUID(req.ParentItemID, "parent_item_id")
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
 	item, err := h.warehouse.Create(r.Context(), usecase.CreateItemInput{
 		UserID:          userID,
 		OrganizationID:  orgID,
@@ -208,6 +287,10 @@ func (h *WarehouseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ExpirationDate:  req.ExpirationDate,
 		ImageURL:        req.ImageURL,
 		LocationAddress: req.LocationAddress,
+		ParentItemID:    parentID,
+		VariantLabel:    req.VariantLabel,
+		MeasureUnit:     req.MeasureUnit,
+		VolumePerUnit:   req.VolumePerUnit,
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -248,6 +331,9 @@ func (h *WarehouseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ExpirationDate:  req.ExpirationDate,
 		ImageURL:        req.ImageURL,
 		LocationAddress: req.LocationAddress,
+		VariantLabel:    req.VariantLabel,
+		MeasureUnit:     req.MeasureUnit,
+		VolumePerUnit:   req.VolumePerUnit,
 	})
 	if err != nil {
 		writeError(w, r, err)

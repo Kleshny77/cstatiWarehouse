@@ -9,6 +9,7 @@ import Foundation
 
 protocol MyWarehouseInteractorInputProtocol: AnyObject {
     func resolveActiveOrganization()
+    func loadOrganizationMembers(organizationID: UUID)
     func loadActiveItems(organizationID: UUID, scope: WarehouseScope)
     func loadArchiveEvents(organizationID: UUID)
     func loadMyOrganizations()
@@ -33,6 +34,7 @@ protocol MyWarehouseInteractorOutputProtocol: AnyObject {
     func itemChangedExternally(_ item: Item, isNew: Bool)
     func archiveEventsLoaded(_ events: [ArchiveEvent])
     func archiveHistoryFailed(_ message: String)
+    func membersLoaded(_ members: [OrganizationMember])
     /// Фоновая загрузка (список организаций / позиций) — без модального алерта.
     func initialLoadFailed(message: String)
     func itemsLoadFailed(message: String)
@@ -84,6 +86,21 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
                 self.presenter?.activeOrganizationResolved(resolved)
             case .failure(let error):
                 self.presenter?.initialLoadFailed(message: error.message)
+            }
+        }
+    }
+
+    func loadOrganizationMembers(organizationID: UUID) {
+        organizationsService.fetchMembers(organizationID: organizationID) { [weak self] result in
+            let members: [OrganizationMember]
+            switch result {
+            case .success(let list):
+                members = list
+            case .failure:
+                members = []
+            }
+            DispatchQueue.main.async {
+                self?.presenter?.membersLoaded(members)
             }
         }
     }

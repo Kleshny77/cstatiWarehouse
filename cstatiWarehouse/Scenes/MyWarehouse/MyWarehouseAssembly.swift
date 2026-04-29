@@ -29,6 +29,7 @@ final class MyWarehouseAssembly {
 
         presenter.interactor = interactor
         presenter.router = router
+        presenter.shelfLifeNotifier = AppServices.shelfLifeNotifier
         interactor.presenter = presenter
 
         return MyWarehouseView(presenter: presenter)

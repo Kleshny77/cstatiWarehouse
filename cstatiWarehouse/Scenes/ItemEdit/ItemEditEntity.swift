@@ -23,9 +23,22 @@ struct ItemEditDraft {
     var locationAddress: String
     /// Текущий держатель позиции. В режиме create задаётся снаружи (текущий пользователь).
     var holderID: UUID?
+    /// Группа с разными фасовками: остаток 0 на карточке, учёт по подпозициям.
+    var isMultiPackGroup: Bool
+    var measureUnit: ItemMeasureUnit
+    /// Для `liter`: строка ввода объёма одной упаковки (л), с запятой или точкой.
+    var volumePerUnitText: String
+    /// Подпись фасовки для режима «новая подпозиция».
+    var variantLabel: String
 
     static func from(item: Item) -> ItemEditDraft {
-        ItemEditDraft(
+        let volText: String
+        if let v = item.volumePerUnit {
+            volText = ItemEditDraft.formatVolume(v)
+        } else {
+            volText = "1"
+        }
+        return ItemEditDraft(
             name: item.name,
             description: item.description ?? "",
             categoryName: item.categoryName,
@@ -35,7 +48,11 @@ struct ItemEditDraft {
             existingImageURL: item.imageURL,
             pickedImage: nil,
             locationAddress: item.locationAddress ?? "",
-            holderID: item.heldByUserID
+            holderID: item.heldByUserID,
+            isMultiPackGroup: false,
+            measureUnit: item.measureUnit,
+            volumePerUnitText: volText,
+            variantLabel: item.variantLabel
         )
     }
 
@@ -50,7 +67,39 @@ struct ItemEditDraft {
             existingImageURL: nil,
             pickedImage: nil,
             locationAddress: "",
-            holderID: nil
+            holderID: nil,
+            isMultiPackGroup: false,
+            measureUnit: .piece,
+            volumePerUnitText: "1",
+            variantLabel: ""
         )
+    }
+
+    static func forNewVariant(parent: Item) -> ItemEditDraft {
+        ItemEditDraft(
+            name: parent.name,
+            description: "",
+            categoryName: parent.categoryName,
+            quantity: 1,
+            hasShelfLife: false,
+            expirationDate: .now,
+            existingImageURL: nil,
+            pickedImage: nil,
+            locationAddress: parent.locationAddress ?? "",
+            holderID: parent.heldByUserID,
+            isMultiPackGroup: false,
+            measureUnit: .liter,
+            volumePerUnitText: "1",
+            variantLabel: ""
+        )
+    }
+
+    private static func formatVolume(_ value: Double) -> String {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "ru_RU")
+        f.minimumFractionDigits = 0
+        f.maximumFractionDigits = 3
+        f.numberStyle = .decimal
+        return f.string(from: NSNumber(value: value)) ?? String(value)
     }
 }

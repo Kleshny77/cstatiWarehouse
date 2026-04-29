@@ -66,6 +66,12 @@ type CreateItemInput struct {
 	ExpirationDate  *time.Time
 	ImageURL        *string
 	LocationAddress *string
+	// ParentItemID — если задан, создаётся подпозиция (вариант фасовки) у существующей строки-родителя.
+	ParentItemID *uuid.UUID
+	VariantLabel string
+	// MeasureUnit: piece | package | meter | liter (пусто → piece).
+	MeasureUnit   string
+	VolumePerUnit *float64
 }
 
 func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*domain.Item, error) {
@@ -80,6 +86,18 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*do
 		return nil, err
 	}
 
+	mu := domain.MeasureUnitPiece
+	if strings.TrimSpace(in.MeasureUnit) != "" {
+		m, ok := domain.ParseMeasureUnit(strings.TrimSpace(in.MeasureUnit))
+		if !ok {
+			return nil, domain.NewValidationError("invalid measure_unit")
+		}
+		mu = m
+	}
+	if err := validateMeasureAndVolume(mu, in.VolumePerUnit); err != nil {
+		return nil, err
+	}
+
 	heldBy := in.UserID
 	if in.HeldByUserID != nil {
 		heldBy = *in.HeldByUserID
@@ -87,6 +105,28 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*do
 			// Держатель обязан быть членом той же организации.
 			return nil, domain.NewValidationError("held_by user must be a member of the organization")
 		}
+	}
+
+	var parentItemID *uuid.UUID
+	variantLabel := strings.TrimSpace(in.VariantLabel)
+	if in.ParentItemID != nil {
+		parent, err := uc.items.FindByID(ctx, *in.ParentItemID)
+		if err != nil {
+			return nil, err
+		}
+		if parent.OrganizationID != in.OrganizationID {
+			return nil, domain.NewValidationError("parent item belongs to a different organization")
+		}
+		if parent.ParentItemID != nil {
+			return nil, domain.NewValidationError("cannot attach variant to another variant")
+		}
+		if _, err := uc.requireAccessibleItem(ctx, parent.ID, in.UserID); err != nil {
+			return nil, err
+		}
+		if variantLabel == "" {
+			return nil, domain.NewValidationError("variant_label is required for a sub-item")
+		}
+		parentItemID = in.ParentItemID
 	}
 
 	now := uc.clock.Now()
@@ -102,8 +142,12 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*do
 		ExpirationDate:  in.ExpirationDate,
 		ImageURL:        in.ImageURL,
 		LocationAddress: trimOptional(in.LocationAddress),
+		ParentItemID:    parentItemID,
+		VariantLabel:    variantLabel,
+		MeasureUnit:     mu,
+		VolumePerUnit:   volumeForMeasure(mu, in.VolumePerUnit),
 		CreatedAt:       now,
-		UpdatedAt:       now,
+		UpdatedAt:        now,
 	}
 	if err := uc.items.Create(ctx, item); err != nil {
 		return nil, err
@@ -123,6 +167,9 @@ type UpdateItemInput struct {
 	ExpirationDate  *time.Time
 	ImageURL        *string
 	LocationAddress *string
+	VariantLabel    string
+	MeasureUnit     string
+	VolumePerUnit   *float64
 }
 
 func (uc *WarehouseUseCase) Update(ctx context.Context, in UpdateItemInput) (*domain.Item, error) {
@@ -133,7 +180,6 @@ func (uc *WarehouseUseCase) Update(ctx context.Context, in UpdateItemInput) (*do
 	if in.Quantity < 0 {
 		return nil, domain.NewValidationError("quantity must be >= 0")
 	}
-
 	item, err := uc.requireAccessibleItem(ctx, in.ID, in.UserID)
 	if err != nil {
 		return nil, err
@@ -146,10 +192,39 @@ func (uc *WarehouseUseCase) Update(ctx context.Context, in UpdateItemInput) (*do
 		item.HeldByUserID = *in.HeldByUserID
 	}
 
+	hasChildren, err := uc.items.HasChildRows(ctx, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	if hasChildren {
+		// Остаток по группе ведётся на подпозициях — количество «шапки» не меняем из запроса.
+	} else {
+		item.Quantity = in.Quantity
+	}
+
+	mu := item.MeasureUnit
+	if strings.TrimSpace(in.MeasureUnit) != "" {
+		m, ok := domain.ParseMeasureUnit(strings.TrimSpace(in.MeasureUnit))
+		if !ok {
+			return nil, domain.NewValidationError("invalid measure_unit")
+		}
+		mu = m
+	}
+	if err := validateMeasureAndVolume(mu, in.VolumePerUnit); err != nil {
+		return nil, err
+	}
+	item.MeasureUnit = mu
+	item.VolumePerUnit = volumeForMeasure(mu, in.VolumePerUnit)
+	if item.ParentItemID != nil {
+		item.VariantLabel = strings.TrimSpace(in.VariantLabel)
+		if item.VariantLabel == "" {
+			return nil, domain.NewValidationError("variant_label must not be empty")
+		}
+	}
+
 	item.Name = name
 	item.Description = strings.TrimSpace(in.Description)
 	item.CategoryName = strings.TrimSpace(in.CategoryName)
-	item.Quantity = in.Quantity
 	item.ExpirationDate = in.ExpirationDate
 	item.ImageURL = in.ImageURL
 	item.LocationAddress = trimOptional(in.LocationAddress)
@@ -199,6 +274,21 @@ func (uc *WarehouseUseCase) Archive(ctx context.Context, in ArchiveItemInput) (*
 	item, err := uc.requireAccessibleItem(ctx, in.ItemID, in.UserID)
 	if err != nil {
 		return nil, nil, err
+	}
+	if item.ParentItemID == nil {
+		hasChildren, err := uc.items.HasChildRows(ctx, item.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if hasChildren {
+			n, err := uc.items.CountInStockChildrenWithPositiveQuantity(ctx, item.ID)
+			if err != nil {
+				return nil, nil, err
+			}
+			if n > 0 {
+				return nil, nil, domain.NewValidationError("write off sub-items first; parent row aggregates variants")
+			}
+		}
 	}
 	if item.Status == domain.ItemStatusArchived {
 		return nil, nil, domain.NewValidationError("item is already archived")
@@ -293,6 +383,31 @@ func (uc *WarehouseUseCase) Categories(ctx context.Context, userID, orgID uuid.U
 }
 
 // MARK: private helpers
+
+func validateMeasureAndVolume(mu domain.MeasureUnit, vol *float64) error {
+	if mu == domain.MeasureUnitLiter {
+		if vol == nil || *vol <= 0 {
+			return domain.NewValidationError("volume_per_unit must be > 0 when measure_unit is liter")
+		}
+		return nil
+	}
+	return nil
+}
+
+func cloneFloatPtr(v *float64) *float64 {
+	if v == nil {
+		return nil
+	}
+	c := *v
+	return &c
+}
+
+func volumeForMeasure(mu domain.MeasureUnit, vol *float64) *float64 {
+	if mu != domain.MeasureUnitLiter {
+		return nil
+	}
+	return cloneFloatPtr(vol)
+}
 
 // trimOptional возвращает nil, если строка пустая или состоит из пробелов.
 func trimOptional(s *string) *string {

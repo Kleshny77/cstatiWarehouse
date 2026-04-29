@@ -1,8 +1,8 @@
 //
-// MockWarehouseService.swift
-// cstatiWarehouse
+//  MockWarehouseService.swift
+//  cstatiWarehouse
 //
-// Created by Артём on 19.04.2026.
+//  Created by Артём on 19.04.2026.
 //
 
 import Foundation
@@ -30,12 +30,20 @@ final class MockWarehouseService: WarehouseServiceProtocol {
 
     func fetchActiveItems(organizationID: UUID, scope: WarehouseScope, completion: @escaping (Result<[Item], WarehouseError>) -> Void) {
         respond {
-            let active = self.items.values
+            let flat = self.items.values
                 .filter { $0.orgID == organizationID && !$0.item.status.isArchived }
                 .map(\.item)
             // Мок не знает о ролях: scope игнорируется, но сигнатура нужна для совместимости с протоколом.
             _ = scope
-            completion(.success(active.sorted { $0.createdAt > $1.createdAt }))
+            let roots = flat.filter { $0.parentItemID == nil }
+            let nested = roots.map { root in
+                let kids = flat.filter { $0.parentItemID == root.id }
+                    .sorted { $0.createdAt > $1.createdAt }
+                var copy = root
+                copy.variants = kids
+                return copy
+            }
+            completion(.success(nested.sorted { $0.createdAt > $1.createdAt }))
         }
     }
 
@@ -151,11 +159,17 @@ final class MockWarehouseService: WarehouseServiceProtocol {
 
     func deleteItem(id: UUID, completion: @escaping (Result<Void, WarehouseError>) -> Void) {
         respond {
-            guard self.items.removeValue(forKey: id) != nil else {
+            guard self.items[id] != nil else {
                 completion(.failure(.notFound))
                 return
             }
-            self.events.removeAll { $0.event.itemID == id }
+            let removedIDs: [UUID] = [id] + self.items.compactMap { key, pair in
+                pair.item.parentItemID == id ? key : nil
+            }
+            for rid in removedIDs {
+                self.items.removeValue(forKey: rid)
+            }
+            self.events.removeAll { removedIDs.contains($0.event.itemID) }
             completion(.success(()))
         }
     }

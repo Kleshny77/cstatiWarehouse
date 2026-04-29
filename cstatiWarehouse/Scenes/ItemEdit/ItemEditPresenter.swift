@@ -36,7 +36,14 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
     var isNewCategorySheetPresented: Bool = false
 
     var screenTitle: String {
-        isNew ? "Новая позиция" : "Редактирование"
+        switch mode {
+        case .create:
+            return "Новая позиция"
+        case .createVariant:
+            return "Новый вариант"
+        case .edit:
+            return "Редактирование"
+        }
     }
 
     var currentHolder: OrganizationMember? {
@@ -44,13 +51,65 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
         return members.first(where: { $0.userID == id })
     }
 
+    /// У карточки-группы количество ведётся по подпозициям — степпер скрываем.
+    var hidesQuantityStepper: Bool {
+        if case .edit(let item) = mode, item.isProductGroup { return true }
+        return false
+    }
+
+    var showsMultiPackToggle: Bool {
+        if case .create = mode { return true }
+        return false
+    }
+
+    var showsVariantFields: Bool {
+        if case .createVariant = mode { return true }
+        return false
+    }
+
+    var showsVariantLabelField: Bool {
+        if case .createVariant = mode { return true }
+        if case .edit(let item) = mode, item.isVariantLine { return true }
+        return false
+    }
+
+    var quantityLowerBound: Int {
+        switch mode {
+        case .create:
+            return draft.isMultiPackGroup ? 0 : 1
+        case .createVariant:
+            return 1
+        case .edit(let item):
+            return item.isProductGroup ? 0 : 0
+        }
+    }
+
+    var showsMeasureFields: Bool {
+        switch mode {
+        case .create, .createVariant:
+            return true
+        case .edit(let item):
+            // У группы единица и объём задаются у подпозиций; у корня в API часто `piece`.
+            return !item.isProductGroup
+        }
+    }
+
+    var isNameFieldEditable: Bool {
+        if case .createVariant = mode { return false }
+        return true
+    }
+
     private let mode: ItemEditMode
     private let currentUserID: UUID?
     private let onFinish: (ItemEditResult) -> Void
 
     private var isNew: Bool {
-        if case .create = mode { return true }
-        return false
+        switch mode {
+        case .create, .createVariant:
+            return true
+        case .edit:
+            return false
+        }
     }
 
     // MARK: Lifecycle
@@ -64,6 +123,8 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
             var draft = ItemEditDraft.empty(suggestedCategory: suggestedCategory)
             draft.holderID = currentUserID
             self.draft = draft
+        case .createVariant(let parent):
+            self.draft = ItemEditDraft.forNewVariant(parent: parent)
         case .edit(let item):
             self.draft = .from(item: item)
         }
@@ -115,10 +176,62 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
             errorMessage = "Выберите или создайте категорию"
             return false
         }
-        guard draft.quantity >= 1 else {
-            errorMessage = "Количество должно быть не меньше 1"
-            return false
+
+        switch mode {
+        case .create:
+            if draft.isMultiPackGroup {
+                guard draft.quantity >= 0 else {
+                    errorMessage = "Количество не может быть отрицательным"
+                    return false
+                }
+            } else {
+                guard draft.quantity >= 1 else {
+                    errorMessage = "Количество должно быть не меньше 1"
+                    return false
+                }
+            }
+        case .createVariant:
+            guard draft.quantity >= 1 else {
+                errorMessage = "Количество должно быть не меньше 1"
+                return false
+            }
+            let label = draft.variantLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !label.isEmpty else {
+                errorMessage = "Укажите подпись (например, 0,7 л), чтобы отличать варианты"
+                return false
+            }
+        case .edit(let original):
+            if original.isVariantLine {
+                let label = draft.variantLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !label.isEmpty else {
+                    errorMessage = "Укажите подпись для варианта"
+                    return false
+                }
+            }
+            if original.isProductGroup {
+                // количество не редактируем
+            } else {
+                guard draft.quantity >= 0 else {
+                    errorMessage = "Количество не может быть отрицательным"
+                    return false
+                }
+            }
         }
+
+        if shouldValidateLiterVolume {
+            guard let v = parseVolume(draft.volumePerUnitText), v > 0 else {
+                errorMessage = "Укажите объём одной упаковки в литрах (больше 0)"
+                return false
+            }
+        }
+
+        return true
+    }
+
+    /// Для карточки-группы поля литров скрыты — валидация по черновику не нужна.
+    private var shouldValidateLiterVolume: Bool {
+        guard draft.measureUnit == .liter else { return false }
+        if case .edit(let original) = mode, original.isProductGroup { return false }
         return true
     }
 
@@ -133,6 +246,7 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
 
         switch mode {
         case .create:
+            let literVolume = draft.measureUnit == .liter ? parseVolume(draft.volumePerUnitText) : nil
             return Item(
                 name: trimmedName,
                 description: description,
@@ -143,23 +257,78 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
                 createdAt: .now,
                 status: .inStock,
                 heldByUserID: draft.holderID ?? currentUserID,
-                locationAddress: address
+                locationAddress: address,
+                parentItemID: nil,
+                variantLabel: "",
+                measureUnit: draft.measureUnit,
+                volumePerUnit: literVolume,
+                variants: [],
+                aggregatedVolumeLiters: nil
             )
-        case .edit(let original):
+        case .createVariant(let parent):
+            let label = draft.variantLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+            let literVolume = draft.measureUnit == .liter ? parseVolume(draft.volumePerUnitText) : nil
             return Item(
-                id: original.id,
                 name: trimmedName,
                 description: description,
                 categoryName: trimmedCategory,
                 quantity: draft.quantity,
                 expirationDate: expiration,
                 imageURL: draft.existingImageURL,
+                createdAt: .now,
+                status: .inStock,
+                heldByUserID: draft.holderID ?? currentUserID,
+                locationAddress: address,
+                parentItemID: parent.id,
+                variantLabel: label,
+                measureUnit: draft.measureUnit,
+                volumePerUnit: literVolume,
+                variants: [],
+                aggregatedVolumeLiters: nil
+            )
+        case .edit(let original):
+            let qty: Int
+            if original.isProductGroup {
+                qty = original.quantity
+            } else {
+                qty = draft.quantity
+            }
+            let measureForSave: ItemMeasureUnit
+            let volumeForSave: Double?
+            if original.isProductGroup {
+                measureForSave = original.measureUnit
+                volumeForSave = original.volumePerUnit
+            } else {
+                measureForSave = draft.measureUnit
+                volumeForSave = draft.measureUnit == .liter ? parseVolume(draft.volumePerUnitText) : nil
+            }
+            return Item(
+                id: original.id,
+                name: trimmedName,
+                description: description,
+                categoryName: trimmedCategory,
+                quantity: qty,
+                expirationDate: expiration,
+                imageURL: draft.existingImageURL,
                 createdAt: original.createdAt,
                 status: original.status,
                 heldByUserID: draft.holderID ?? original.heldByUserID,
-                locationAddress: address
+                locationAddress: address,
+                parentItemID: original.parentItemID,
+                variantLabel: draft.variantLabel.trimmingCharacters(in: .whitespacesAndNewlines),
+                measureUnit: measureForSave,
+                volumePerUnit: volumeForSave,
+                variants: original.variants,
+                aggregatedVolumeLiters: original.aggregatedVolumeLiters
             )
         }
+    }
+
+    private func parseVolume(_ raw: String) -> Double? {
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ",", with: ".")
+        return Double(normalized)
     }
 }
 

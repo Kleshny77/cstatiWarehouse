@@ -1,8 +1,8 @@
 //
-// ApiWarehouseService.swift
-// cstatiWarehouse
+//  ApiWarehouseService.swift
+//  cstatiWarehouse
 //
-// Created by Артём on 19.04.2026.
+//  Created by Артём on 19.04.2026.
 //
 
 import Foundation
@@ -241,6 +241,10 @@ private struct CreateItemRequestDTO: Encodable {
     let expirationDate: Date?
     let imageUrl: String?
     let locationAddress: String?
+    let parentItemId: String?
+    let variantLabel: String
+    let measureUnit: String
+    let volumePerUnit: Double?
 
     init(item: Item, organizationID: UUID) {
         self.organizationId = organizationID.uuidString.lowercased()
@@ -252,6 +256,10 @@ private struct CreateItemRequestDTO: Encodable {
         self.expirationDate = item.expirationDate
         self.imageUrl = item.imageURL?.absoluteString
         self.locationAddress = item.locationAddress
+        self.parentItemId = item.parentItemID?.uuidString.lowercased()
+        self.variantLabel = item.variantLabel
+        self.measureUnit = item.measureUnit.rawValue
+        self.volumePerUnit = item.volumePerUnit
     }
 }
 
@@ -264,6 +272,9 @@ private struct UpdateItemRequestDTO: Encodable {
     let expirationDate: Date?
     let imageUrl: String?
     let locationAddress: String?
+    let variantLabel: String
+    let measureUnit: String
+    let volumePerUnit: Double?
 
     init(item: Item) {
         self.heldByUserId = item.heldByUserID?.uuidString.lowercased()
@@ -274,6 +285,9 @@ private struct UpdateItemRequestDTO: Encodable {
         self.expirationDate = item.expirationDate
         self.imageUrl = item.imageURL?.absoluteString
         self.locationAddress = item.locationAddress
+        self.variantLabel = item.variantLabel
+        self.measureUnit = item.measureUnit.rawValue
+        self.volumePerUnit = item.volumePerUnit
     }
 }
 
@@ -290,6 +304,12 @@ private struct ItemDTO: Decodable {
     let expirationDate: Date?
     let imageUrl: String?
     let locationAddress: String?
+    let parentItemId: String?
+    let variantLabel: String?
+    let measureUnit: String?
+    let volumePerUnit: Double?
+    let variants: [ItemDTO]?
+    let aggregatedVolumeLiters: Double?
     let createdAt: Date
     let updatedAt: Date
 
@@ -310,6 +330,10 @@ private struct ItemDTO: Decodable {
 
         let imageURL = imageUrl.flatMap { URL(string: $0) }
         let holder = heldByUserId.flatMap { UUID(uuidString: $0) }
+        let parentUUID = parentItemId.flatMap(UUID.init(uuidString:))
+        let mu = ItemMeasureUnit(rawValue: measureUnit ?? "piece") ?? .piece
+        let vLabel = variantLabel ?? ""
+        let childItems = (variants ?? []).compactMap { $0.toItem() }
         return Item(
             id: uuid,
             name: name,
@@ -321,7 +345,13 @@ private struct ItemDTO: Decodable {
             createdAt: createdAt,
             status: status,
             heldByUserID: holder,
-            locationAddress: locationAddress
+            locationAddress: locationAddress,
+            parentItemID: parentUUID,
+            variantLabel: vLabel,
+            measureUnit: mu,
+            volumePerUnit: volumePerUnit,
+            variants: childItems,
+            aggregatedVolumeLiters: aggregatedVolumeLiters
         )
     }
 }

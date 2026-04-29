@@ -101,6 +101,8 @@ struct ItemEditView: View {
                 text: $presenter.draft.name,
                 useFullWidth: true
             )
+            .disabled(!presenter.isNameFieldEditable)
+            .opacity(presenter.isNameFieldEditable ? 1 : 0.75)
 
             GlassTextField(
                 title: "Описание",
@@ -111,7 +113,45 @@ struct ItemEditView: View {
 
             categorySection
 
-            quantityField
+            if presenter.showsMultiPackToggle {
+                Toggle(isOn: $presenter.draft.isMultiPackGroup) {
+                    Text("Несколько вариантов одного товара")
+                        .font(font: .semiBold, size: 14)
+                        .foregroundStyle(.white.opacity(0.85))
+                }
+                .tint(.white.opacity(0.8))
+                .padding(.vertical, 4)
+            }
+
+            if !presenter.hidesQuantityStepper {
+                quantityField
+            } else {
+                Text("Остаток, единица учёта и объём упаковки задаются у каждого варианта отдельно.")
+                    .font(font: .regular, size: 14)
+                    .foregroundStyle(.white.opacity(0.65))
+            }
+
+            if presenter.showsMeasureFields {
+                measureUnitPicker
+            }
+
+            if presenter.showsMeasureFields && presenter.draft.measureUnit == .liter {
+                GlassTextField(
+                    title: "Литров в одной упаковке",
+                    placeholder: "например, 0,7",
+                    text: $presenter.draft.volumePerUnitText,
+                    useFullWidth: true
+                )
+            }
+
+            if presenter.showsVariantLabelField {
+                GlassTextField(
+                    title: "Как отличить",
+                    placeholder: "например, 0,7 л или 1 л",
+                    text: $presenter.draft.variantLabel,
+                    useFullWidth: true
+                )
+            }
 
             GlassTextField(
                 title: "Адрес",
@@ -321,6 +361,25 @@ struct ItemEditView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private var measureUnitPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Единица учёта")
+                .font(font: .semiBold, size: 14)
+                .foregroundStyle(.white.opacity(0.8))
+            Picker("", selection: $presenter.draft.measureUnit) {
+                ForEach(ItemMeasureUnit.allCases, id: \.self) { unit in
+                    Text(unit.shortTitle).tag(unit)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(.white.opacity(0.9))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .frame(height: 50)
+            .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+
     private var quantityField: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Количество")
@@ -328,11 +387,12 @@ struct ItemEditView: View {
                 .foregroundStyle(.white.opacity(0.8))
 
             HStack(alignment: .center, spacing: 0) {
+                let lower = presenter.quantityLowerBound
                 quantityStepButton(
                     systemName: "minus",
-                    isEnabled: presenter.draft.quantity > 1
+                    isEnabled: presenter.draft.quantity > lower
                 ) {
-                    if presenter.draft.quantity > 1 {
+                    if presenter.draft.quantity > lower {
                         AppHaptics.selection()
                         presenter.draft.quantity -= 1
                     }

@@ -291,8 +291,36 @@ func (r *fakeItemRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	if _, ok := r.items[id]; !ok {
 		return domain.ErrNotFound
 	}
+	for k, it := range r.items {
+		if it.ParentItemID != nil && *it.ParentItemID == id {
+			delete(r.items, k)
+		}
+	}
 	delete(r.items, id)
 	return nil
+}
+
+func (r *fakeItemRepo) HasChildRows(ctx context.Context, parentID uuid.UUID) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, it := range r.items {
+		if it.ParentItemID != nil && *it.ParentItemID == parentID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (r *fakeItemRepo) CountInStockChildrenWithPositiveQuantity(ctx context.Context, parentID uuid.UUID) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var n int64
+	for _, it := range r.items {
+		if it.ParentItemID != nil && *it.ParentItemID == parentID && it.Status == domain.ItemStatusInStock && it.Quantity > 0 {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (r *fakeItemRepo) RecordArchiveEvent(ctx context.Context, item *domain.Item, event *domain.ArchiveEvent) error {

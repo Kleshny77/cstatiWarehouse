@@ -80,6 +80,10 @@ type ItemRepository interface {
 	// RecordArchiveEvent обновляет item (quantity/status) и пишет событие списания в одной транзакции.
 	RecordArchiveEvent(ctx context.Context, item *domain.Item, event *domain.ArchiveEvent) error
 	ListArchiveEvents(ctx context.Context, orgID uuid.UUID) ([]domain.ArchiveEvent, error)
+	// HasChildRows — есть ли подпозиции (любой статус), привязанные к родителю.
+	HasChildRows(ctx context.Context, parentID uuid.UUID) (bool, error)
+	// CountInStockChildrenWithPositiveQuantity — число подпозиций в стаке с quantity > 0.
+	CountInStockChildrenWithPositiveQuantity(ctx context.Context, parentID uuid.UUID) (int64, error)
 }
 
 // OrganizationPatch — частичное обновление организации.

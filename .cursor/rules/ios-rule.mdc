@@ -24,10 +24,9 @@ File header
 //
 
 - `{FileName}` must match the actual file name.
-- Date must always be the current date at the time of file creation.
+- **Date:** for a **new** Swift file, use the calendar date at the moment the file is first created. For an **existing** file, if the header already contains a `Created by … on {DD.MM.YYYY}` line, **keep that date** — do not replace it with «today» when editing. Only add or normalize the header block (spacing, `{FileName}`, project name) if it was missing or malformed, without changing an existing creation date.
 - Keep the exact spacing and line breaks.
-- When substantially editing an existing file with an outdated header, normalize it to this format.
-
+- When substantially editing an existing file whose header is missing or does not match this format, normalize it to this format **while preserving** any existing `Created by` date as above.
 ---
 
 Architecture

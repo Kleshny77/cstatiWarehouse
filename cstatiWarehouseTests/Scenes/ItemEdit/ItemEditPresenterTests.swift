@@ -223,6 +223,64 @@ struct ItemEditPresenterTests {
         #expect(sut.draft.categoryName == "напитки")
     }
     
+    @Test
+    func edit_productGroup_hidesMeasureFields() {
+        let parentID = UUID()
+        let variant = Item(
+            name: "Сок",
+            categoryName: "напитки",
+            quantity: 2,
+            parentItemID: parentID,
+            variantLabel: "1 л",
+            measureUnit: .liter,
+            volumePerUnit: 1
+        )
+        let parent = Item(
+            id: parentID,
+            name: "Сок",
+            categoryName: "напитки",
+            quantity: 0,
+            measureUnit: .piece,
+            variants: [variant]
+        )
+        let (sut, _, _) = makeSUT(mode: .edit(parent))
+
+        #expect(sut.showsMeasureFields == false)
+    }
+
+    @Test
+    func saveButtonTapped_edit_productGroup_preservesRootMeasureUnitFromOriginal() {
+        let parentID = UUID()
+        let variant = Item(
+            name: "Сок",
+            categoryName: "напитки",
+            quantity: 2,
+            parentItemID: parentID,
+            variantLabel: "1 л",
+            measureUnit: .liter,
+            volumePerUnit: 1
+        )
+        let parent = Item(
+            id: parentID,
+            name: "Сок",
+            categoryName: "напитки",
+            quantity: 0,
+            measureUnit: .piece,
+            variants: [variant]
+        )
+        let (sut, fake, _) = makeSUT(mode: .edit(parent))
+        sut.draft.name = "Сок яблочный"
+
+        sut.saveButtonTapped()
+
+        #expect(fake.saveCalls.count == 1)
+        let (item, _, isNew) = fake.saveCalls[0]
+        #expect(isNew == false)
+        #expect(item.measureUnit == .piece)
+        #expect(item.volumePerUnit == nil)
+        #expect(item.name == "Сок яблочный")
+    }
+
     // MARK: Helpers
     
     private final class OnFinishSpy: @unchecked Sendable {
