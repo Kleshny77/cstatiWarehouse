@@ -53,6 +53,7 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
     private let eventsService: EventsServiceProtocol
     private let activeOrgStorage: ActiveOrganizationStorageProtocol
     private let offlineCache: OfflineCacheStoreProtocol
+    private let webSocketService: WebSocketService
 
 
     init(
@@ -60,13 +61,22 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
         organizationsService: OrganizationsServiceProtocol,
         eventsService: EventsServiceProtocol,
         activeOrgStorage: ActiveOrganizationStorageProtocol,
-        offlineCache: OfflineCacheStoreProtocol = AppServices.offlineCache
+        offlineCache: OfflineCacheStoreProtocol = AppServices.offlineCache,
+        webSocketService: WebSocketService = AppServices.webSocketService
     ) {
         self.warehouseService = warehouseService
         self.organizationsService = organizationsService
         self.eventsService = eventsService
         self.activeOrgStorage = activeOrgStorage
         self.offlineCache = offlineCache
+        self.webSocketService = webSocketService
+        
+        // Set self as WebSocket event handler
+        self.webSocketService.eventHandler = self
+    }
+    
+    deinit {
+        webSocketService.disconnect()
     }
 
 
@@ -78,6 +88,8 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
                 self.presenter?.organizationsLoaded(summaries)
                 let resolved = self.pickActive(from: summaries)
                 if let resolved {
+                    // Connect WebSocket to active organization
+                    self.webSocketService.connect(organizationID: resolved.id)
                     self.activeOrgStorage.setActive(resolved.organization.id)
                 } else {
                     self.activeOrgStorage.setActive(nil)
@@ -163,6 +175,8 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
 
     func selectActiveOrganization(_ id: UUID) {
         activeOrgStorage.setActive(id)
+        // Reconnect WebSocket to new organization
+        webSocketService.connect(organizationID: id)
     }
 
     func createOrganization(name: String) {
@@ -205,13 +219,14 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
         }
     }
 
-    func archiveItem(id: UUID, quantity: Int, reason: ArchiveReason, reasonDetail: String, eventID: UUID?) {
+    func archiveItem(id: UUID, quantity: Int, reason: ArchiveReason, reasonDetail: String, eventID: UUID?, expectedUpdatedAt: Date) {
         warehouseService.archiveItem(
             id: id,
             quantity: quantity,
             reason: reason,
             reasonDetail: reasonDetail,
-            eventID: eventID
+            eventID: eventID,
+            expectedUpdatedAt: expectedUpdatedAt
         ) { [weak self] result in
             switch result {
             case .success(let archiveResult):
@@ -248,5 +263,33 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
             return personal
         }
         return summaries.first
+    }
+}
+
+// MARK: - WebSocketEventHandler
+extension MyWarehouseInteractor: WebSocketEventHandler {
+    
+    func handleItemCreated(_ item: Item) {
+        print("[WebSocket] Item created: \(item.name)")
+        // Notify presenter about external change (new item)
+        presenter?.itemChangedExternally(item, isNew: true)
+    }
+    
+    func handleItemUpdated(_ item: Item) {
+        print("[WebSocket] Item updated: \(item.name)")
+        // Notify presenter about external change (existing item)
+        presenter?.itemChangedExternally(item, isNew: false)
+    }
+    
+    func handleItemArchived(_ item: Item) {
+        print("[WebSocket] Item archived: \(item.name)")
+        // Notify presenter about external change (archived item)
+        presenter?.itemChangedExternally(item, isNew: false)
+    }
+    
+    func handleItemDeleted(itemID: UUID) {
+        print("[WebSocket] Item deleted: \(itemID)")
+        // Notify presenter about deletion
+        presenter?.itemDeleted(id: itemID)
     }
 }

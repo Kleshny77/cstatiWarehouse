@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -185,9 +186,9 @@ type updateItemRequest struct {
 }
 
 type itemVersionConflictResponse struct {
-	Error   string   `json:"error"`
-	Message string   `json:"message"`
-	Item    itemDTO  `json:"item"`
+	Error   string  `json:"error"`
+	Message string  `json:"message"`
+	Item    itemDTO `json:"item"`
 }
 
 type archiveRequest struct {
@@ -417,7 +418,22 @@ func (h *WarehouseHandler) ArchiveEvents(w http.ResponseWriter, r *http.Request)
 		writeError(w, r, err)
 		return
 	}
-	events, err := h.warehouse.ListArchiveEvents(r.Context(), userID, orgID)
+
+	// Parse pagination parameters
+	limit := 50 // default
+	offset := 0
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 100 {
+			limit = parsedLimit
+		}
+	}
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
+			offset = parsedOffset
+		}
+	}
+
+	events, err := h.warehouse.ListArchiveEvents(r.Context(), userID, orgID, limit, offset)
 	if err != nil {
 		writeError(w, r, err)
 		return

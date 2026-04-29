@@ -3,12 +3,14 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/i18n"
 )
 
 type OrganizationsUseCase struct {
@@ -121,7 +123,7 @@ func (uc *OrganizationsUseCase) Update(ctx context.Context, in UpdateOrganizatio
 	if err != nil {
 		return nil, err
 	}
-	uc.logActivity(ctx, in.OrgID, in.UserID, domain.ActivityOrganizationUpdated, "organization", &in.OrgID, "организация переименована в «"+org.Name+"»")
+	uc.logActivity(ctx, in.OrgID, in.UserID, domain.ActivityOrganizationUpdated, "organization", &in.OrgID, fmt.Sprintf(i18n.ActivityOrgRenamed, org.Name))
 	return org, nil
 }
 
@@ -173,7 +175,7 @@ func (uc *OrganizationsUseCase) RemoveMember(ctx context.Context, actorID, orgID
 	if err := uc.members.Remove(ctx, orgID, targetID); err != nil {
 		return err
 	}
-	uc.logActivity(ctx, orgID, actorID, domain.ActivityMemberRemoved, "member", &targetID, "участник удалён из организации")
+	uc.logActivity(ctx, orgID, actorID, domain.ActivityMemberRemoved, "member", &targetID, i18n.ActivityMemberRemoved)
 	return nil
 }
 
@@ -227,7 +229,7 @@ func (uc *OrganizationsUseCase) ChangeRole(ctx context.Context, in ChangeRoleInp
 	if err := uc.members.UpdateRole(ctx, in.OrgID, in.TargetID, in.NewRole); err != nil {
 		return err
 	}
-	uc.logActivity(ctx, in.OrgID, in.ActorID, domain.ActivityMemberRoleChanged, "member", &in.TargetID, "роль участника изменена на "+string(in.NewRole))
+	uc.logActivity(ctx, in.OrgID, in.ActorID, domain.ActivityMemberRoleChanged, "member", &in.TargetID, fmt.Sprintf(i18n.ActivityMemberRoleChanged, string(in.NewRole)))
 	return nil
 }
 
@@ -252,7 +254,7 @@ func (uc *OrganizationsUseCase) TransferOwnership(ctx context.Context, actorID, 
 	if err := uc.orgs.TransferOwnershipAtomic(ctx, orgID, actorID, targetID, now); err != nil {
 		return err
 	}
-	uc.logActivity(ctx, orgID, actorID, domain.ActivityOwnershipTransferred, "member", &targetID, "владелец организации передал права новому владельцу")
+	uc.logActivity(ctx, orgID, actorID, domain.ActivityOwnershipTransferred, "member", &targetID, i18n.ActivityOwnershipTransferred)
 	return nil
 }
 
@@ -371,7 +373,7 @@ func (uc *OrganizationsUseCase) JoinByCode(ctx context.Context, userID uuid.UUID
 	if err != nil {
 		return nil, "", err
 	}
-	uc.logActivity(ctx, invite.OrganizationID, userID, domain.ActivityMemberAdded, "member", &userID, "новый участник присоединился к организации")
+	uc.logActivity(ctx, invite.OrganizationID, userID, domain.ActivityMemberAdded, "member", &userID, i18n.ActivityMemberJoined)
 	return org, domain.OrgRoleMember, nil
 }
 
@@ -428,7 +430,7 @@ func (uc *OrganizationsUseCase) requireMember(ctx context.Context, userID, orgID
 func personalOrgName(ownerName string) string {
 	trimmed := strings.TrimSpace(ownerName)
 	if trimmed == "" {
-		return "Мой склад"
+		return i18n.DefaultWarehouseName
 	}
-	return "Склад " + trimmed
+	return fmt.Sprintf(i18n.DefaultWarehouseNameWithOwner, trimmed)
 }

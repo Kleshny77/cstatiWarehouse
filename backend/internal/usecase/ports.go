@@ -72,7 +72,7 @@ type ItemRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListCategoriesByOrganization(ctx context.Context, orgID uuid.UUID) ([]string, error)
 	RecordArchiveEvent(ctx context.Context, item *domain.Item, event *domain.ArchiveEvent) error
-	ListArchiveEvents(ctx context.Context, orgID uuid.UUID) ([]domain.ArchiveEvent, error)
+	ListArchiveEvents(ctx context.Context, orgID uuid.UUID, limit, offset int) ([]domain.ArchiveEvent, error)
 	HasChildRows(ctx context.Context, parentID uuid.UUID) (bool, error)
 	CountInStockChildrenWithPositiveQuantity(ctx context.Context, parentID uuid.UUID) (int64, error)
 }
@@ -149,4 +149,12 @@ type CategoryRepository interface {
 type ActivityRepository interface {
 	Append(ctx context.Context, entry *domain.ActivityEntry) error
 	ListByOrganization(ctx context.Context, orgID uuid.UUID, limit int) ([]domain.ActivityEntry, error)
+}
+
+// WebSocketBroadcaster отправляет real-time обновления через WebSocket
+type WebSocketBroadcaster interface {
+	BroadcastItemCreated(orgID uuid.UUID, item *domain.Item)
+	BroadcastItemUpdated(orgID uuid.UUID, item *domain.Item)
+	BroadcastItemArchived(orgID uuid.UUID, item *domain.Item)
+	BroadcastItemDeleted(orgID uuid.UUID, itemID uuid.UUID)
 }

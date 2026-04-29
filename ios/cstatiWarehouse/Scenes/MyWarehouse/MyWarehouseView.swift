@@ -12,9 +12,11 @@ struct MyWarehouseView: View {
     @Namespace private var scopePickerNamespace
     @State private var selectedItem: Item? = nil
     @State private var expandedRoots: Set<UUID> = []
+    @State private var localSearchText: String = ""
 
     init(presenter: MyWarehousePresenter) {
         self.presenter = presenter
+        _localSearchText = State(initialValue: presenter.searchText)
     }
     
     var body: some View {
@@ -257,7 +259,7 @@ struct MyWarehouseView: View {
             
             TextField(
                 "",
-                text: $presenter.searchText,
+                text: $localSearchText,
                 prompt: Text("Поиск")
                     .foregroundColor(.white.opacity(0.4))
                     .font(font: .semiBold, size: 16)
@@ -267,6 +269,14 @@ struct MyWarehouseView: View {
             .font(font: .semiBold, size: 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .autocapitalization(.none)
+            .onChange(of: localSearchText) { oldValue, newValue in
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 300_000_000) // 300ms debounce
+                    if localSearchText == newValue {
+                        presenter.searchText = newValue
+                    }
+                }
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -379,12 +389,13 @@ struct MyWarehouseView: View {
     private var skeletonList: some View {
         List {
             Section {
-                ForEach(0..<4, id: \.self) { _ in
+                ForEach(0..<3, id: \.self) { _ in
                     WarehouseItemCard(item: Self.skeletonItem)
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                         .redacted(reason: .placeholder)
+                        .shimmering()
                 }
             } header: {
                 HStack {
@@ -403,7 +414,6 @@ struct MyWarehouseView: View {
             await presenter.performPullToRefresh()
         }
         .allowsHitTesting(false)
-        .shimmering()
     }
 
     private static let skeletonItem = Item(

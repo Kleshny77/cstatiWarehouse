@@ -12,6 +12,7 @@ import (
 
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/usecase"
+	"github.com/Kleshny77/cstatiWarehouse/backend/pkg/apierror"
 )
 
 type contextKey int
@@ -47,7 +48,7 @@ func recoverMiddleware(next http.Handler) http.Handler {
 		defer func() {
 			if rec := recover(); rec != nil {
 				slog.ErrorContext(r.Context(), "panic recovered", "value", rec, "stack", string(debug.Stack()))
-				writeJSON(w, http.StatusInternalServerError, errorBody{Error: "internal_error", Message: "internal server error"})
+				writeHTTPError(w, apierror.InternalError)
 			}
 		}()
 		next.ServeHTTP(w, r)

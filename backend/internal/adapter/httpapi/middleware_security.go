@@ -4,10 +4,9 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
-	"golang.org/x/time/rate"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/ratelimit"
+	"github.com/Kleshny77/cstatiWarehouse/backend/pkg/apierror"
 )
 
 // securityHeadersMiddleware — снижает риск MIME-sniffing, встраивания в iframe и лишних capability в WebView.
@@ -23,7 +22,7 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 
 // authRateLimitMiddleware ограничивает частоту POST к публичным эндпоинтам входа (защита от перебора и спама).
 // clientIP возвращает строку IP для лимита (например из X-Forwarded-For за доверенным прокси).
-func authRateLimitMiddleware(limiter *perIPRateLimiter, clientIP func(*http.Request) string) func(http.Handler) http.Handler {
+func authRateLimitMiddleware(limiter *ratelimit.PerIPLimiter, clientIP func(*http.Request) string) func(http.Handler) http.Handler {
 	if clientIP == nil {
 		clientIP = remoteIPForRateLimit
 	}
@@ -31,10 +30,7 @@ func authRateLimitMiddleware(limiter *perIPRateLimiter, clientIP func(*http.Requ
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if shouldThrottleAuthRoute(r) && !limiter.Allow(clientIP(r)) {
 				w.Header().Set("Retry-After", "60")
-				writeJSON(w, http.StatusTooManyRequests, errorBody{
-					Error:   "rate_limited",
-					Message: "too many requests, try again later",
-				})
+				writeHTTPError(w, apierror.RateLimited)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -60,34 +56,4 @@ func remoteIPForRateLimit(r *http.Request) string {
 		return strings.TrimSpace(r.RemoteAddr)
 	}
 	return host
-}
-
-// perIPRateLimiter — отдельный token bucket на IP (грубая защита по памяти: при переполнении карта сбрасывается).
-type perIPRateLimiter struct {
-	mu       sync.Mutex
-	limiters map[string]*rate.Limiter
-	interval time.Duration
-	burst    int
-}
-
-func newPerIPRateLimiter(interval time.Duration, burst int) *perIPRateLimiter {
-	return &perIPRateLimiter{
-		limiters: make(map[string]*rate.Limiter),
-		interval: interval,
-		burst:    burst,
-	}
-}
-
-func (p *perIPRateLimiter) Allow(ip string) bool {
-	p.mu.Lock()
-	lim, ok := p.limiters[ip]
-	if !ok {
-		lim = rate.NewLimiter(rate.Every(p.interval), p.burst)
-		p.limiters[ip] = lim
-		if len(p.limiters) > 4096 {
-			p.limiters = make(map[string]*rate.Limiter)
-		}
-	}
-	p.mu.Unlock()
-	return lim.Allow()
 }

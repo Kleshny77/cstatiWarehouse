@@ -3,20 +3,23 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/i18n"
 )
 
 type WarehouseUseCase struct {
-	items    ItemRepository
-	members  OrganizationMemberRepository
-	events   EventRepository
-	activity ActivityRepository
-	clock    Clock
+	items       ItemRepository
+	members     OrganizationMemberRepository
+	events      EventRepository
+	activity    ActivityRepository
+	broadcaster WebSocketBroadcaster
+	clock       Clock
 }
 
 func NewWarehouseUseCase(items ItemRepository, members OrganizationMemberRepository, clock Clock) *WarehouseUseCase {
@@ -30,6 +33,11 @@ func (uc *WarehouseUseCase) WithActivity(activity ActivityRepository) *Warehouse
 
 func (uc *WarehouseUseCase) WithEvents(events EventRepository) *WarehouseUseCase {
 	uc.events = events
+	return uc
+}
+
+func (uc *WarehouseUseCase) WithBroadcaster(broadcaster WebSocketBroadcaster) *WarehouseUseCase {
+	uc.broadcaster = broadcaster
 	return uc
 }
 
@@ -155,7 +163,10 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*do
 	if err := uc.items.Create(ctx, item); err != nil {
 		return nil, err
 	}
-	uc.logActivity(ctx, item.OrganizationID, in.UserID, domain.ActivityItemCreated, "item", &item.ID, "создана позиция «"+item.Name+"»")
+	uc.logActivity(ctx, item.OrganizationID, in.UserID, domain.ActivityItemCreated, "item", &item.ID, fmt.Sprintf(i18n.ActivityItemCreated, item.Name))
+	if uc.broadcaster != nil {
+		uc.broadcaster.BroadcastItemCreated(item.OrganizationID, item)
+	}
 	return item, nil
 }
 
@@ -246,7 +257,10 @@ func (uc *WarehouseUseCase) Update(ctx context.Context, in UpdateItemInput) (*do
 	if err := uc.items.Update(ctx, item, in.ExpectedUpdatedAt); err != nil {
 		return nil, err
 	}
-	uc.logActivity(ctx, item.OrganizationID, in.UserID, domain.ActivityItemUpdated, "item", &item.ID, "обновлена позиция «"+item.Name+"»")
+	uc.logActivity(ctx, item.OrganizationID, in.UserID, domain.ActivityItemUpdated, "item", &item.ID, fmt.Sprintf(i18n.ActivityItemUpdated, item.Name))
+	if uc.broadcaster != nil {
+		uc.broadcaster.BroadcastItemUpdated(item.OrganizationID, item)
+	}
 	return item, nil
 }
 
@@ -287,13 +301,7 @@ func (uc *WarehouseUseCase) Archive(ctx context.Context, in ArchiveItemInput) (*
 			return nil, nil, err
 		}
 		if hasChildren {
-			n, err := uc.items.CountInStockChildrenWithPositiveQuantity(ctx, item.ID)
-			if err != nil {
-				return nil, nil, err
-			}
-			if n > 0 {
-				return nil, nil, domain.NewValidationError("write off sub-items first; parent row aggregates variants")
-			}
+			return nil, nil, domain.NewValidationError("write off sub-items first; parent row aggregates variants")
 		}
 	}
 	if item.Status == domain.ItemStatusArchived {
@@ -344,15 +352,18 @@ func (uc *WarehouseUseCase) Archive(ctx context.Context, in ArchiveItemInput) (*
 	if err := uc.items.RecordArchiveEvent(ctx, item, event); err != nil {
 		return nil, nil, err
 	}
-	uc.logActivity(ctx, item.OrganizationID, in.UserID, domain.ActivityItemArchived, "item", &item.ID, "списана позиция «"+item.Name+"» — "+string(in.Reason))
+	uc.logActivity(ctx, item.OrganizationID, in.UserID, domain.ActivityItemArchived, "item", &item.ID, fmt.Sprintf(i18n.ActivityItemArchived, item.Name, string(in.Reason)))
+	if uc.broadcaster != nil {
+		uc.broadcaster.BroadcastItemArchived(item.OrganizationID, item)
+	}
 	return item, event, nil
 }
 
-func (uc *WarehouseUseCase) ListArchiveEvents(ctx context.Context, userID, orgID uuid.UUID) ([]domain.ArchiveEvent, error) {
+func (uc *WarehouseUseCase) ListArchiveEvents(ctx context.Context, userID, orgID uuid.UUID, limit, offset int) ([]domain.ArchiveEvent, error) {
 	if _, err := uc.requireMember(ctx, userID, orgID); err != nil {
 		return nil, err
 	}
-	return uc.items.ListArchiveEvents(ctx, orgID)
+	return uc.items.ListArchiveEvents(ctx, orgID, limit, offset)
 }
 
 func (uc *WarehouseUseCase) Delete(ctx context.Context, id, userID uuid.UUID) error {
@@ -360,10 +371,14 @@ func (uc *WarehouseUseCase) Delete(ctx context.Context, id, userID uuid.UUID) er
 	if err != nil {
 		return err
 	}
+	orgID := item.OrganizationID
 	if err := uc.items.Delete(ctx, id); err != nil {
 		return err
 	}
-	uc.logActivity(ctx, item.OrganizationID, userID, domain.ActivityItemDeleted, "item", &item.ID, "удалена позиция «"+item.Name+"»")
+	uc.logActivity(ctx, orgID, userID, domain.ActivityItemDeleted, "item", &item.ID, fmt.Sprintf(i18n.ActivityItemDeleted, item.Name))
+	if uc.broadcaster != nil {
+		uc.broadcaster.BroadcastItemDeleted(orgID, id)
+	}
 	return nil
 }
 

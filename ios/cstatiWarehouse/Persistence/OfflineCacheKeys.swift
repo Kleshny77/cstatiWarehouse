@@ -16,4 +16,6 @@ enum OfflineCacheKeys {
     static func overviewAnalytics(organizationID: UUID) -> String {
         "overview.analytics.\(organizationID.uuidString.lowercased())"
     }
+    
+    static let offlineMutationQueue = "offline.mutationQueue"
 }

@@ -101,6 +101,7 @@ final class MockWarehouseService: WarehouseServiceProtocol {
         reason: ArchiveReason,
         reasonDetail: String,
         eventID: UUID?,
+        expectedUpdatedAt: Date,
         completion: @escaping (Result<ArchiveResult, WarehouseError>) -> Void
     ) {
         respond {

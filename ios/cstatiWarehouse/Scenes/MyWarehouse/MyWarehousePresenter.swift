@@ -182,7 +182,8 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
             quantity: decision.quantity,
             reason: decision.reason,
             reasonDetail: decision.detail,
-            eventID: decision.eventID
+            eventID: decision.eventID,
+            expectedUpdatedAt: item.updatedAt
         )
     }
 

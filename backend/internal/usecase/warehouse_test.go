@@ -221,7 +221,7 @@ func TestWarehouseUseCase_Archive_PartialKeepsInStock(t *testing.T) {
 		t.Errorf("unexpected event: %+v", event)
 	}
 
-	events, err := uc.ListArchiveEvents(context.Background(), userID, orgID)
+	events, err := uc.ListArchiveEvents(context.Background(), userID, orgID, 50, 0)
 	if err != nil {
 		t.Fatalf("list events failed: %v", err)
 	}
@@ -494,11 +494,11 @@ func TestWarehouseUseCase_MemberCannotMutateWarehouse(t *testing.T) {
 func TestWarehouseUseCase_Update_ExpectedUpdatedAt_Conflict(t *testing.T) {
 	uc, _, _, clock, userID, orgID := newWarehouseUC(t)
 	created, err := uc.Create(context.Background(), CreateItemInput{
-		UserID:            userID,
-		OrganizationID:    orgID,
-		Name:              "A",
-		Quantity:          1,
-		LocationAddress:   addrPtr("Москва"),
+		UserID:          userID,
+		OrganizationID:  orgID,
+		Name:            "A",
+		Quantity:        1,
+		LocationAddress: addrPtr("Москва"),
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)

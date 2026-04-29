@@ -9,6 +9,7 @@ import (
 
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/adapter/repo"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
+	"github.com/Kleshny77/cstatiWarehouse/backend/pkg/apierror"
 )
 
 type NotificationsHandler struct {
@@ -32,17 +33,17 @@ func (h *NotificationsHandler) RegisterAPNs(w http.ResponseWriter, r *http.Reque
 	}
 	var body registerAPNsBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorBody{Error: "bad_json", Message: "invalid body"})
+		writeHTTPError(w, apierror.BadJSON)
 		return
 	}
 	token := strings.TrimSpace(body.Token)
 	if len(token) < 16 || len(token) > 2048 {
-		writeJSON(w, http.StatusBadRequest, errorBody{Error: "validation", Message: "invalid token"})
+		writeHTTPError(w, apierror.Validation("invalid token"))
 		return
 	}
 	if err := h.repo.UpsertAPNs(r.Context(), userID, token, h.now()); err != nil {
 		slog.ErrorContext(r.Context(), "apns token upsert", "err", err)
-		writeJSON(w, http.StatusInternalServerError, errorBody{Error: "internal_error", Message: "could not save"})
+		writeHTTPError(w, apierror.InternalError)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

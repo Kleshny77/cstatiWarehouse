@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/ratelimit"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/usecase"
 )
 
@@ -14,13 +15,18 @@ type RouterDeps struct {
 	Events        *EventsHandler
 	Categories    *CategoriesHandler
 	Activity      *ActivityHandler
-	Uploads        *UploadsHandler
-	Notifications  *NotificationsHandler
+	Uploads       *UploadsHandler
+	Notifications *NotificationsHandler
+	WebSocket     *WebSocketHandler
 	Tokens        usecase.TokenIssuer
 	// ClientIP — опционально: IP клиента для rate limit (например за nginx с TRUSTED_PROXY_CIDRS). Nil = только RemoteAddr.
 	ClientIP func(*http.Request) string
 	// SkipAuthRateLimit отключает лимит POST /auth/* (интеграционные тесты на одном IP).
 	SkipAuthRateLimit bool
+	// UserLimiter — rate limiter на пользователя для аутентифицированных запросов
+	UserLimiter *ratelimit.UserLimiter
+	// CORSAllowedOrigins — список разрешённых origins для CORS
+	CORSAllowedOrigins []string
 }
 
 func NewRouter(deps RouterDeps) http.Handler {
@@ -38,59 +44,79 @@ func NewRouter(deps RouterDeps) http.Handler {
 	mux.HandleFunc("POST /auth/logout", deps.Auth.Logout)
 
 	auth := authMiddleware(deps.Tokens)
-	mux.Handle("GET /auth/me", auth(http.HandlerFunc(deps.Auth.Me)))
-	mux.Handle("PATCH /auth/me", auth(http.HandlerFunc(deps.Auth.UpdateProfile)))
 
-	mux.Handle("GET /items", auth(http.HandlerFunc(deps.Warehouse.List)))
-	mux.Handle("POST /items", auth(http.HandlerFunc(deps.Warehouse.Create)))
-	mux.Handle("PUT /items/{id}", auth(http.HandlerFunc(deps.Warehouse.Update)))
-	mux.Handle("POST /items/{id}/archive", auth(http.HandlerFunc(deps.Warehouse.Archive)))
-	mux.Handle("DELETE /items/{id}", auth(http.HandlerFunc(deps.Warehouse.Delete)))
-	mux.Handle("GET /categories", auth(http.HandlerFunc(deps.Warehouse.Categories)))
-	mux.Handle("GET /archive-events", auth(http.HandlerFunc(deps.Warehouse.ArchiveEvents)))
+	// Применяем user rate limiting к аутентифицированным эндпоинтам
+	var authWithUserRL func(http.Handler) http.Handler
+	if deps.UserLimiter != nil {
+		authWithUserRL = func(h http.Handler) http.Handler {
+			return auth(userRateLimitMiddleware(deps.UserLimiter)(h))
+		}
+	} else {
+		authWithUserRL = auth
+	}
 
-	mux.Handle("GET /organizations", auth(http.HandlerFunc(deps.Organizations.List)))
-	mux.Handle("POST /organizations", auth(http.HandlerFunc(deps.Organizations.Create)))
-	mux.Handle("POST /organizations/join", auth(http.HandlerFunc(deps.Organizations.JoinByCode)))
-	mux.Handle("GET /organizations/{id}", auth(http.HandlerFunc(deps.Organizations.Get)))
-	mux.Handle("PATCH /organizations/{id}", auth(http.HandlerFunc(deps.Organizations.Update)))
-	mux.Handle("DELETE /organizations/{id}", auth(http.HandlerFunc(deps.Organizations.Delete)))
-	mux.Handle("GET /organizations/{id}/members", auth(http.HandlerFunc(deps.Organizations.Members)))
-	mux.Handle("DELETE /organizations/{id}/members/{userId}", auth(http.HandlerFunc(deps.Organizations.RemoveMember)))
-	mux.Handle("PATCH /organizations/{id}/members/{userId}", auth(http.HandlerFunc(deps.Organizations.ChangeRole)))
-	mux.Handle("POST /organizations/{id}/transfer", auth(http.HandlerFunc(deps.Organizations.TransferOwnership)))
-	mux.Handle("POST /organizations/{id}/leave", auth(http.HandlerFunc(deps.Organizations.Leave)))
-	mux.Handle("GET /organizations/{id}/invites", auth(http.HandlerFunc(deps.Organizations.ListInvites)))
-	mux.Handle("POST /organizations/{id}/invites", auth(http.HandlerFunc(deps.Organizations.CreateInvite)))
-	mux.Handle("DELETE /organizations/{id}/invites/{inviteId}", auth(http.HandlerFunc(deps.Organizations.RevokeInvite)))
+	mux.Handle("GET /auth/me", authWithUserRL(http.HandlerFunc(deps.Auth.Me)))
+	mux.Handle("PATCH /auth/me", authWithUserRL(http.HandlerFunc(deps.Auth.UpdateProfile)))
+
+	mux.Handle("GET /items", authWithUserRL(http.HandlerFunc(deps.Warehouse.List)))
+	mux.Handle("POST /items", authWithUserRL(http.HandlerFunc(deps.Warehouse.Create)))
+	mux.Handle("PUT /items/{id}", authWithUserRL(http.HandlerFunc(deps.Warehouse.Update)))
+	mux.Handle("POST /items/{id}/archive", authWithUserRL(http.HandlerFunc(deps.Warehouse.Archive)))
+	mux.Handle("DELETE /items/{id}", authWithUserRL(http.HandlerFunc(deps.Warehouse.Delete)))
+	mux.Handle("GET /categories", authWithUserRL(http.HandlerFunc(deps.Warehouse.Categories)))
+	mux.Handle("GET /archive-events", authWithUserRL(http.HandlerFunc(deps.Warehouse.ArchiveEvents)))
+
+	mux.Handle("GET /organizations", authWithUserRL(http.HandlerFunc(deps.Organizations.List)))
+	mux.Handle("POST /organizations", authWithUserRL(http.HandlerFunc(deps.Organizations.Create)))
+	mux.Handle("POST /organizations/join", authWithUserRL(http.HandlerFunc(deps.Organizations.JoinByCode)))
+	mux.Handle("GET /organizations/{id}", authWithUserRL(http.HandlerFunc(deps.Organizations.Get)))
+	mux.Handle("PATCH /organizations/{id}", authWithUserRL(http.HandlerFunc(deps.Organizations.Update)))
+	mux.Handle("DELETE /organizations/{id}", authWithUserRL(http.HandlerFunc(deps.Organizations.Delete)))
+	mux.Handle("GET /organizations/{id}/members", authWithUserRL(http.HandlerFunc(deps.Organizations.Members)))
+	mux.Handle("DELETE /organizations/{id}/members/{userId}", authWithUserRL(http.HandlerFunc(deps.Organizations.RemoveMember)))
+	mux.Handle("PATCH /organizations/{id}/members/{userId}", authWithUserRL(http.HandlerFunc(deps.Organizations.ChangeRole)))
+	mux.Handle("POST /organizations/{id}/transfer", authWithUserRL(http.HandlerFunc(deps.Organizations.TransferOwnership)))
+	mux.Handle("POST /organizations/{id}/leave", authWithUserRL(http.HandlerFunc(deps.Organizations.Leave)))
+	mux.Handle("GET /organizations/{id}/invites", authWithUserRL(http.HandlerFunc(deps.Organizations.ListInvites)))
+	mux.Handle("POST /organizations/{id}/invites", authWithUserRL(http.HandlerFunc(deps.Organizations.CreateInvite)))
+	mux.Handle("DELETE /organizations/{id}/invites/{inviteId}", authWithUserRL(http.HandlerFunc(deps.Organizations.RevokeInvite)))
 
 	if deps.Events != nil {
-		mux.Handle("GET /events", auth(http.HandlerFunc(deps.Events.List)))
-		mux.Handle("POST /events", auth(http.HandlerFunc(deps.Events.Create)))
-		mux.Handle("PATCH /events/{id}", auth(http.HandlerFunc(deps.Events.Update)))
-		mux.Handle("DELETE /events/{id}", auth(http.HandlerFunc(deps.Events.Delete)))
+		mux.Handle("GET /events", authWithUserRL(http.HandlerFunc(deps.Events.List)))
+		mux.Handle("POST /events", authWithUserRL(http.HandlerFunc(deps.Events.Create)))
+		mux.Handle("PATCH /events/{id}", authWithUserRL(http.HandlerFunc(deps.Events.Update)))
+		mux.Handle("DELETE /events/{id}", authWithUserRL(http.HandlerFunc(deps.Events.Delete)))
 	}
 	if deps.Categories != nil {
-		mux.Handle("GET /org-categories", auth(http.HandlerFunc(deps.Categories.List)))
-		mux.Handle("POST /org-categories", auth(http.HandlerFunc(deps.Categories.Create)))
-		mux.Handle("DELETE /org-categories/{id}", auth(http.HandlerFunc(deps.Categories.Delete)))
+		mux.Handle("GET /org-categories", authWithUserRL(http.HandlerFunc(deps.Categories.List)))
+		mux.Handle("POST /org-categories", authWithUserRL(http.HandlerFunc(deps.Categories.Create)))
+		mux.Handle("DELETE /org-categories/{id}", authWithUserRL(http.HandlerFunc(deps.Categories.Delete)))
 	}
 	if deps.Activity != nil {
-		mux.Handle("GET /organizations/{id}/activity", auth(http.HandlerFunc(deps.Activity.List)))
+		mux.Handle("GET /organizations/{id}/activity", authWithUserRL(http.HandlerFunc(deps.Activity.List)))
 	}
 
 	if deps.Uploads != nil {
-		mux.Handle("POST /uploads", auth(http.HandlerFunc(deps.Uploads.Upload)))
+		mux.Handle("POST /uploads", authWithUserRL(http.HandlerFunc(deps.Uploads.Upload)))
 		mux.Handle("GET /uploads/{file}", http.HandlerFunc(deps.Uploads.Download))
 	}
 	if deps.Notifications != nil {
-		mux.Handle("POST /notifications/apns-token", auth(http.HandlerFunc(deps.Notifications.RegisterAPNs)))
+		mux.Handle("POST /notifications/apns-token", authWithUserRL(http.HandlerFunc(deps.Notifications.RegisterAPNs)))
+	}
+	if deps.WebSocket != nil {
+		mux.Handle("GET /ws", authWithUserRL(http.HandlerFunc(deps.WebSocket.ServeWS)))
 	}
 
-	authLimiter := newPerIPRateLimiter(2*time.Second, 12)
+	authLimiter := ratelimit.NewPerIPLimiter(2*time.Second, 12, 4096)
 	var withRL http.Handler = mux
 	if !deps.SkipAuthRateLimit {
 		withRL = authRateLimitMiddleware(authLimiter, deps.ClientIP)(mux)
 	}
-	return securityHeadersMiddleware(recoverMiddleware(loggingMiddleware(withRL)))
+
+	// Применяем middleware в порядке: CORS → security → recover → logging → rate limit
+	handler := withRL
+	if len(deps.CORSAllowedOrigins) > 0 {
+		handler = corsMiddleware(deps.CORSAllowedOrigins)(handler)
+	}
+	return securityHeadersMiddleware(recoverMiddleware(loggingMiddleware(handler)))
 }

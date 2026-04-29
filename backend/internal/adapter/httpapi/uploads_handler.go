@@ -13,11 +13,10 @@ import (
 	"strings"
 	"time"
 
-	jwtpkg "github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/jwt"
-
-	"github.com/google/uuid"
-
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/filetype"
+	jwtpkg "github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/jwt"
+	"github.com/google/uuid"
 )
 
 type UploadsHandler struct {
@@ -80,6 +79,7 @@ func (h *UploadsHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
+	// Read first 512 bytes for magic number validation
 	buf := make([]byte, 512)
 	n, err := io.ReadFull(file, buf)
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
@@ -87,17 +87,37 @@ func (h *UploadsHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, domain.NewValidationError("could not read upload"))
 		return
 	}
-	mimeType := http.DetectContentType(buf[:n])
-	ext, ok := allowedImageTypes[mimeType]
-	if !ok {
-		writeError(w, r, domain.NewValidationError("unsupported image type: "+mimeType))
+
+	// Validate file type using magic numbers (file signatures)
+	fileType, err := filetype.ValidateImageFile(buf[:n])
+	if err != nil {
+		if errors.Is(err, filetype.ErrInsufficientData) {
+			writeError(w, r, domain.NewValidationError("file too small"))
+			return
+		}
+		if errors.Is(err, filetype.ErrUnknownFileType) {
+			writeError(w, r, domain.NewValidationError("unsupported or invalid image file"))
+			return
+		}
+		slog.WarnContext(r.Context(), "file type validation failed", "err", err)
+		writeError(w, r, domain.NewValidationError("could not validate file type"))
 		return
 	}
 
+	// Use detected extension from magic numbers
+	ext := fileType.Extension
+
+	// Optionally prefer original extension if it matches the detected type
 	if headerExt := strings.ToLower(filepath.Ext(header.Filename)); headerExt != "" {
 		switch headerExt {
-		case ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif":
-			ext = headerExt
+		case ".jpg", ".jpeg":
+			if fileType.MIME == "image/jpeg" {
+				ext = headerExt
+			}
+		case ".png", ".webp", ".heic", ".heif":
+			if fileType.Extension == headerExt {
+				ext = headerExt
+			}
 		}
 	}
 

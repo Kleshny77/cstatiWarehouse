@@ -35,6 +35,10 @@ type Config struct {
 	UploadSigningSecret  string
 	UploadURLTTL         time.Duration
 	TrustedProxyCIDRsRaw string
+
+	// CORSAllowedOrigins — список разрешённых origins для CORS (через запятую).
+	// Примеры: "*" (все, только dev), "https://example.com", "http://localhost:*"
+	CORSAllowedOrigins string
 }
 
 func (c Config) TelegramConfigured() bool {
@@ -109,6 +113,7 @@ func Load() (Config, error) {
 		UploadSigningSecret:  os.Getenv("UPLOAD_SIGNING_SECRET"),
 		UploadURLTTL:         getDuration("UPLOAD_URL_TTL", 168*time.Hour),
 		TrustedProxyCIDRsRaw: os.Getenv("TRUSTED_PROXY_CIDRS"),
+		CORSAllowedOrigins:   getenv("CORS_ALLOWED_ORIGINS", "http://localhost:*"),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -152,6 +157,24 @@ func (c Config) EffectiveUploadSigningSecret() string {
 		return strings.TrimSpace(c.UploadSigningSecret)
 	}
 	return c.JWTSecret
+}
+
+// ParsedCORSAllowedOrigins возвращает список разрешённых origins для CORS.
+func (c Config) ParsedCORSAllowedOrigins() []string {
+	raw := strings.TrimSpace(c.CORSAllowedOrigins)
+	if raw == "" {
+		return nil
+	}
+
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 func getenvBool(key string, fallback bool) bool {

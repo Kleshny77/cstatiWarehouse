@@ -85,13 +85,15 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
         reason: ArchiveReason,
         reasonDetail: String,
         eventID: UUID?,
+        expectedUpdatedAt: Date,
         completion: @escaping (Result<ArchiveResult, WarehouseError>) -> Void
     ) {
         let body = ArchiveRequestDTO(
             quantity: quantity,
             reason: reason.rawValue,
             reasonDetail: reasonDetail.isEmpty ? nil : reasonDetail,
-            eventId: eventID?.uuidString.lowercased()
+            eventId: eventID?.uuidString.lowercased(),
+            expectedUpdatedAt: expectedUpdatedAt
         )
         client.request(
             path: "/items/\(id.uuidString.lowercased())/archive",
@@ -246,6 +248,7 @@ private struct ArchiveRequestDTO: Encodable {
     let reason: String
     let reasonDetail: String?
     let eventId: String?
+    let expectedUpdatedAt: Date
 }
 
 private struct CreateItemRequestDTO: Encodable {
@@ -316,7 +319,7 @@ private struct ItemVersionConflictBodyDTO: Decodable {
     let item: ItemDTO
 }
 
-private struct ItemDTO: Decodable {
+struct ItemDTO: Decodable {
     let id: String
     let heldByUserId: String?
     let name: String

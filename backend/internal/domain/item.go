@@ -92,6 +92,8 @@ type Item struct {
 	VariantLabel    string
 	MeasureUnit     MeasureUnit
 	VolumePerUnit   *float64
+	DeletedAt       *time.Time
+	DeletedByUserID *uuid.UUID
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -112,4 +114,12 @@ func (i *Item) IsHeldBy(userID uuid.UUID) bool {
 
 func (i *Item) BelongsToOrganization(orgID uuid.UUID) bool {
 	return i.OrganizationID == orgID
+}
+
+func (i *Item) IsDeleted() bool {
+	return i.DeletedAt != nil
+}
+
+func (i *Item) IsActive() bool {
+	return i.DeletedAt == nil
 }

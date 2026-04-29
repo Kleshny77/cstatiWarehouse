@@ -10,12 +10,14 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/i18n"
 )
 
 type EventsUseCase struct {
@@ -65,7 +67,7 @@ func (uc *EventsUseCase) Create(ctx context.Context, in CreateEventInput) (*doma
 	if err := uc.events.Create(ctx, e); err != nil {
 		return nil, err
 	}
-	uc.logActivity(ctx, in.OrganizationID, in.UserID, domain.ActivityEventCreated, "event", &e.ID, "создано мероприятие «"+e.Name+"»")
+	uc.logActivity(ctx, in.OrganizationID, in.UserID, domain.ActivityEventCreated, "event", &e.ID, fmt.Sprintf(i18n.ActivityEventCreated, e.Name))
 	return e, nil
 }
 
@@ -98,7 +100,7 @@ func (uc *EventsUseCase) Update(ctx context.Context, in UpdateEventInput) (*doma
 	if err := uc.events.Update(ctx, event); err != nil {
 		return nil, err
 	}
-	uc.logActivity(ctx, event.OrganizationID, in.UserID, domain.ActivityEventUpdated, "event", &event.ID, "обновлено мероприятие «"+event.Name+"»")
+	uc.logActivity(ctx, event.OrganizationID, in.UserID, domain.ActivityEventUpdated, "event", &event.ID, fmt.Sprintf(i18n.ActivityEventUpdated, event.Name))
 	return event, nil
 }
 
@@ -113,7 +115,7 @@ func (uc *EventsUseCase) Delete(ctx context.Context, userID, eventID uuid.UUID) 
 	if err := uc.events.Delete(ctx, eventID); err != nil {
 		return err
 	}
-	uc.logActivity(ctx, event.OrganizationID, userID, domain.ActivityEventDeleted, "event", &event.ID, "удалено мероприятие «"+event.Name+"»")
+	uc.logActivity(ctx, event.OrganizationID, userID, domain.ActivityEventDeleted, "event", &event.ID, fmt.Sprintf(i18n.ActivityEventDeleted, event.Name))
 	return nil
 }
 

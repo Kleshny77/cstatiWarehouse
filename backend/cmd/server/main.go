@@ -17,6 +17,7 @@ import (
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/adapter/httpapi"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/adapter/repo"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/adapter/telegram"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/adapter/websocket"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/clock"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/config"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/db"
@@ -106,9 +107,16 @@ func run() error {
 			GoogleConfigured:   cfg.GoogleConfigured(),
 		},
 	)
+
+	// WebSocket Hub для real-time обновлений
+	wsHub := websocket.NewHub()
+	go wsHub.Run()
+	wsBroadcaster := websocket.NewBroadcaster(wsHub)
+
 	warehouseUC := usecase.NewWarehouseUseCase(itemRepo, memberRepo, clock.Real{}).
 		WithActivity(activityRepo).
-		WithEvents(eventRepo)
+		WithEvents(eventRepo).
+		WithBroadcaster(wsBroadcaster)
 	eventsUC := usecase.NewEventsUseCase(eventRepo, memberRepo, activityRepo, clock.Real{})
 	categoriesUC := usecase.NewCategoriesUseCase(categoryRepo, memberRepo, activityRepo, clock.Real{})
 	activityUC := usecase.NewActivityUseCase(activityRepo, memberRepo)
@@ -125,17 +133,23 @@ func run() error {
 		clientIP = proxies.ClientIP
 	}
 
+	// User rate limiter: 50 req/sec per user, burst 100, 5min TTL
+	userLimiter := httpapi.NewUserRateLimiter(50, 100, 5*time.Minute)
+
 	handler := httpapi.NewRouter(httpapi.RouterDeps{
-		Auth:          httpapi.NewAuthHandler(authUC),
-		Warehouse:     httpapi.NewWarehouseHandler(warehouseUC),
-		Organizations: httpapi.NewOrganizationHandler(organizationsUC),
-		Events:        httpapi.NewEventsHandler(eventsUC),
-		Categories:    httpapi.NewCategoriesHandler(categoriesUC),
-		Activity:      httpapi.NewActivityHandler(activityUC),
-		Uploads:       uploadsHandler,
-		Notifications: httpapi.NewNotificationsHandler(pushTokenRepo),
-		Tokens:        issuer,
-		ClientIP:      clientIP,
+		Auth:               httpapi.NewAuthHandler(authUC),
+		Warehouse:          httpapi.NewWarehouseHandler(warehouseUC),
+		Organizations:      httpapi.NewOrganizationHandler(organizationsUC),
+		Events:             httpapi.NewEventsHandler(eventsUC),
+		Categories:         httpapi.NewCategoriesHandler(categoriesUC),
+		Activity:           httpapi.NewActivityHandler(activityUC),
+		Uploads:            uploadsHandler,
+		Notifications:      httpapi.NewNotificationsHandler(pushTokenRepo),
+		WebSocket:          httpapi.NewWebSocketHandler(wsHub),
+		Tokens:             issuer,
+		ClientIP:           clientIP,
+		UserLimiter:        userLimiter,
+		CORSAllowedOrigins: cfg.ParsedCORSAllowedOrigins(),
 	})
 
 	listenAddr := normalizeListenAddrForGoDualStack(cfg.HTTPAddr)

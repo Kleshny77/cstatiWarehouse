@@ -10,11 +10,13 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
 
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/i18n"
 )
 
 type CategoriesUseCase struct {
@@ -65,7 +67,7 @@ func (uc *CategoriesUseCase) Create(ctx context.Context, in CreateCategoryInput)
 	if err := uc.categories.Create(ctx, c); err != nil {
 		return nil, err
 	}
-	uc.logActivity(ctx, in.OrganizationID, in.UserID, domain.ActivityCategoryCreated, "category", &c.ID, "добавлена категория «"+c.Name+"»")
+	uc.logActivity(ctx, in.OrganizationID, in.UserID, domain.ActivityCategoryCreated, "category", &c.ID, fmt.Sprintf(i18n.ActivityCategoryCreated, c.Name))
 	return c, nil
 }
 
@@ -80,7 +82,7 @@ func (uc *CategoriesUseCase) Delete(ctx context.Context, userID, categoryID uuid
 	if err := uc.categories.Delete(ctx, categoryID); err != nil {
 		return err
 	}
-	uc.logActivity(ctx, c.OrganizationID, userID, domain.ActivityCategoryDeleted, "category", &c.ID, "удалена категория «"+c.Name+"»")
+	uc.logActivity(ctx, c.OrganizationID, userID, domain.ActivityCategoryDeleted, "category", &c.ID, fmt.Sprintf(i18n.ActivityCategoryDeleted, c.Name))
 	return nil
 }
 

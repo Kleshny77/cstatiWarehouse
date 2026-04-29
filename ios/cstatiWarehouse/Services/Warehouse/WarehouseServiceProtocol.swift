@@ -60,6 +60,7 @@ protocol WarehouseServiceProtocol: AnyObject {
         reason: ArchiveReason,
         reasonDetail: String,
         eventID: UUID?,
+        expectedUpdatedAt: Date,
         completion: @escaping (Result<ArchiveResult, WarehouseError>) -> Void
     )
     func deleteItem(id: UUID, completion: @escaping (Result<Void, WarehouseError>) -> Void)

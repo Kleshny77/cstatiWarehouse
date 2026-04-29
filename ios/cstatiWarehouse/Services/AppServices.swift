@@ -45,4 +45,9 @@ enum AppServices {
     }
 
     static let shelfLifeNotifier: ShelfLifeNotificationServiceProtocol = ShelfLifeNotificationService()
+    
+    static let webSocketService: WebSocketService = WebSocketService(
+        baseURL: apiClient.baseURL,
+        tokenStorage: sessionStorage
+    )
 }

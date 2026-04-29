@@ -185,7 +185,7 @@ func (r *ItemRepo) RecordArchiveEvent(ctx context.Context, item *domain.Item, ev
 	return tx.Commit(ctx)
 }
 
-func (r *ItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID) ([]domain.ArchiveEvent, error) {
+func (r *ItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID, limit, offset int) ([]domain.ArchiveEvent, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			e.id,
@@ -204,7 +204,8 @@ func (r *ItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID) ([]do
 		INNER JOIN users u ON u.id = e.archived_by_user_id
 		WHERE e.organization_id = $1
 		ORDER BY e.archived_at DESC
-	`, orgID)
+		LIMIT $2 OFFSET $3
+	`, orgID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

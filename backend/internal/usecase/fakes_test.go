@@ -356,7 +356,7 @@ func (r *fakeItemRepo) RecordArchiveEvent(ctx context.Context, item *domain.Item
 	return nil
 }
 
-func (r *fakeItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID) ([]domain.ArchiveEvent, error) {
+func (r *fakeItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID, limit, offset int) ([]domain.ArchiveEvent, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []domain.ArchiveEvent

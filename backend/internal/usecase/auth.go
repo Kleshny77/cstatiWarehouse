@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/i18n"
 )
 
 type AuthConfig struct {
@@ -25,9 +26,9 @@ type AuthUseCase struct {
 	hasher        PasswordHasher
 	tokens        TokenIssuer
 	refreshGen    RefreshTokenGenerator
-	telegram TelegramVerifier
-	google   GoogleVerifier
-	clock    Clock
+	telegram      TelegramVerifier
+	google        GoogleVerifier
+	clock         Clock
 	cfg           AuthConfig
 }
 
@@ -50,9 +51,9 @@ func NewAuthUseCase(
 		hasher:        hasher,
 		tokens:        tokens,
 		refreshGen:    refreshGen,
-		telegram: telegram,
-		google:   google,
-		clock:    clock,
+		telegram:      telegram,
+		google:        google,
+		clock:         clock,
 		cfg:           cfg,
 	}
 }
@@ -305,7 +306,7 @@ func splitGoogleDisplayName(c domain.GoogleIDClaims) (first, last string) {
 	}
 	full := strings.TrimSpace(c.FullName)
 	if full == "" {
-		return "Пользователь", ""
+		return i18n.DefaultUserDisplayName, ""
 	}
 	parts := strings.Fields(full)
 	if len(parts) == 1 {
