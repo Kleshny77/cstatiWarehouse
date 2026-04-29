@@ -26,6 +26,7 @@ func newAuthUC(t *testing.T) (*AuthUseCase, *fakeUserRepo, *fakeRefreshRepo, *fa
 		&fakeTokenIssuer{ttl: 15 * time.Minute},
 		&fakeRefreshGen{},
 		verifier,
+		nil,
 		clock,
 		AuthConfig{
 			RefreshTTL:         24 * time.Hour,

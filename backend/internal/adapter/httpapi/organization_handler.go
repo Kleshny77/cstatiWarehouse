@@ -81,10 +81,8 @@ type inviteResponse struct {
 }
 
 type createInviteRequest struct {
-	// ExpiresInDays — срок жизни в днях. nil → без срока.
 	ExpiresInDays *int `json:"expires_in_days,omitempty"`
-	// MaxUses — лимит использований. nil → без лимита.
-	MaxUses *int `json:"max_uses,omitempty"`
+	MaxUses       *int `json:"max_uses,omitempty"`
 }
 
 type joinByCodeRequest struct {
@@ -99,7 +97,6 @@ type transferOwnershipRequest struct {
 	NewOwnerID string `json:"new_owner_id"`
 }
 
-// List — GET /organizations: организации, в которых состоит текущий пользователь.
 func (h *OrganizationHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUserID(r)
 	if !ok {
@@ -118,7 +115,6 @@ func (h *OrganizationHandler) List(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, organizationListResponse{Organizations: dtos})
 }
 
-// Create — POST /organizations: создать новую (не персональную) организацию.
 func (h *OrganizationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUserID(r)
 	if !ok {
@@ -143,7 +139,6 @@ func (h *OrganizationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Get — GET /organizations/{id}.
 func (h *OrganizationHandler) Get(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUserID(r)
 	if !ok {
@@ -163,7 +158,6 @@ func (h *OrganizationHandler) Get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, organizationResponse{Organization: orgToDTO(org, role)})
 }
 
-// Update — PATCH /organizations/{id}.
 func (h *OrganizationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUserID(r)
 	if !ok {
@@ -189,7 +183,6 @@ func (h *OrganizationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	// После Update роль уже известна — owner/admin, но удобнее перепрочитать её.
 	_, role, err := h.orgs.Get(r.Context(), userID, id)
 	if err != nil {
 		writeError(w, r, err)
@@ -198,7 +191,6 @@ func (h *OrganizationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, organizationResponse{Organization: orgToDTO(org, role)})
 }
 
-// Delete — DELETE /organizations/{id}.
 func (h *OrganizationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUserID(r)
 	if !ok {
@@ -217,7 +209,6 @@ func (h *OrganizationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Members — GET /organizations/{id}/members.
 func (h *OrganizationHandler) Members(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUserID(r)
 	if !ok {
@@ -241,7 +232,6 @@ func (h *OrganizationHandler) Members(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, organizationMembersResponse{Members: dtos})
 }
 
-// RemoveMember — DELETE /organizations/{id}/members/{userId}.
 func (h *OrganizationHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := currentUserID(r)
 	if !ok {
@@ -265,7 +255,6 @@ func (h *OrganizationHandler) RemoveMember(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ChangeRole — PATCH /organizations/{id}/members/{userId}.
 func (h *OrganizationHandler) ChangeRole(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := currentUserID(r)
 	if !ok {
@@ -301,7 +290,6 @@ func (h *OrganizationHandler) ChangeRole(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// TransferOwnership — POST /organizations/{id}/transfer.
 func (h *OrganizationHandler) TransferOwnership(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := currentUserID(r)
 	if !ok {
@@ -330,7 +318,6 @@ func (h *OrganizationHandler) TransferOwnership(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ListInvites — GET /organizations/{id}/invites.
 func (h *OrganizationHandler) ListInvites(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := currentUserID(r)
 	if !ok {
@@ -356,7 +343,6 @@ func (h *OrganizationHandler) ListInvites(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, invitesResponse{Invites: dtos})
 }
 
-// CreateInvite — POST /organizations/{id}/invites.
 func (h *OrganizationHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := currentUserID(r)
 	if !ok {
@@ -390,7 +376,6 @@ func (h *OrganizationHandler) CreateInvite(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusCreated, inviteResponse{Invite: inviteToDTO(invite, time.Now())})
 }
 
-// RevokeInvite — DELETE /organizations/{id}/invites/{inviteId}.
 func (h *OrganizationHandler) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := currentUserID(r)
 	if !ok {
@@ -414,7 +399,6 @@ func (h *OrganizationHandler) RevokeInvite(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// JoinByCode — POST /organizations/join.
 func (h *OrganizationHandler) JoinByCode(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUserID(r)
 	if !ok {
@@ -434,7 +418,6 @@ func (h *OrganizationHandler) JoinByCode(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, organizationResponse{Organization: orgToDTO(org, role)})
 }
 
-// Leave — POST /organizations/{id}/leave.
 func (h *OrganizationHandler) Leave(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUserID(r)
 	if !ok {

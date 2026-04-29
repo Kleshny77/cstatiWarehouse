@@ -111,7 +111,7 @@ func (r *OrganizationRepo) TransferOwnershipAtomic(ctx context.Context, orgID, f
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
+	defer tx.Rollback(ctx)
 
 	tag, err := tx.Exec(ctx,
 		`UPDATE organization_members SET role = 'owner' WHERE organization_id = $1 AND user_id = $2`,

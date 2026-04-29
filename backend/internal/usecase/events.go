@@ -18,9 +18,6 @@ import (
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
 )
 
-// EventsUseCase управляет мероприятиями организации.
-// Все операции требуют участия пользователя в организации;
-// для создания/редактирования/удаления нужна роль owner или admin.
 type EventsUseCase struct {
 	events   EventRepository
 	members  OrganizationMemberRepository
@@ -127,8 +124,6 @@ func (uc *EventsUseCase) List(ctx context.Context, userID, orgID uuid.UUID) ([]d
 	return uc.events.ListByOrganization(ctx, orgID)
 }
 
-// FindAccessibleEvent читает мероприятие, убеждаясь, что пользователь — член его организации.
-// Используется другими use-case'ами (warehouse при archive с event_id).
 func (uc *EventsUseCase) FindAccessibleEvent(ctx context.Context, userID, eventID uuid.UUID) (*domain.Event, error) {
 	event, err := uc.events.FindByID(ctx, eventID)
 	if err != nil {

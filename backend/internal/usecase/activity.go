@@ -16,8 +16,6 @@ import (
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
 )
 
-// ActivityUseCase выдаёт журнал действий организации.
-// Любой участник организации может читать историю.
 type ActivityUseCase struct {
 	activity ActivityRepository
 	members  OrganizationMemberRepository

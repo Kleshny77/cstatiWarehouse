@@ -16,6 +16,8 @@ type Config struct {
 	HTTPShutdownTimeout time.Duration
 
 	DatabaseURL string
+	// DatabaseRequireTLS — если true, DATABASE_URL не должен использовать sslmode=disable (прод).
+	DatabaseRequireTLS bool
 
 	JWTSecret     string
 	JWTAccessTTL  time.Duration
@@ -25,13 +27,60 @@ type Config struct {
 	TelegramIssuer   string
 	TelegramJWKSURL  string
 
-	UploadsDir       string
-	PublicBaseURL    string
-	MaxUploadBytes   int64
+	GoogleClientID string
+
+	UploadsDir           string
+	PublicBaseURL        string
+	MaxUploadBytes       int64
+	UploadSigningSecret  string
+	UploadURLTTL         time.Duration
+	TrustedProxyCIDRsRaw string
 }
 
 func (c Config) TelegramConfigured() bool {
 	return strings.TrimSpace(c.TelegramClientID) != "" && strings.TrimSpace(c.TelegramJWKSURL) != ""
+}
+
+func (c Config) GoogleConfigured() bool {
+	return strings.TrimSpace(c.GoogleClientID) != ""
+}
+
+// BindLANWarnings — проблемы привязки HTTP, из‑за которых телефон по Wi‑Fi не достучится до Mac (Safari / приложение).
+func (c Config) BindLANWarnings() []string {
+	if isLoopbackOnlyHTTPAddr(c.HTTPAddr) {
+		return []string{
+			"HTTP_ADDR слушает только loopback: устройства в LAN (iPhone) не подключатся. В backend/.env задайте HTTP_ADDR=:8080 и перезапустите сервер.",
+		}
+	}
+	return nil
+}
+
+func isLoopbackOnlyHTTPAddr(addr string) bool {
+	s := strings.TrimSpace(addr)
+	if s == "" {
+		return false
+	}
+	lower := strings.ToLower(s)
+	// ":8080" — все интерфейсы (IPv4/IPv6).
+	if strings.HasPrefix(lower, ":") && !strings.HasPrefix(lower, "::") {
+		return false
+	}
+	if strings.HasPrefix(lower, "0.0.0.0:") {
+		return false
+	}
+	if strings.HasPrefix(lower, "[::]:") {
+		return false
+	}
+	if strings.HasPrefix(lower, "127.") {
+		return true
+	}
+	if strings.HasPrefix(lower, "[::1]") {
+		return true
+	}
+	if strings.HasPrefix(lower, "localhost:") {
+		return true
+	}
+	return false
 }
 
 func Load() (Config, error) {
@@ -41,7 +90,8 @@ func Load() (Config, error) {
 		HTTPWriteTimeout:    getDuration("HTTP_WRITE_TIMEOUT", 10*time.Second),
 		HTTPShutdownTimeout: getDuration("HTTP_SHUTDOWN_TIMEOUT", 15*time.Second),
 
-		DatabaseURL: os.Getenv("DATABASE_URL"),
+		DatabaseURL:        os.Getenv("DATABASE_URL"),
+		DatabaseRequireTLS: getenvBool("DATABASE_REQUIRE_TLS", false),
 
 		JWTSecret:     os.Getenv("JWT_SECRET"),
 		JWTAccessTTL:  getDuration("JWT_ACCESS_TTL", 15*time.Minute),
@@ -51,9 +101,14 @@ func Load() (Config, error) {
 		TelegramIssuer:   getenv("TELEGRAM_ISSUER", "https://oauth.telegram.org"),
 		TelegramJWKSURL:  getenv("TELEGRAM_JWKS_URL", "https://oauth.telegram.org/.well-known/jwks.json"),
 
-		UploadsDir:    getenv("UPLOADS_DIR", "./uploads"),
-		PublicBaseURL: getenv("PUBLIC_BASE_URL", ""),
-		MaxUploadBytes: getInt64("MAX_UPLOAD_BYTES", 10<<20),
+		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
+
+		UploadsDir:           getenv("UPLOADS_DIR", "./uploads"),
+		PublicBaseURL:        getenv("PUBLIC_BASE_URL", ""),
+		MaxUploadBytes:       getInt64("MAX_UPLOAD_BYTES", 10<<20),
+		UploadSigningSecret:  os.Getenv("UPLOAD_SIGNING_SECRET"),
+		UploadURLTTL:         getDuration("UPLOAD_URL_TTL", 168*time.Hour),
+		TrustedProxyCIDRsRaw: os.Getenv("TRUSTED_PROXY_CIDRS"),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -66,6 +121,9 @@ func (c Config) validate() error {
 	if c.DatabaseURL == "" {
 		return errors.New("DATABASE_URL is required")
 	}
+	if c.DatabaseRequireTLS && strings.Contains(strings.ToLower(c.DatabaseURL), "sslmode=disable") {
+		return errors.New("DATABASE_REQUIRE_TLS is true but DATABASE_URL uses sslmode=disable")
+	}
 	if len(c.JWTSecret) < 32 {
 		return errors.New("JWT_SECRET must be at least 32 characters long")
 	}
@@ -75,7 +133,40 @@ func (c Config) validate() error {
 	if c.JWTRefreshTTL <= c.JWTAccessTTL {
 		return errors.New("JWT_REFRESH_TTL must be greater than JWT_ACCESS_TTL")
 	}
+	uploadSecret := strings.TrimSpace(c.UploadSigningSecret)
+	if uploadSecret == "" {
+		uploadSecret = c.JWTSecret
+	}
+	if len(uploadSecret) < 32 {
+		return errors.New("UPLOAD_SIGNING_SECRET (or JWT_SECRET if unset) must be at least 32 characters")
+	}
+	if c.UploadURLTTL <= 0 {
+		return errors.New("UPLOAD_URL_TTL must be positive")
+	}
 	return nil
+}
+
+// EffectiveUploadSigningSecret — UPLOAD_SIGNING_SECRET или JWT_SECRET.
+func (c Config) EffectiveUploadSigningSecret() string {
+	if strings.TrimSpace(c.UploadSigningSecret) != "" {
+		return strings.TrimSpace(c.UploadSigningSecret)
+	}
+	return c.JWTSecret
+}
+
+func getenvBool(key string, fallback bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	switch strings.ToLower(raw) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
 }
 
 func getenv(key, fallback string) string {

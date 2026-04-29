@@ -60,7 +60,6 @@ func (i *Issuer) ParseAccessToken(tokenStr string) (uuid.UUID, error) {
 	return userID, nil
 }
 
-// RefreshGenerator выдаёт криптостойкие refresh-токены и sha256-хэши к ним.
 type RefreshGenerator struct {
 	size int
 }

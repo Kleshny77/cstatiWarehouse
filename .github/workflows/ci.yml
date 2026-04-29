@@ -12,13 +12,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  backend-go:
+    name: Backend (Go unit + integration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cstati
+          POSTGRES_PASSWORD: cstati
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cstati -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Go unit tests
+        env:
+          JWT_SECRET: "01234567890123456789012345678901234567890123456789012345678901234"
+          DATABASE_URL: "postgres://cstati:cstati@localhost:5432/postgres?sslmode=disable"
+        run: go test ./...
+
+      - name: Go integration tests
+        env:
+          JWT_SECRET: "01234567890123456789012345678901234567890123456789012345678901234"
+          DATABASE_URL: "postgres://cstati:cstati@localhost:5432/postgres?sslmode=disable"
+        run: go test -tags=integration -count=1 ./...
+
   test:
     name: Build & Unit Tests
     runs-on: macos-latest
     timeout-minutes: 40
 
     env:
-      PROJECT: cstatiWarehouse.xcodeproj
+      PROJECT: ios/cstatiWarehouse.xcodeproj
       SCHEME: cstatiWarehouse
       TEST_TARGET: cstatiWarehouseTests
 

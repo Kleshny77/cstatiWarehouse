@@ -83,8 +83,6 @@ func TestIntegration_UserRepo_TelegramLookup(t *testing.T) {
 	}
 }
 
-// seedUserWithOrg создаёт пользователя и его персональную организацию
-// вместе с записью о членстве с ролью owner. Возвращает (userID, orgID).
 func seedUserWithOrg(t *testing.T, users *repo.UserRepo, orgs *repo.OrganizationRepo, members *repo.MemberRepo, email, name string) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 	hash := "hash:x"
@@ -121,10 +119,12 @@ func TestIntegration_ItemRepo_Lifecycle(t *testing.T) {
 	userID, orgID := seedUserWithOrg(t, users, orgs, members, "owner@x.com", "O")
 
 	now := time.Now().UTC()
+	loc := "Москва, ул. Тестовая, д. 1"
 	item := &domain.Item{
 		ID: uuid.New(), OrganizationID: orgID, HeldByUserID: userID,
 		Name: "Кола", Description: "0.5л", CategoryName: "Напитки", Quantity: 3,
 		Status: domain.ItemStatusInStock, CreatedAt: now, UpdatedAt: now,
+		LocationAddress: &loc,
 	}
 	if err := items.Create(context.Background(), item); err != nil {
 		t.Fatalf("create item: %v", err)
@@ -144,7 +144,7 @@ func TestIntegration_ItemRepo_Lifecycle(t *testing.T) {
 	item.ArchiveReason = &reason
 	item.ArchivedAt = &archivedAt
 	item.UpdatedAt = archivedAt
-	if err := items.Update(context.Background(), item); err != nil {
+	if err := items.Update(context.Background(), item, nil); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 
@@ -193,7 +193,6 @@ func TestIntegration_OrganizationRepo_AndMembers(t *testing.T) {
 
 	ownerID, orgID := seedUserWithOrg(t, users, orgs, members, "owner-org@x.com", "Owner")
 
-	// Второй юзер добавляется участником.
 	hash := "hash:x"
 	second := &domain.User{
 		ID: uuid.New(), Email: "member@x.com", Name: "M", PasswordHash: &hash,
@@ -208,7 +207,6 @@ func TestIntegration_OrganizationRepo_AndMembers(t *testing.T) {
 		t.Fatalf("add second member: %v", err)
 	}
 
-	// Дубликат членства → ErrAlreadyMember.
 	dupErr := members.Add(context.Background(), &domain.OrganizationMember{
 		OrganizationID: orgID, UserID: second.ID, Role: domain.OrgRoleMember, JoinedAt: time.Now().UTC(),
 	})
@@ -216,7 +214,6 @@ func TestIntegration_OrganizationRepo_AndMembers(t *testing.T) {
 		t.Errorf("expected ErrAlreadyMember, got %v", dupErr)
 	}
 
-	// Списки членов и ролей.
 	list, err := members.ListByOrganization(context.Background(), orgID)
 	if err != nil {
 		t.Fatalf("list members: %v", err)
@@ -230,7 +227,6 @@ func TestIntegration_OrganizationRepo_AndMembers(t *testing.T) {
 		t.Errorf("owner role wrong: role=%s err=%v", role, err)
 	}
 
-	// Обновление роли.
 	if err := members.UpdateRole(context.Background(), orgID, second.ID, domain.OrgRoleAdmin); err != nil {
 		t.Fatalf("update role: %v", err)
 	}
@@ -239,7 +235,6 @@ func TestIntegration_OrganizationRepo_AndMembers(t *testing.T) {
 		t.Errorf("expected admin role after update, got %s", role)
 	}
 
-	// Организации пользователя.
 	mine, err := orgs.ListByUser(context.Background(), second.ID)
 	if err != nil {
 		t.Fatalf("list orgs by user: %v", err)

@@ -33,11 +33,12 @@ services:
       DATABASE_URL: postgres://cstati:cstati@postgres:5432/cstatiwarehouse?sslmode=disable
       HTTP_ADDR: ":8080"
       UPLOADS_DIR: /app/uploads
-      PUBLIC_BASE_URL: http://192.168.1.65:8080
+      # Должен совпадать с тем, как телефон открывает API (LAN IP Mac + порт). Переопределение: PUBLIC_BASE_URL=... docker compose up -d
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://192.168.1.68:8080}
     volumes:
       - uploads:/app/uploads
     ports:
-      - "8080:8080"
+      - "0.0.0.0:8080:8080"
 
 volumes:
   pgdata:

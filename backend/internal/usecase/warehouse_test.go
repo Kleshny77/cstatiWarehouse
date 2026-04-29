@@ -11,9 +11,6 @@ import (
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
 )
 
-// newWarehouseUC настраивает WarehouseUseCase с одним пользователем,
-// который является member одной организации. Возвращает use-case, моки,
-// id пользователя и id организации, чтобы в тестах не городить каждый раз.
 func newWarehouseUC(t *testing.T) (*WarehouseUseCase, *fakeItemRepo, *fakeMemberRepo, *fakeClock, uuid.UUID, uuid.UUID) {
 	t.Helper()
 	items := newFakeItemRepo()
@@ -38,6 +35,7 @@ func TestWarehouseUseCase_Create(t *testing.T) {
 
 	item, err := uc.Create(context.Background(), CreateItemInput{
 		UserID: userID, OrganizationID: orgID, Name: "Кола", CategoryName: "Напитки", Quantity: 3,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -53,10 +51,18 @@ func TestWarehouseUseCase_Create(t *testing.T) {
 		t.Errorf("expected ErrValidation for negative quantity, got %v", err)
 	}
 
-	// Попытка создать айтем в организации, в которой юзер не состоит, — forbidden.
 	stranger := uuid.New()
-	if _, err := uc.Create(context.Background(), CreateItemInput{UserID: stranger, OrganizationID: orgID, Name: "A", Quantity: 1}); !errors.Is(err, domain.ErrForbidden) {
+	if _, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: stranger, OrganizationID: orgID, Name: "A", Quantity: 1,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
+	}); !errors.Is(err, domain.ErrForbidden) {
 		t.Errorf("expected ErrForbidden for non-member create, got %v", err)
+	}
+
+	if _, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: userID, OrganizationID: orgID, Name: "Без адреса", CategoryName: "X", Quantity: 1,
+	}); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("expected ErrValidation for missing location_address, got %v", err)
 	}
 }
 
@@ -64,18 +70,20 @@ func TestWarehouseUseCase_Update_OnlyMembers(t *testing.T) {
 	uc, _, _, _, userID, orgID := newWarehouseUC(t)
 	other := uuid.New()
 
-	created, err := uc.Create(context.Background(), CreateItemInput{UserID: userID, OrganizationID: orgID, Name: "A", Quantity: 1})
+	created, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: userID, OrganizationID: orgID, Name: "A", Quantity: 1,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
+	})
 	if err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
 
-	// Чужой юзер не видит айтем → NotFound (не раскрываем существование).
-	_, err = uc.Update(context.Background(), UpdateItemInput{ID: created.ID, UserID: other, Name: "B", Quantity: 1})
+	_, err = uc.Update(context.Background(), mergeItemUpdate(created, UpdateItemInput{UserID: other, Name: "B", Quantity: 1}))
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for non-member update, got %v", err)
 	}
 
-	updated, err := uc.Update(context.Background(), UpdateItemInput{ID: created.ID, UserID: userID, Name: "B", Quantity: 5})
+	updated, err := uc.Update(context.Background(), mergeItemUpdate(created, UpdateItemInput{UserID: userID, Name: "B", Quantity: 5}))
 	if err != nil {
 		t.Fatalf("update failed: %v", err)
 	}
@@ -103,24 +111,37 @@ func TestWarehouseUseCase_CreateAndUpdate_LocationAddress(t *testing.T) {
 	}
 
 	empty := "   "
-	updated, err := uc.Update(context.Background(), UpdateItemInput{
-		ID:              created.ID,
+	_, err = uc.Update(context.Background(), mergeItemUpdate(created, UpdateItemInput{
 		UserID:          userID,
 		Name:            "A",
 		Quantity:        1,
 		LocationAddress: &empty,
-	})
+	}))
+	if !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("expected ErrValidation when clearing location_address, got %v", err)
+	}
+
+	next := "Москва, ул. Новый Арбат, 15"
+	updated, err := uc.Update(context.Background(), mergeItemUpdate(created, UpdateItemInput{
+		UserID:          userID,
+		Name:            "A",
+		Quantity:        1,
+		LocationAddress: &next,
+	}))
 	if err != nil {
 		t.Fatalf("update failed: %v", err)
 	}
-	if updated.LocationAddress != nil {
-		t.Fatalf("expected nil address after empty string, got %+v", updated.LocationAddress)
+	if updated.LocationAddress == nil || *updated.LocationAddress != next {
+		t.Fatalf("unexpected address after update: %+v", updated.LocationAddress)
 	}
 }
 
 func TestWarehouseUseCase_Archive_FullAndValidation(t *testing.T) {
 	uc, _, _, clock, userID, orgID := newWarehouseUC(t)
-	created, err := uc.Create(context.Background(), CreateItemInput{UserID: userID, OrganizationID: orgID, Name: "A", Quantity: 1})
+	created, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: userID, OrganizationID: orgID, Name: "A", Quantity: 1,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
+	})
 	if err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
@@ -172,7 +193,10 @@ func TestWarehouseUseCase_Archive_FullAndValidation(t *testing.T) {
 
 func TestWarehouseUseCase_Archive_PartialKeepsInStock(t *testing.T) {
 	uc, _, _, _, userID, orgID := newWarehouseUC(t)
-	created, err := uc.Create(context.Background(), CreateItemInput{UserID: userID, OrganizationID: orgID, Name: "Болт", Quantity: 10})
+	created, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: userID, OrganizationID: orgID, Name: "Болт", Quantity: 10,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
+	})
 	if err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
@@ -210,7 +234,10 @@ func TestWarehouseUseCase_Delete_OnlyMembers(t *testing.T) {
 	uc, repo, _, _, userID, orgID := newWarehouseUC(t)
 	other := uuid.New()
 
-	created, err := uc.Create(context.Background(), CreateItemInput{UserID: userID, OrganizationID: orgID, Name: "A", Quantity: 1})
+	created, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: userID, OrganizationID: orgID, Name: "A", Quantity: 1,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
+	})
 	if err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
@@ -229,7 +256,6 @@ func TestWarehouseUseCase_Delete_OnlyMembers(t *testing.T) {
 func TestWarehouseUseCase_ListAndCategories(t *testing.T) {
 	uc, _, members, clock, userID, orgID := newWarehouseUC(t)
 
-	// Вторая организация с другим пользователем (для изоляции).
 	otherOrg := uuid.New()
 	otherUser := uuid.New()
 	if err := members.Add(context.Background(), &domain.OrganizationMember{
@@ -241,11 +267,20 @@ func TestWarehouseUseCase_ListAndCategories(t *testing.T) {
 		t.Fatalf("seed other org failed: %v", err)
 	}
 
-	_, _ = uc.Create(context.Background(), CreateItemInput{UserID: userID, OrganizationID: orgID, Name: "Кола", CategoryName: "Напитки", Quantity: 1})
+	_, _ = uc.Create(context.Background(), CreateItemInput{
+		UserID: userID, OrganizationID: orgID, Name: "Кола", CategoryName: "Напитки", Quantity: 1,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
+	})
 	clock.Advance(time.Second)
-	_, _ = uc.Create(context.Background(), CreateItemInput{UserID: userID, OrganizationID: orgID, Name: "Пицца", CategoryName: "Еда", Quantity: 2})
+	_, _ = uc.Create(context.Background(), CreateItemInput{
+		UserID: userID, OrganizationID: orgID, Name: "Пицца", CategoryName: "Еда", Quantity: 2,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
+	})
 	clock.Advance(time.Second)
-	_, _ = uc.Create(context.Background(), CreateItemInput{UserID: otherUser, OrganizationID: otherOrg, Name: "Чужое", CategoryName: "Прочее", Quantity: 1})
+	_, _ = uc.Create(context.Background(), CreateItemInput{
+		UserID: otherUser, OrganizationID: otherOrg, Name: "Чужое", CategoryName: "Прочее", Quantity: 1,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
+	})
 
 	list, err := uc.List(context.Background(), userID, orgID, ItemFilter{})
 	if err != nil {
@@ -281,20 +316,26 @@ func TestWarehouseUseCase_ListAndCategories(t *testing.T) {
 		t.Errorf("unexpected categories: %+v", cats)
 	}
 
-	// Попытка получить список чужой организации → forbidden.
 	if _, err := uc.List(context.Background(), userID, otherOrg, ItemFilter{}); !errors.Is(err, domain.ErrForbidden) {
 		t.Errorf("expected ErrForbidden for non-member list, got %v", err)
 	}
 }
 
-func TestWarehouseUseCase_CreateLiterRequiresVolume(t *testing.T) {
+func TestWarehouseUseCase_CreateLiterWithoutVolumeOK(t *testing.T) {
 	uc, _, _, _, userID, orgID := newWarehouseUC(t)
-	_, err := uc.Create(context.Background(), CreateItemInput{
-		UserID: userID, OrganizationID: orgID, Name: "Сок", CategoryName: "Напитки", Quantity: 1,
-		MeasureUnit: string(domain.MeasureUnitLiter),
+	item, err := uc.Create(context.Background(), CreateItemInput{
+		UserID: userID, OrganizationID: orgID, Name: "Сок", CategoryName: "Напитки", Quantity: 12,
+		MeasureUnit:     string(domain.MeasureUnitLiter),
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
 	})
-	if !errors.Is(err, domain.ErrValidation) {
-		t.Fatalf("expected ErrValidation for liter without volume, got %v", err)
+	if err != nil {
+		t.Fatalf("expected liter item create: %v", err)
+	}
+	if item.VolumePerUnit != nil {
+		t.Fatalf("volume_per_unit must be nil (defaults to 1 L per package)")
+	}
+	if item.MeasureUnit != domain.MeasureUnitLiter || item.Quantity != 12 {
+		t.Fatalf("unexpected item: %+v", item)
 	}
 }
 
@@ -302,14 +343,17 @@ func TestWarehouseUseCase_CreateVariantAndArchiveParentBlocked(t *testing.T) {
 	uc, _, _, _, userID, orgID := newWarehouseUC(t)
 	parent, err := uc.Create(context.Background(), CreateItemInput{
 		UserID: userID, OrganizationID: orgID, Name: "Сок", CategoryName: "Напитки", Quantity: 0,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
 	})
 	if err != nil {
 		t.Fatalf("create parent: %v", err)
 	}
-	vol := 0.7
+	sevenHundredML := 700.0
 	child, err := uc.Create(context.Background(), CreateItemInput{
 		UserID: userID, OrganizationID: orgID, Name: "Сок", CategoryName: "Напитки", Quantity: 10,
-		ParentItemID: &parent.ID, VariantLabel: "0,7 л", MeasureUnit: string(domain.MeasureUnitLiter), VolumePerUnit: &vol,
+		ParentItemID: &parent.ID, VariantLabel: "0,7 л", MeasureUnit: string(domain.MeasureUnitMilliliter),
+		VolumePerUnit:   &sevenHundredML,
+		LocationAddress: addrPtr("Москва, склад Б"),
 	})
 	if err != nil {
 		t.Fatalf("create variant: %v", err)
@@ -338,9 +382,9 @@ func TestWarehouseUseCase_List_MemberSeesOnlyOwnHoldings(t *testing.T) {
 		t.Fatalf("seed member failed: %v", err)
 	}
 
-	// Owner создаёт две позиции: одну на себя, вторую — на member.
 	_, err := uc.Create(context.Background(), CreateItemInput{
 		UserID: ownerID, OrganizationID: orgID, Name: "Кола", CategoryName: "Напитки", Quantity: 1,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
 	})
 	if err != nil {
 		t.Fatalf("create owner item: %v", err)
@@ -350,12 +394,12 @@ func TestWarehouseUseCase_List_MemberSeesOnlyOwnHoldings(t *testing.T) {
 	_, err = uc.Create(context.Background(), CreateItemInput{
 		UserID: ownerID, OrganizationID: orgID, HeldByUserID: &held,
 		Name: "Пицца", CategoryName: "Еда", Quantity: 1,
+		LocationAddress: addrPtr("Москва, тестовый адрес"),
 	})
 	if err != nil {
 		t.Fatalf("create member item: %v", err)
 	}
 
-	// Член видит только то, что на нём.
 	memberList, err := uc.List(context.Background(), memberID, orgID, ItemFilter{})
 	if err != nil {
 		t.Fatalf("member list failed: %v", err)
@@ -364,7 +408,6 @@ func TestWarehouseUseCase_List_MemberSeesOnlyOwnHoldings(t *testing.T) {
 		t.Errorf("member must see only own holdings, got %+v", memberList)
 	}
 
-	// Член не может обойти ограничение через scope — usecase молча перепишет фильтр.
 	other := ownerID
 	hacked, err := uc.List(context.Background(), memberID, orgID, ItemFilter{HeldByUserID: &other})
 	if err != nil {
@@ -374,7 +417,6 @@ func TestWarehouseUseCase_List_MemberSeesOnlyOwnHoldings(t *testing.T) {
 		t.Errorf("member must not be able to override HeldByUserID, got %+v", hacked)
 	}
 
-	// Владелец видит обе позиции.
 	ownerList, err := uc.List(context.Background(), ownerID, orgID, ItemFilter{})
 	if err != nil {
 		t.Fatalf("owner list failed: %v", err)
@@ -383,7 +425,6 @@ func TestWarehouseUseCase_List_MemberSeesOnlyOwnHoldings(t *testing.T) {
 		t.Errorf("owner must see all org items, got %d", len(ownerList))
 	}
 
-	// Владелец может явно запросить "мои" — получит только свою позицию.
 	uid := ownerID
 	ownerMine, err := uc.List(context.Background(), ownerID, orgID, ItemFilter{HeldByUserID: &uid})
 	if err != nil {
@@ -392,4 +433,87 @@ func TestWarehouseUseCase_List_MemberSeesOnlyOwnHoldings(t *testing.T) {
 	if len(ownerMine) != 1 || ownerMine[0].Name != "Кола" {
 		t.Errorf("owner mine list unexpected: %+v", ownerMine)
 	}
+}
+
+func TestWarehouseUseCase_Update_ExpectedUpdatedAt_Conflict(t *testing.T) {
+	uc, _, _, clock, userID, orgID := newWarehouseUC(t)
+	created, err := uc.Create(context.Background(), CreateItemInput{
+		UserID:            userID,
+		OrganizationID:    orgID,
+		Name:              "A",
+		Quantity:          1,
+		LocationAddress:   addrPtr("Москва"),
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	stale := created.UpdatedAt
+	clock.Advance(time.Millisecond)
+
+	first, err := uc.Update(context.Background(), mergeItemUpdate(created, UpdateItemInput{
+		UserID:            userID,
+		Name:              "B",
+		Quantity:          1,
+		ExpectedUpdatedAt: &stale,
+	}))
+	if err != nil {
+		t.Fatalf("update with matching version: %v", err)
+	}
+	_ = first
+
+	_, err = uc.Update(context.Background(), mergeItemUpdate(first, UpdateItemInput{
+		UserID:            userID,
+		Name:              "C",
+		Quantity:          1,
+		ExpectedUpdatedAt: &stale,
+	}))
+	var conflict *domain.ItemVersionConflictError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("expected *ItemVersionConflictError, got %v", err)
+	}
+	if conflict.ServerItem.Name != "B" {
+		t.Errorf("server truth: want name B, got %q", conflict.ServerItem.Name)
+	}
+}
+
+func addrPtr(s string) *string {
+	return &s
+}
+
+func mergeItemUpdate(base *domain.Item, patch UpdateItemInput) UpdateItemInput {
+	p := patch
+	p.ID = base.ID
+	if p.Description == "" {
+		p.Description = base.Description
+	}
+	if p.CategoryName == "" {
+		p.CategoryName = base.CategoryName
+	}
+	if p.LocationAddress == nil {
+		p.LocationAddress = cloneStrPtr(base.LocationAddress)
+	}
+	if p.VariantLabel == "" {
+		p.VariantLabel = base.VariantLabel
+	}
+	if p.MeasureUnit == "" {
+		p.MeasureUnit = string(base.MeasureUnit)
+	}
+	if p.ExpirationDate == nil {
+		p.ExpirationDate = base.ExpirationDate
+	}
+	if p.ImageURL == nil {
+		p.ImageURL = base.ImageURL
+	}
+	if p.VolumePerUnit == nil {
+		p.VolumePerUnit = base.VolumePerUnit
+	}
+	return p
+}
+
+func cloneStrPtr(src *string) *string {
+	if src == nil {
+		return nil
+	}
+	s := *src
+	return &s
 }

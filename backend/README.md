@@ -53,7 +53,7 @@ cp .env.example .env
 
 make up               # поднимаем Postgres
 make migrate-up       # накатываем миграции
-make run              # стартуем HTTP-сервер на :8080
+make run              # стартуем HTTP-сервер (порт в .env, по умолчанию :8080)
 ```
 
 Проверить, что живой:
@@ -61,6 +61,12 @@ make run              # стартуем HTTP-сервер на :8080
 ```bash
 curl http://localhost:8080/healthz
 ```
+
+### iOS-клиент
+
+Базовый URL API задаётся переменной **`BACKEND_URL`** в схеме Xcode (**Product → Scheme → Edit Scheme → Run → Arguments → Environment Variables**) или ключом **`BackendBaseURL`** в `Info.plist`. Если ничего не задано, используется `http://localhost:8080`.
+
+Для загрузок файлов укажите в **`backend/.env`** **`PUBLIC_BASE_URL`** тем же адресом, с которого клиент обращается к API (в т.ч. при туннеле или LAN).
 
 ## API
 
@@ -73,11 +79,12 @@ curl http://localhost:8080/healthz
 | POST  | `/auth/register`   | email + password                          |
 | POST  | `/auth/login`      | email + password                          |
 | POST  | `/auth/telegram`   | `{ "id_token": "..." }`                   |
+| POST  | `/auth/google`    | `{ "id_token": "..." }`                   |
 | POST  | `/auth/refresh`    | `{ "refresh_token": "..." }`, ротация     |
 | POST  | `/auth/logout`     | `{ "refresh_token": "..." }`, revoke      |
 | GET   | `/auth/me`         | текущий пользователь по access-токену     |
 
-Успешный ответ login/register/telegram:
+Успешный ответ login/register/telegram/google:
 
 ```json
 {
@@ -110,6 +117,12 @@ curl http://localhost:8080/healthz
 - `exp > now`.
 
 Пока переменная пустая — эндпоинт возвращает `503 telegram login not configured`.
+
+## Google
+
+- **`GOOGLE_CLIENT_ID`** — OAuth 2.0 Client ID типа «iOS» (совпадает с тем же значением в **`GIDClientID`** в iOS `Info.plist`). Сервер валидирует `id_token` через JWKS Google.
+
+Пока переменная пустая — эндпоинт `POST /auth/google` отвечает `503`.
 
 ## Тесты
 

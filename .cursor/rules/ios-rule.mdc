@@ -117,12 +117,12 @@ Services
 
 - Follow pattern:
   - Protocol
-  - Mock
-  - API implementation
+  - API implementation (`Api…`)
+
+- Test doubles (например `MockWarehouseService`) живут в таргете `cstatiWarehouseTests`, не в основном модуле приложения.
 
 Example:
 - AuthServiceProtocol
-- MockAuthService
 - ApiAuthService
 
 ---

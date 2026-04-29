@@ -13,8 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// ActivityKind описывает тип действия в журнале.
-// Держим строковые константы, чтобы лог оставался читаемым в БД и стабильным для клиента.
 type ActivityKind string
 
 const (
@@ -34,13 +32,10 @@ const (
 	ActivityOrganizationUpdated  ActivityKind = "organization.updated"
 )
 
-// ActivityEntry — одна строка журнала действий в организации.
-// Summary — человекочитаемое описание, TargetID — опциональная ссылка на затронутый объект.
 type ActivityEntry struct {
-	ID             uuid.UUID
-	OrganizationID uuid.UUID
-	ActorUserID    uuid.UUID
-	// ActorDisplayName — только для чтения списка (JOIN с users), в Append не заполняется.
+	ID               uuid.UUID
+	OrganizationID   uuid.UUID
+	ActorUserID      uuid.UUID
 	ActorDisplayName string
 	Kind             ActivityKind
 	TargetType       string

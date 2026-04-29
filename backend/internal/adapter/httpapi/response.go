@@ -48,6 +48,8 @@ func mapError(err error) (int, string, string) {
 		return http.StatusNotFound, "not_found", "resource not found"
 	case errors.Is(err, domain.ErrTelegramDisabled):
 		return http.StatusServiceUnavailable, "telegram_disabled", "telegram login is not configured on the server"
+	case errors.Is(err, domain.ErrGoogleDisabled):
+		return http.StatusServiceUnavailable, "google_disabled", "google login is not configured on the server"
 	case errors.Is(err, domain.ErrAlreadyMember):
 		return http.StatusConflict, "already_member", "user is already a member of this organization"
 	case errors.Is(err, domain.ErrOwnerCannotLeave):

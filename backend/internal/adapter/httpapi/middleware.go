@@ -42,7 +42,6 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
-// recoverMiddleware ловит panic'и из хендлеров и превращает в 500.
 func recoverMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
@@ -55,22 +54,24 @@ func recoverMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// loggingMiddleware пишет структурный лог на каждый ответ.
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w}
 		next.ServeHTTP(rec, r)
+		pathLog := r.URL.Path
+		if r.URL.RawQuery != "" {
+			pathLog += "?[query_redacted]"
+		}
 		slog.InfoContext(r.Context(), "http request",
 			"method", r.Method,
-			"path", r.URL.Path,
+			"path", pathLog,
 			"status", rec.status,
 			"duration_ms", time.Since(start).Milliseconds(),
 		)
 	})
 }
 
-// authMiddleware читает Authorization: Bearer <token>, валидирует его и кладёт userID в контекст.
 func authMiddleware(tokens usecase.TokenIssuer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

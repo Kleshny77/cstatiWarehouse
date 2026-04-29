@@ -13,9 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Event — мероприятие организации. На него можно списывать позиции склада
-// (archive_events.event_id). Отсутствие starts_at допустимо: мероприятие может
-// быть без явной даты (например, регулярные активности).
 type Event struct {
 	ID             uuid.UUID
 	OrganizationID uuid.UUID

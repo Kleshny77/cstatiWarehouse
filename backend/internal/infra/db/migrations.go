@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	// pgx stdlib driver for goose.
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
@@ -30,7 +29,6 @@ func setupGoose() error {
 	return nil
 }
 
-// RunMigrationsUp накатывает все pending-миграции.
 func RunMigrationsUp(ctx context.Context, dsn string) error {
 	db, err := openSQL(dsn)
 	if err != nil {
@@ -44,7 +42,6 @@ func RunMigrationsUp(ctx context.Context, dsn string) error {
 	return goose.UpContext(ctx, db, migrationsDir)
 }
 
-// RunMigrationsDown откатывает одну миграцию назад.
 func RunMigrationsDown(ctx context.Context, dsn string) error {
 	db, err := openSQL(dsn)
 	if err != nil {
@@ -58,7 +55,6 @@ func RunMigrationsDown(ctx context.Context, dsn string) error {
 	return goose.DownContext(ctx, db, migrationsDir)
 }
 
-// MigrationsStatus выводит в stdout список миграций и их статус.
 func MigrationsStatus(ctx context.Context, dsn string) error {
 	db, err := openSQL(dsn)
 	if err != nil {

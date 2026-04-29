@@ -15,6 +15,7 @@ xcuserdata/
 # Xcode — build artifacts
 build/
 DerivedData/
+ios/DerivedData/
 *.hmap
 *.ipa
 *.dSYM.zip

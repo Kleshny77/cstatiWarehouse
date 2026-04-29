@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"sort"
 	"time"
@@ -20,27 +21,27 @@ func NewWarehouseHandler(warehouse *usecase.WarehouseUseCase) *WarehouseHandler 
 }
 
 type itemDTO struct {
-	ID                       string     `json:"id"`
-	OrganizationID           string     `json:"organization_id"`
-	HeldByUserID             string     `json:"held_by_user_id"`
-	Name                     string     `json:"name"`
-	Description              string     `json:"description"`
-	CategoryName             string     `json:"category_name"`
-	Quantity                 int        `json:"quantity"`
-	Status                   string     `json:"status"`
-	ArchiveReason            *string    `json:"archive_reason,omitempty"`
-	ArchivedAt               *time.Time `json:"archived_at,omitempty"`
-	ExpirationDate           *time.Time `json:"expiration_date,omitempty"`
-	ImageURL                 *string    `json:"image_url,omitempty"`
-	LocationAddress          *string    `json:"location_address,omitempty"`
-	ParentItemID             *string    `json:"parent_item_id,omitempty"`
-	VariantLabel             string     `json:"variant_label,omitempty"`
-	MeasureUnit              string     `json:"measure_unit"`
-	VolumePerUnit            *float64   `json:"volume_per_unit,omitempty"`
-	Variants                 []itemDTO  `json:"variants,omitempty"`
-	AggregatedVolumeLiters   *float64   `json:"aggregated_volume_liters,omitempty"`
-	CreatedAt                time.Time  `json:"created_at"`
-	UpdatedAt                time.Time  `json:"updated_at"`
+	ID                     string     `json:"id"`
+	OrganizationID         string     `json:"organization_id"`
+	HeldByUserID           string     `json:"held_by_user_id"`
+	Name                   string     `json:"name"`
+	Description            string     `json:"description"`
+	CategoryName           string     `json:"category_name"`
+	Quantity               int        `json:"quantity"`
+	Status                 string     `json:"status"`
+	ArchiveReason          *string    `json:"archive_reason,omitempty"`
+	ArchivedAt             *time.Time `json:"archived_at,omitempty"`
+	ExpirationDate         *time.Time `json:"expiration_date,omitempty"`
+	ImageURL               *string    `json:"image_url,omitempty"`
+	LocationAddress        *string    `json:"location_address,omitempty"`
+	ParentItemID           *string    `json:"parent_item_id,omitempty"`
+	VariantLabel           string     `json:"variant_label,omitempty"`
+	MeasureUnit            string     `json:"measure_unit"`
+	VolumePerUnit          *float64   `json:"volume_per_unit,omitempty"`
+	Variants               []itemDTO  `json:"variants,omitempty"`
+	AggregatedVolumeLiters *float64   `json:"aggregated_volume_liters,omitempty"`
+	CreatedAt              time.Time  `json:"created_at"`
+	UpdatedAt              time.Time  `json:"updated_at"`
 }
 
 func itemToDTO(i *domain.Item) itemDTO {
@@ -49,24 +50,24 @@ func itemToDTO(i *domain.Item) itemDTO {
 		mu = domain.MeasureUnitPiece
 	}
 	dto := itemDTO{
-		ID:                i.ID.String(),
-		OrganizationID:    i.OrganizationID.String(),
-		HeldByUserID:      i.HeldByUserID.String(),
-		Name:              i.Name,
-		Description:       i.Description,
-		CategoryName:      i.CategoryName,
-		Quantity:          i.Quantity,
-		Status:            string(i.Status),
-		ArchivedAt:        i.ArchivedAt,
-		ExpirationDate:    i.ExpirationDate,
-		ImageURL:          i.ImageURL,
-		LocationAddress:   i.LocationAddress,
-		ParentItemID:      uuidPtrToJSON(i.ParentItemID),
-		VariantLabel:      i.VariantLabel,
-		MeasureUnit:       string(mu),
-		VolumePerUnit:     i.VolumePerUnit,
-		CreatedAt:         i.CreatedAt,
-		UpdatedAt:         i.UpdatedAt,
+		ID:              i.ID.String(),
+		OrganizationID:  i.OrganizationID.String(),
+		HeldByUserID:    i.HeldByUserID.String(),
+		Name:            i.Name,
+		Description:     i.Description,
+		CategoryName:    i.CategoryName,
+		Quantity:        i.Quantity,
+		Status:          string(i.Status),
+		ArchivedAt:      i.ArchivedAt,
+		ExpirationDate:  i.ExpirationDate,
+		ImageURL:        i.ImageURL,
+		LocationAddress: i.LocationAddress,
+		ParentItemID:    uuidPtrToJSON(i.ParentItemID),
+		VariantLabel:    i.VariantLabel,
+		MeasureUnit:     string(mu),
+		VolumePerUnit:   i.VolumePerUnit,
+		CreatedAt:       i.CreatedAt,
+		UpdatedAt:       i.UpdatedAt,
 	}
 	if i.ArchiveReason != nil {
 		s := string(*i.ArchiveReason)
@@ -90,16 +91,24 @@ func itemToNestedDTO(root *domain.Item, variants []domain.Item) itemDTO {
 	}
 	dto.Variants = make([]itemDTO, 0, len(variants))
 	var sum float64
-	var hasLiter bool
+	var hasLiters bool
 	for i := range variants {
 		v := &variants[i]
 		dto.Variants = append(dto.Variants, itemToDTO(v))
-		if v.Status == domain.ItemStatusInStock && v.MeasureUnit == domain.MeasureUnitLiter && v.VolumePerUnit != nil {
-			hasLiter = true
-			sum += float64(v.Quantity) * (*v.VolumePerUnit)
+		if v.Status != domain.ItemStatusInStock {
+			continue
+		}
+		switch v.MeasureUnit {
+		case domain.MeasureUnitLiter:
+			sum += float64(v.Quantity) * domain.EffectiveAmountPerUnit(v.VolumePerUnit)
+			hasLiters = true
+		case domain.MeasureUnitMilliliter:
+			sum += float64(v.Quantity) * domain.EffectiveAmountPerUnit(v.VolumePerUnit) / 1000.0
+			hasLiters = true
+		default:
 		}
 	}
-	if hasLiter {
+	if hasLiters {
 		dto.AggregatedVolumeLiters = &sum
 	}
 	return dto
@@ -144,33 +153,41 @@ type categoriesResponse struct {
 }
 
 type createItemRequest struct {
-	OrganizationID   string     `json:"organization_id"`
-	HeldByUserID     *string    `json:"held_by_user_id,omitempty"`
-	Name             string     `json:"name"`
-	Description      string     `json:"description"`
-	CategoryName     string     `json:"category_name"`
-	Quantity         int        `json:"quantity"`
-	ExpirationDate   *time.Time `json:"expiration_date,omitempty"`
-	ImageURL         *string    `json:"image_url,omitempty"`
+	OrganizationID  string     `json:"organization_id"`
+	HeldByUserID    *string    `json:"held_by_user_id,omitempty"`
+	Name            string     `json:"name"`
+	Description     string     `json:"description"`
+	CategoryName    string     `json:"category_name"`
+	Quantity        int        `json:"quantity"`
+	ExpirationDate  *time.Time `json:"expiration_date,omitempty"`
+	ImageURL        *string    `json:"image_url,omitempty"`
 	LocationAddress *string    `json:"location_address,omitempty"`
-	ParentItemID     *string    `json:"parent_item_id,omitempty"`
-	VariantLabel     string     `json:"variant_label"`
-	MeasureUnit      string     `json:"measure_unit"`
-	VolumePerUnit    *float64   `json:"volume_per_unit,omitempty"`
+	ParentItemID    *string    `json:"parent_item_id,omitempty"`
+	VariantLabel    string     `json:"variant_label"`
+	MeasureUnit     string     `json:"measure_unit"`
+	VolumePerUnit   *float64   `json:"volume_per_unit,omitempty"`
 }
 
 type updateItemRequest struct {
-	HeldByUserID     *string    `json:"held_by_user_id,omitempty"`
-	Name             string     `json:"name"`
-	Description      string     `json:"description"`
-	CategoryName     string     `json:"category_name"`
-	Quantity         int        `json:"quantity"`
-	ExpirationDate   *time.Time `json:"expiration_date,omitempty"`
-	ImageURL         *string    `json:"image_url,omitempty"`
-	LocationAddress  *string    `json:"location_address,omitempty"`
-	VariantLabel     string     `json:"variant_label"`
-	MeasureUnit      string     `json:"measure_unit"`
-	VolumePerUnit     *float64   `json:"volume_per_unit,omitempty"`
+	HeldByUserID    *string    `json:"held_by_user_id,omitempty"`
+	Name            string     `json:"name"`
+	Description     string     `json:"description"`
+	CategoryName    string     `json:"category_name"`
+	Quantity        int        `json:"quantity"`
+	ExpirationDate  *time.Time `json:"expiration_date,omitempty"`
+	ImageURL        *string    `json:"image_url,omitempty"`
+	LocationAddress *string    `json:"location_address,omitempty"`
+	VariantLabel    string     `json:"variant_label"`
+	MeasureUnit     string     `json:"measure_unit"`
+	VolumePerUnit   *float64   `json:"volume_per_unit,omitempty"`
+	// ExpectedUpdatedAt при optimistic locking: клиент передаёт updated_at с момента открытия формы.
+	ExpectedUpdatedAt *time.Time `json:"expected_updated_at,omitempty"`
+}
+
+type itemVersionConflictResponse struct {
+	Error   string   `json:"error"`
+	Message string   `json:"message"`
+	Item    itemDTO  `json:"item"`
 }
 
 type archiveRequest struct {
@@ -181,17 +198,17 @@ type archiveRequest struct {
 }
 
 type archiveEventDTO struct {
-	ID                 string    `json:"id"`
-	ItemID             string    `json:"item_id"`
-	OrganizationID     string    `json:"organization_id"`
-	ArchivedByUserID   string    `json:"archived_by_user_id"`
-	ItemName           string    `json:"item_name"`
-	ArchivedByName     string    `json:"archived_by_name"`
-	Quantity           int       `json:"quantity"`
-	Reason             string    `json:"reason"`
-	ReasonDetail       string    `json:"reason_detail,omitempty"`
-	EventID            *string   `json:"event_id,omitempty"`
-	ArchivedAt         time.Time `json:"archived_at"`
+	ID               string    `json:"id"`
+	ItemID           string    `json:"item_id"`
+	OrganizationID   string    `json:"organization_id"`
+	ArchivedByUserID string    `json:"archived_by_user_id"`
+	ItemName         string    `json:"item_name"`
+	ArchivedByName   string    `json:"archived_by_name"`
+	Quantity         int       `json:"quantity"`
+	Reason           string    `json:"reason"`
+	ReasonDetail     string    `json:"reason_detail,omitempty"`
+	EventID          *string   `json:"event_id,omitempty"`
+	ArchivedAt       time.Time `json:"archived_at"`
 }
 
 type archiveEventsResponse struct {
@@ -229,14 +246,11 @@ func (h *WarehouseHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// scope: "mine" (по умолчанию) ограничивает выдачу позициями, за которые отвечает
-	// текущий пользователь. "all" доступен только админам/владельцу (проверяется в usecase).
 	switch r.URL.Query().Get("scope") {
 	case "", "mine":
 		uid := userID
 		filter.HeldByUserID = &uid
 	case "all":
-		// не навязываем фильтр — usecase сам решит, имеет ли пользователь право.
 	default:
 		writeError(w, r, domain.NewValidationError("invalid scope filter"))
 		return
@@ -321,21 +335,31 @@ func (h *WarehouseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item, err := h.warehouse.Update(r.Context(), usecase.UpdateItemInput{
-		ID:              id,
-		UserID:          userID,
-		HeldByUserID:    heldBy,
-		Name:            req.Name,
-		Description:     req.Description,
-		CategoryName:    req.CategoryName,
-		Quantity:        req.Quantity,
-		ExpirationDate:  req.ExpirationDate,
-		ImageURL:        req.ImageURL,
-		LocationAddress: req.LocationAddress,
-		VariantLabel:    req.VariantLabel,
-		MeasureUnit:     req.MeasureUnit,
-		VolumePerUnit:   req.VolumePerUnit,
+		ID:                id,
+		UserID:            userID,
+		HeldByUserID:      heldBy,
+		Name:              req.Name,
+		Description:       req.Description,
+		CategoryName:      req.CategoryName,
+		Quantity:          req.Quantity,
+		ExpirationDate:    req.ExpirationDate,
+		ImageURL:          req.ImageURL,
+		LocationAddress:   req.LocationAddress,
+		VariantLabel:      req.VariantLabel,
+		MeasureUnit:       req.MeasureUnit,
+		VolumePerUnit:     req.VolumePerUnit,
+		ExpectedUpdatedAt: req.ExpectedUpdatedAt,
 	})
 	if err != nil {
+		var conflict *domain.ItemVersionConflictError
+		if errors.As(err, &conflict) {
+			writeJSON(w, http.StatusConflict, itemVersionConflictResponse{
+				Error:   "item_version_conflict",
+				Message: "Позиция уже изменена на сервере или с другого устройства",
+				Item:    itemToDTO(&conflict.ServerItem),
+			})
+			return
+		}
 		writeError(w, r, err)
 		return
 	}
@@ -382,7 +406,6 @@ func (h *WarehouseHandler) Archive(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, archiveResponse{Item: itemToDTO(item), Event: archiveEventToDTO(event)})
 }
 
-// ArchiveEvents — GET /archive-events?organizationId=...: история списаний в организации.
 func (h *WarehouseHandler) ArchiveEvents(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUserID(r)
 	if !ok {
@@ -408,16 +431,16 @@ func (h *WarehouseHandler) ArchiveEvents(w http.ResponseWriter, r *http.Request)
 
 func archiveEventToDTO(e *domain.ArchiveEvent) archiveEventDTO {
 	dto := archiveEventDTO{
-		ID:                 e.ID.String(),
-		ItemID:             e.ItemID.String(),
-		OrganizationID:     e.OrganizationID.String(),
-		ArchivedByUserID:   e.ArchivedByUserID.String(),
-		ItemName:           e.ItemName,
-		ArchivedByName:     e.ArchivedByDisplayName,
-		Quantity:           e.Quantity,
-		Reason:             string(e.Reason),
-		ReasonDetail:       e.ReasonDetail,
-		ArchivedAt:         e.ArchivedAt,
+		ID:               e.ID.String(),
+		ItemID:           e.ItemID.String(),
+		OrganizationID:   e.OrganizationID.String(),
+		ArchivedByUserID: e.ArchivedByUserID.String(),
+		ItemName:         e.ItemName,
+		ArchivedByName:   e.ArchivedByDisplayName,
+		Quantity:         e.Quantity,
+		Reason:           string(e.Reason),
+		ReasonDetail:     e.ReasonDetail,
+		ArchivedAt:       e.ArchivedAt,
 	}
 	if e.EventID != nil {
 		s := e.EventID.String()
@@ -475,7 +498,6 @@ func parseIDPath(r *http.Request, name string) (uuid.UUID, error) {
 	return id, nil
 }
 
-// requireOrganizationID извлекает обязательный query-параметр organizationId.
 func requireOrganizationID(r *http.Request) (uuid.UUID, error) {
 	raw := r.URL.Query().Get("organizationId")
 	if raw == "" {

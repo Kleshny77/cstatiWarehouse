@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/db"
 )
@@ -24,7 +24,6 @@ const (
 	testDatabaseName       = "cstatiwarehouse_test"
 )
 
-// DatabaseURL возвращает DSN для тестовой БД, приоритизируя TEST_DATABASE_URL.
 func DatabaseURL() string {
 	if v := os.Getenv("TEST_DATABASE_URL"); v != "" {
 		return v
@@ -32,8 +31,6 @@ func DatabaseURL() string {
 	return defaultTestDatabaseURL
 }
 
-// ensureDatabase создаёт БД cstatiwarehouse_test, если её нет.
-// Использует admin-соединение к template-БД "postgres".
 func ensureDatabase(t *testing.T) {
 	t.Helper()
 
@@ -61,10 +58,6 @@ func ensureDatabase(t *testing.T) {
 	}
 }
 
-// SetupDB возвращает pool к чистой тестовой БД:
-//   - при необходимости создаёт БД,
-//   - применяет миграции,
-//   - TRUNCATE'ит все таблицы.
 func SetupDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	ensureDatabase(t)
@@ -97,6 +90,7 @@ func truncate(t *testing.T, pool *pgxpool.Pool) {
 		"organization_members,",
 		"organizations,",
 		"refresh_tokens,",
+		"device_push_tokens,",
 		"users",
 		"RESTART IDENTITY CASCADE",
 	}, " ")

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -37,26 +38,42 @@ func (r *ItemRepo) Create(ctx context.Context, item *domain.Item) error {
 	return err
 }
 
-func (r *ItemRepo) Update(ctx context.Context, item *domain.Item) error {
-	tag, err := r.pool.Exec(ctx, `
+func (r *ItemRepo) Update(ctx context.Context, item *domain.Item, expectedUpdatedAt *time.Time) error {
+	query := `
 		UPDATE items SET
 			held_by_user_id = $2, name = $3, description = $4, category_name = $5, quantity = $6,
 			status = $7, archive_reason = $8, archived_at = $9,
 			expiration_date = $10, image_url = $11, location_address = $12,
 			parent_item_id = $13, variant_label = $14, measure_unit = $15, volume_per_unit = $16,
 			updated_at = $17
-		WHERE id = $1
-	`,
+		WHERE id = $1`
+	args := []any{
 		item.ID, item.HeldByUserID, item.Name, item.Description, item.CategoryName, item.Quantity,
 		string(item.Status), archiveReasonToDB(item.ArchiveReason), item.ArchivedAt,
 		item.ExpirationDate, item.ImageURL, item.LocationAddress,
 		item.ParentItemID, item.VariantLabel, string(item.MeasureUnit), item.VolumePerUnit,
 		item.UpdatedAt,
-	)
+	}
+	if expectedUpdatedAt != nil {
+		query += ` AND updated_at = $18`
+		args = append(args, *expectedUpdatedAt)
+	}
+
+	tag, err := r.pool.Exec(ctx, query, args...)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
+		if expectedUpdatedAt != nil {
+			cur, ferr := r.FindByID(ctx, item.ID)
+			if ferr != nil {
+				return ferr
+			}
+			if cur == nil {
+				return domain.ErrNotFound
+			}
+			return &domain.ItemVersionConflictError{ServerItem: *cur}
+		}
 		return domain.ErrNotFound
 	}
 	return nil
@@ -129,7 +146,6 @@ func (r *ItemRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// RecordArchiveEvent атомарно обновляет item (quantity/status/archive_*) и вставляет событие.
 func (r *ItemRepo) RecordArchiveEvent(ctx context.Context, item *domain.Item, event *domain.ArchiveEvent) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -169,7 +185,6 @@ func (r *ItemRepo) RecordArchiveEvent(ctx context.Context, item *domain.Item, ev
 	return tx.Commit(ctx)
 }
 
-// ListArchiveEvents возвращает все события списания в рамках организации, от новых к старым.
 func (r *ItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID) ([]domain.ArchiveEvent, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT
@@ -236,13 +251,13 @@ func (r *ItemRepo) ListCategoriesByOrganization(ctx context.Context, orgID uuid.
 
 func scanItem(row pgx.Row) (*domain.Item, error) {
 	var (
-		item        domain.Item
-		status      string
-		reason      *string
-		parentID    sql.NullString
-		variantLbl  string
-		measureRaw  string
-		volume      sql.NullFloat64
+		item       domain.Item
+		status     string
+		reason     *string
+		parentID   sql.NullString
+		variantLbl string
+		measureRaw string
+		volume     sql.NullFloat64
 	)
 	err := row.Scan(
 		&item.ID, &item.OrganizationID, &item.HeldByUserID, &item.Name, &item.Description, &item.CategoryName, &item.Quantity,

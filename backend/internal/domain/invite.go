@@ -6,8 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Invite — многоразовая ссылка-приглашение в организацию.
-// Пока активна, любой пользователь может присоединиться по коду.
 type Invite struct {
 	ID              uuid.UUID
 	OrganizationID  uuid.UUID
@@ -20,7 +18,6 @@ type Invite struct {
 	RevokedAt       *time.Time
 }
 
-// IsUsable проверяет, можно ли использовать инвайт в момент now.
 func (i *Invite) IsUsable(now time.Time) bool {
 	if i.RevokedAt != nil {
 		return false

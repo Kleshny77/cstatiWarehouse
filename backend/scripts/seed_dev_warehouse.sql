@@ -1,5 +1,7 @@
 -- Сидер тестовых данных склада с вложенностью (parent_item_id + варианты).
 -- Привязывает позиции к личной организации samsonovartem00@gmail.com.
+-- Есть группа «Сок тест · один литраж»: две подпозиции с одним литражем упаковки (1 л) и одинаковой подписью,
+-- но разными сроками годности — чтобы проверить различение строк в стаке.
 -- Идемпотентно: фикс UUID + ON CONFLICT (id) DO NOTHING.
 --
 -- Запуск:
@@ -26,7 +28,7 @@ END $$;
 
 BEGIN;
 
--- 1) Корневые позиции (4 штуки) с вариантами.
+-- 1) Корневые позиции (5 штук) с вариантами.
 -- У корня с вариантами quantity=0, measure_unit='piece' — UI агрегирует литры по детям.
 WITH ctx AS (
     SELECT u.id AS user_id, o.id AS org_id
@@ -39,7 +41,8 @@ roots(id, name, description, category_name, created_at) AS (
         ('a1000000-0000-4000-a000-000000000001'::uuid, 'Сок яблочный Rich',         'осветлённый',     'напитки', NOW() - INTERVAL '7 days'),
         ('a1000000-0000-4000-a000-000000000002'::uuid, 'Молоко Простоквашино 3,2%', '',                'напитки', NOW() - INTERVAL '12 days'),
         ('a1000000-0000-4000-a000-000000000003'::uuid, 'Пиво Жигулёвское',          '',                'напитки', NOW() - INTERVAL '8 days'),
-        ('a1000000-0000-4000-a000-000000000004'::uuid, 'Вода Бонаква',              'негазированная',  'напитки', NOW() - INTERVAL '15 days')
+        ('a1000000-0000-4000-a000-000000000004'::uuid, 'Вода Бонаква',              'негазированная',  'напитки', NOW() - INTERVAL '15 days'),
+        ('a1000000-0000-4000-a000-000000000005'::uuid, 'Сок тест · один литраж',    'две партии по 1 л, разный срок годности', 'напитки', NOW() - INTERVAL '1 day')
 )
 INSERT INTO items (
     id, organization_id, held_by_user_id, name, description, category_name,
@@ -72,7 +75,10 @@ variants(id, parent_id, name, variant_label, volume_per_unit, quantity, expires_
         ('b1000000-0000-4000-a000-000000000020'::uuid, 'a1000000-0000-4000-a000-000000000003'::uuid, 'Пиво Жигулёвское',          '0,5 л бутылка', 0.5, 12,   7,  8),
         -- Вода: 5 л × 6, 0,5 л × 24
         ('b1000000-0000-4000-a000-000000000030'::uuid, 'a1000000-0000-4000-a000-000000000004'::uuid, 'Вода Бонаква',              '5 л',           5.0,  6, 180, 15),
-        ('b1000000-0000-4000-a000-000000000031'::uuid, 'a1000000-0000-4000-a000-000000000004'::uuid, 'Вода Бонаква',              '0,5 л',         0.5, 24, 120,  5)
+        ('b1000000-0000-4000-a000-000000000031'::uuid, 'a1000000-0000-4000-a000-000000000004'::uuid, 'Вода Бонаква',              '0,5 л',         0.5, 24, 120,  5),
+        -- Две партии: один объём в упаковке (1 л), одинаковая подпись фасовки, разные сроки годности.
+        ('b1000000-0000-4000-a000-000000000040'::uuid, 'a1000000-0000-4000-a000-000000000005'::uuid, 'Сок тест · один литраж', '1 л',           1.0,  5,  45,  1),
+        ('b1000000-0000-4000-a000-000000000041'::uuid, 'a1000000-0000-4000-a000-000000000005'::uuid, 'Сок тест · один литраж', '1 л',           1.0,  7, 200,  2)
 )
 INSERT INTO items (
     id, organization_id, held_by_user_id, name, description, category_name,
@@ -186,6 +192,9 @@ UPDATE items SET image_url = thumb FROM (
         ('a1000000-0000-4000-a000-000000000004'::uuid, 'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg'),
         ('b1000000-0000-4000-a000-000000000030'::uuid, 'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg'),
         ('b1000000-0000-4000-a000-000000000031'::uuid, 'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg'),
+        ('a1000000-0000-4000-a000-000000000005'::uuid, 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Apfelsaft_im_Glas.jpg/500px-Apfelsaft_im_Glas.jpg'),
+        ('b1000000-0000-4000-a000-000000000040'::uuid, 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Apfelsaft_im_Glas.jpg/500px-Apfelsaft_im_Glas.jpg'),
+        ('b1000000-0000-4000-a000-000000000041'::uuid, 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Apfelsaft_im_Glas.jpg/500px-Apfelsaft_im_Glas.jpg'),
         -- Leaf-позиции
         ('a1000000-0000-4000-a000-000000000010'::uuid, 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Palaemon_serratus_Croazia.jpg/500px-Palaemon_serratus_Croazia.jpg'),
         ('a1000000-0000-4000-a000-000000000011'::uuid, 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Maasdam-cheese.jpg/500px-Maasdam-cheese.jpg'),
@@ -199,4 +208,4 @@ WHERE items.id = img.target_id;
 
 COMMIT;
 
-\echo 'Готово. Вставлены 4 корня с вариантами, 8 in-stock вариантов, 5 leaf-позиций и 2 архивных. Картинки проставлены.'
+\echo 'Готово. Вставлены корни с вариантами (в т.ч. «Сок тест · один литраж» — 2×1 л с разными сроками), leaf-позиции и архивные. Картинки проставлены.'

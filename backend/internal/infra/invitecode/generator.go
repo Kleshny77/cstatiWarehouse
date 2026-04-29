@@ -5,18 +5,14 @@ import (
 	"math/big"
 )
 
-// alphabet — без визуально похожих символов (0/O, 1/I/L).
 const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
-// DefaultLength — длина кода по умолчанию (≈100 бит энтропии при алфавите из 32 символов).
 const DefaultLength = 20
 
-// Generator выпускает читаемые коды инвайтов.
 type Generator struct {
 	length int
 }
 
-// NewGenerator возвращает генератор кодов заданной длины. length <= 0 заменяется на DefaultLength.
 func NewGenerator(length int) *Generator {
 	if length <= 0 {
 		length = DefaultLength
@@ -24,7 +20,6 @@ func NewGenerator(length int) *Generator {
 	return &Generator{length: length}
 }
 
-// Generate возвращает случайный код длиной length из alphabet.
 func (g *Generator) Generate() (string, error) {
 	out := make([]byte, g.length)
 	max := big.NewInt(int64(len(alphabet)))

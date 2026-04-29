@@ -11,8 +11,6 @@ import (
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
 )
 
-// WarehouseUseCase — бизнес-логика работы со складом в рамках одной организации.
-// Авторизация проверяется через членство пользователя в организации айтема.
 type WarehouseUseCase struct {
 	items    ItemRepository
 	members  OrganizationMemberRepository
@@ -25,14 +23,11 @@ func NewWarehouseUseCase(items ItemRepository, members OrganizationMemberReposit
 	return &WarehouseUseCase{items: items, members: members, clock: clock}
 }
 
-// WithActivity подключает журнал действий. nil отключает логирование.
 func (uc *WarehouseUseCase) WithActivity(activity ActivityRepository) *WarehouseUseCase {
 	uc.activity = activity
 	return uc
 }
 
-// WithEvents подключает репозиторий мероприятий, чтобы Archive мог валидировать event_id.
-// Если nil — archive с event_id вернёт валидационную ошибку.
 func (uc *WarehouseUseCase) WithEvents(events EventRepository) *WarehouseUseCase {
 	uc.events = events
 	return uc
@@ -55,9 +50,8 @@ func (uc *WarehouseUseCase) logActivity(ctx context.Context, orgID, actorID uuid
 }
 
 type CreateItemInput struct {
-	UserID         uuid.UUID
-	OrganizationID uuid.UUID
-	// HeldByUserID — опциональный держатель. Если nil, держателем становится UserID.
+	UserID          uuid.UUID
+	OrganizationID  uuid.UUID
 	HeldByUserID    *uuid.UUID
 	Name            string
 	Description     string
@@ -66,12 +60,10 @@ type CreateItemInput struct {
 	ExpirationDate  *time.Time
 	ImageURL        *string
 	LocationAddress *string
-	// ParentItemID — если задан, создаётся подпозиция (вариант фасовки) у существующей строки-родителя.
-	ParentItemID *uuid.UUID
-	VariantLabel string
-	// MeasureUnit: piece | package | meter | liter (пусто → piece).
-	MeasureUnit   string
-	VolumePerUnit *float64
+	ParentItemID    *uuid.UUID
+	VariantLabel    string
+	MeasureUnit     string
+	VolumePerUnit   *float64
 }
 
 func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*domain.Item, error) {
@@ -94,7 +86,10 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*do
 		}
 		mu = m
 	}
-	if err := validateMeasureAndVolume(mu, in.VolumePerUnit); err != nil {
+	if err := validateMeasure(mu); err != nil {
+		return nil, err
+	}
+	if err := domain.ValidateVolumePerUnitPointer(in.VolumePerUnit); err != nil {
 		return nil, err
 	}
 
@@ -102,7 +97,6 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*do
 	if in.HeldByUserID != nil {
 		heldBy = *in.HeldByUserID
 		if _, err := uc.requireMember(ctx, heldBy, in.OrganizationID); err != nil {
-			// Держатель обязан быть членом той же организации.
 			return nil, domain.NewValidationError("held_by user must be a member of the organization")
 		}
 	}
@@ -129,25 +123,30 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*do
 		parentItemID = in.ParentItemID
 	}
 
+	locPtr, err := normalizeRequiredLocationAddress(in.LocationAddress)
+	if err != nil {
+		return nil, err
+	}
+
 	now := uc.clock.Now()
 	item := &domain.Item{
-		ID:             uuid.New(),
-		OrganizationID: in.OrganizationID,
-		HeldByUserID:   heldBy,
-		Name:           name,
-		Description:    strings.TrimSpace(in.Description),
-		CategoryName:   strings.TrimSpace(in.CategoryName),
-		Quantity:       in.Quantity,
+		ID:              uuid.New(),
+		OrganizationID:  in.OrganizationID,
+		HeldByUserID:    heldBy,
+		Name:            name,
+		Description:     strings.TrimSpace(in.Description),
+		CategoryName:    strings.TrimSpace(in.CategoryName),
+		Quantity:        in.Quantity,
 		Status:          domain.ItemStatusInStock,
 		ExpirationDate:  in.ExpirationDate,
 		ImageURL:        in.ImageURL,
-		LocationAddress: trimOptional(in.LocationAddress),
+		LocationAddress: locPtr,
 		ParentItemID:    parentItemID,
 		VariantLabel:    variantLabel,
 		MeasureUnit:     mu,
-		VolumePerUnit:   volumeForMeasure(mu, in.VolumePerUnit),
+		VolumePerUnit:   in.VolumePerUnit,
 		CreatedAt:       now,
-		UpdatedAt:        now,
+		UpdatedAt:       now,
 	}
 	if err := uc.items.Create(ctx, item); err != nil {
 		return nil, err
@@ -170,6 +169,9 @@ type UpdateItemInput struct {
 	VariantLabel    string
 	MeasureUnit     string
 	VolumePerUnit   *float64
+	// ExpectedUpdatedAt опционально: при указании обновление выполняется только если
+	// в БД всё ещё это значение updated_at (защита от параллельных правок).
+	ExpectedUpdatedAt *time.Time
 }
 
 func (uc *WarehouseUseCase) Update(ctx context.Context, in UpdateItemInput) (*domain.Item, error) {
@@ -197,7 +199,6 @@ func (uc *WarehouseUseCase) Update(ctx context.Context, in UpdateItemInput) (*do
 		return nil, err
 	}
 	if hasChildren {
-		// Остаток по группе ведётся на подпозициях — количество «шапки» не меняем из запроса.
 	} else {
 		item.Quantity = in.Quantity
 	}
@@ -210,11 +211,14 @@ func (uc *WarehouseUseCase) Update(ctx context.Context, in UpdateItemInput) (*do
 		}
 		mu = m
 	}
-	if err := validateMeasureAndVolume(mu, in.VolumePerUnit); err != nil {
+	if err := validateMeasure(mu); err != nil {
+		return nil, err
+	}
+	if err := domain.ValidateVolumePerUnitPointer(in.VolumePerUnit); err != nil {
 		return nil, err
 	}
 	item.MeasureUnit = mu
-	item.VolumePerUnit = volumeForMeasure(mu, in.VolumePerUnit)
+	item.VolumePerUnit = in.VolumePerUnit
 	if item.ParentItemID != nil {
 		item.VariantLabel = strings.TrimSpace(in.VariantLabel)
 		if item.VariantLabel == "" {
@@ -222,26 +226,26 @@ func (uc *WarehouseUseCase) Update(ctx context.Context, in UpdateItemInput) (*do
 		}
 	}
 
+	locPtr, err := normalizeRequiredLocationAddress(in.LocationAddress)
+	if err != nil {
+		return nil, err
+	}
+
 	item.Name = name
 	item.Description = strings.TrimSpace(in.Description)
 	item.CategoryName = strings.TrimSpace(in.CategoryName)
 	item.ExpirationDate = in.ExpirationDate
 	item.ImageURL = in.ImageURL
-	item.LocationAddress = trimOptional(in.LocationAddress)
+	item.LocationAddress = locPtr
 	item.UpdatedAt = uc.clock.Now()
 
-	if err := uc.items.Update(ctx, item); err != nil {
+	if err := uc.items.Update(ctx, item, in.ExpectedUpdatedAt); err != nil {
 		return nil, err
 	}
 	uc.logActivity(ctx, item.OrganizationID, in.UserID, domain.ActivityItemUpdated, "item", &item.ID, "обновлена позиция «"+item.Name+"»")
 	return item, nil
 }
 
-// ArchiveItemInput описывает одно событие списания со стака.
-// Quantity < item.Quantity → частичное списание (остаток уменьшается).
-// Quantity == item.Quantity → позиция полностью уходит в архив.
-// EventID — опциональная привязка к мероприятию организации.
-// Может быть указан только при Reason == usedAtEvent.
 type ArchiveItemInput struct {
 	ItemID       uuid.UUID
 	UserID       uuid.UUID
@@ -251,8 +255,6 @@ type ArchiveItemInput struct {
 	EventID      *uuid.UUID
 }
 
-// Archive проводит списание quantity единиц из стака, фиксирует событие в истории.
-// Возвращает обновлённую позицию и созданное событие.
 func (uc *WarehouseUseCase) Archive(ctx context.Context, in ArchiveItemInput) (*domain.Item, *domain.ArchiveEvent, error) {
 	if !domain.IsValidArchiveReason(in.Reason) {
 		return nil, nil, domain.NewValidationError("invalid archive reason")
@@ -366,8 +368,6 @@ func (uc *WarehouseUseCase) List(ctx context.Context, userID, orgID uuid.UUID, f
 	if err != nil {
 		return nil, err
 	}
-	// Обычный участник видит только те позиции, за которые отвечает он сам.
-	// Админ/владелец могут явно запросить список "моих" через filter.HeldByUserID.
 	if !role.CanManageMembers() {
 		uid := userID
 		filter.HeldByUserID = &uid
@@ -384,44 +384,27 @@ func (uc *WarehouseUseCase) Categories(ctx context.Context, userID, orgID uuid.U
 
 // MARK: private helpers
 
-func validateMeasureAndVolume(mu domain.MeasureUnit, vol *float64) error {
-	if mu == domain.MeasureUnitLiter {
-		if vol == nil || *vol <= 0 {
-			return domain.NewValidationError("volume_per_unit must be > 0 when measure_unit is liter")
-		}
+func validateMeasure(mu domain.MeasureUnit) error {
+	switch mu {
+	case domain.MeasureUnitPiece, domain.MeasureUnitLiter, domain.MeasureUnitMilliliter,
+		domain.MeasureUnitKilogram, domain.MeasureUnitGram:
 		return nil
+	default:
+		return domain.NewValidationError("invalid measure_unit")
 	}
-	return nil
 }
 
-func cloneFloatPtr(v *float64) *float64 {
-	if v == nil {
-		return nil
+func normalizeRequiredLocationAddress(p *string) (*string, error) {
+	if p == nil {
+		return nil, domain.NewValidationError("location_address is required")
 	}
-	c := *v
-	return &c
+	t := strings.TrimSpace(*p)
+	if t == "" {
+		return nil, domain.NewValidationError("location_address is required")
+	}
+	return &t, nil
 }
 
-func volumeForMeasure(mu domain.MeasureUnit, vol *float64) *float64 {
-	if mu != domain.MeasureUnitLiter {
-		return nil
-	}
-	return cloneFloatPtr(vol)
-}
-
-// trimOptional возвращает nil, если строка пустая или состоит из пробелов.
-func trimOptional(s *string) *string {
-	if s == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*s)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
-// requireMember возвращает роль пользователя в организации или ErrForbidden, если тот не участник.
 func (uc *WarehouseUseCase) requireMember(ctx context.Context, userID, orgID uuid.UUID) (domain.OrgRole, error) {
 	role, err := uc.members.FindRole(ctx, orgID, userID)
 	if err != nil {
@@ -433,12 +416,6 @@ func (uc *WarehouseUseCase) requireMember(ctx context.Context, userID, orgID uui
 	return role, nil
 }
 
-// requireAccessibleItem загружает айтем и проверяет доступ пользователя для его изменения.
-// Обычный участник (member) может изменять только те позиции, за которые отвечает сам
-// (HeldByUserID == userID) — аналогично фильтрации в List.
-// Администратор и владелец могут менять любую позицию организации.
-// ErrNotFound возвращается и при отсутствии айтема, и при запрете — чтобы не раскрывать
-// существование чужих записей.
 func (uc *WarehouseUseCase) requireAccessibleItem(ctx context.Context, itemID, userID uuid.UUID) (*domain.Item, error) {
 	item, err := uc.items.FindByID(ctx, itemID)
 	if err != nil {

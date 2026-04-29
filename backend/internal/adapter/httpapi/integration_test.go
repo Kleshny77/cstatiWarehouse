@@ -50,7 +50,7 @@ func newTestServer(t *testing.T) *testServer {
 		repo.NewUserRepo(pool),
 		repo.NewRefreshTokenRepo(pool),
 		orgsUC,
-		hasher, issuer, refreshGen, nil, clock.Real{},
+		hasher, issuer, refreshGen, nil, nil, clock.Real{},
 		usecase.AuthConfig{RefreshTTL: time.Hour, TelegramConfigured: false},
 	)
 	warehouseUC := usecase.NewWarehouseUseCase(itemsRepo, membersRepo, clock.Real{}).
@@ -61,13 +61,14 @@ func newTestServer(t *testing.T) *testServer {
 	activityUC := usecase.NewActivityUseCase(activityRepo, membersRepo)
 
 	handler := httpapi.NewRouter(httpapi.RouterDeps{
-		Auth:          httpapi.NewAuthHandler(authUC),
-		Warehouse:     httpapi.NewWarehouseHandler(warehouseUC),
-		Organizations: httpapi.NewOrganizationHandler(orgsUC),
-		Events:        httpapi.NewEventsHandler(eventsUC),
-		Categories:    httpapi.NewCategoriesHandler(categoriesUC),
-		Activity:      httpapi.NewActivityHandler(activityUC),
-		Tokens:        issuer,
+		Auth:              httpapi.NewAuthHandler(authUC),
+		Warehouse:         httpapi.NewWarehouseHandler(warehouseUC),
+		Organizations:     httpapi.NewOrganizationHandler(orgsUC),
+		Events:            httpapi.NewEventsHandler(eventsUC),
+		Categories:        httpapi.NewCategoriesHandler(categoriesUC),
+		Activity:          httpapi.NewActivityHandler(activityUC),
+		Tokens:            issuer,
+		SkipAuthRateLimit: true,
 	})
 
 	s := httptest.NewServer(handler)
@@ -128,8 +129,6 @@ func (s *testServer) registerUser(email, name, password string) map[string]any {
 	return body
 }
 
-// personalOrgID берёт id персональной организации пользователя через /organizations.
-// Она автоматически создаётся при регистрации.
 func (s *testServer) personalOrgID(access string) string {
 	s.t.Helper()
 	status, body := s.do("GET", "/organizations", bearer(access), nil)
@@ -169,7 +168,6 @@ func TestIntegrationHTTP_RegisterLoginMe(t *testing.T) {
 		t.Errorf("unexpected /me body: %+v", body)
 	}
 
-	// Персональная организация должна автоматически появиться при регистрации.
 	status, body = s.do("GET", "/organizations", bearer(access), nil)
 	if status != http.StatusOK {
 		t.Fatalf("list orgs failed: %d %+v", status, body)
@@ -201,11 +199,12 @@ func TestIntegrationHTTP_WarehouseCRUD(t *testing.T) {
 	orgID := s.personalOrgID(access)
 
 	status, body := s.do("POST", "/items", bearer(access), map[string]any{
-		"organization_id": orgID,
-		"name":            "Кола",
-		"description":     "0.5л",
-		"category_name":   "Напитки",
-		"quantity":        3,
+		"organization_id":   orgID,
+		"name":              "Кола",
+		"description":       "0.5л",
+		"category_name":     "Напитки",
+		"quantity":          3,
+		"location_address":  "Москва, ул. Тестовая, д. 1",
 	})
 	if status != http.StatusCreated {
 		t.Fatalf("create item failed: %d %+v", status, body)
@@ -242,7 +241,6 @@ func TestIntegrationHTTP_WarehouseCRUD(t *testing.T) {
 		t.Errorf("bogus filter must return 422, got %d %+v", status, body)
 	}
 
-	// Без organizationId — ошибка валидации.
 	status, _ = s.do("GET", "/items", bearer(access), nil)
 	if status != http.StatusUnprocessableEntity {
 		t.Errorf("missing organizationId must return 422, got %d", status)
@@ -337,17 +335,17 @@ func TestIntegrationHTTP_IsolationBetweenOrgs(t *testing.T) {
 	orgB := s.personalOrgID(accessB)
 
 	status, body := s.do("POST", "/items", bearer(accessA), map[string]any{
-		"organization_id": orgA,
-		"name":            "A-secret",
-		"category_name":   "A-cat",
-		"quantity":        1,
+		"organization_id":  orgA,
+		"name":             "A-secret",
+		"category_name":    "A-cat",
+		"quantity":         1,
+		"location_address": "Москва, изоляция тест",
 	})
 	if status != http.StatusCreated {
 		t.Fatalf("A create failed: %d %+v", status, body)
 	}
 	aItemID := body["item"].(map[string]any)["id"].(string)
 
-	// B в своей организации не видит айтемы A.
 	status, body = s.do("GET", "/items?organizationId="+orgB, bearer(accessB), nil)
 	if status != http.StatusOK {
 		t.Fatalf("B list own failed: %d %+v", status, body)
@@ -356,13 +354,11 @@ func TestIntegrationHTTP_IsolationBetweenOrgs(t *testing.T) {
 		t.Errorf("B must not see A items in own org: %+v", body)
 	}
 
-	// B не может запрашивать список по orgA — forbidden.
 	status, _ = s.do("GET", "/items?organizationId="+orgA, bearer(accessB), nil)
 	if status != http.StatusForbidden {
 		t.Errorf("B listing A's org must return 403, got %d", status)
 	}
 
-	// B не может удалить айтем в чужой организации — 404 (не раскрываем существование).
 	status, _ = s.do("DELETE", "/items/"+aItemID, bearer(accessB), nil)
 	if status != http.StatusNotFound {
 		t.Errorf("B deleting A item must return 404, got %d", status)
@@ -376,7 +372,6 @@ func TestIntegrationHTTP_Organizations(t *testing.T) {
 	access, _ := reg["access_token"].(string)
 	personal := s.personalOrgID(access)
 
-	// Создание новой организации (не персональной).
 	status, body := s.do("POST", "/organizations", bearer(access), map[string]any{"name": "Команда"})
 	if status != http.StatusCreated {
 		t.Fatalf("create org failed: %d %+v", status, body)
@@ -387,13 +382,11 @@ func TestIntegrationHTTP_Organizations(t *testing.T) {
 		t.Errorf("unexpected created org: %+v", body)
 	}
 
-	// Listing: должны быть 2 организации (personal + команда).
 	status, body = s.do("GET", "/organizations", bearer(access), nil)
 	if status != http.StatusOK || len(body["organizations"].([]any)) != 2 {
 		t.Errorf("expected 2 orgs, got %d %+v", status, body)
 	}
 
-	// Owner — единственный участник созданной org.
 	status, body = s.do("GET", "/organizations/"+orgID+"/members", bearer(access), nil)
 	if status != http.StatusOK {
 		t.Fatalf("list members failed: %d %+v", status, body)
@@ -403,19 +396,16 @@ func TestIntegrationHTTP_Organizations(t *testing.T) {
 		t.Errorf("expected 1 owner member, got %d", len(mems))
 	}
 
-	// Персональную удалить нельзя — 409.
 	status, _ = s.do("DELETE", "/organizations/"+personal, bearer(access), nil)
 	if status != http.StatusConflict {
 		t.Errorf("deleting personal org must return 409, got %d", status)
 	}
 
-	// Owner не может выйти из своей org — 409.
 	status, _ = s.do("POST", "/organizations/"+orgID+"/leave", bearer(access), nil)
 	if status != http.StatusConflict {
 		t.Errorf("owner leave must return 409, got %d", status)
 	}
 
-	// А обычную — удалить можно.
 	status, _ = s.do("DELETE", "/organizations/"+orgID, bearer(access), nil)
 	if status != http.StatusNoContent {
 		t.Errorf("delete org failed: %d", status)
@@ -429,7 +419,6 @@ func TestIntegrationHTTP_EventsCategoriesActivity(t *testing.T) {
 	access, _ := reg["access_token"].(string)
 	personal := s.personalOrgID(access)
 
-	// Создать категорию.
 	status, body := s.do("POST", "/org-categories", bearer(access), map[string]any{
 		"organization_id": personal,
 		"name":            "Напитки",
@@ -445,7 +434,6 @@ func TestIntegrationHTTP_EventsCategoriesActivity(t *testing.T) {
 		t.Fatalf("list categories failed: %d %+v", status, body)
 	}
 
-	// Дубликат — 409.
 	status, _ = s.do("POST", "/org-categories", bearer(access), map[string]any{
 		"organization_id": personal,
 		"name":            "напитки",
@@ -454,7 +442,6 @@ func TestIntegrationHTTP_EventsCategoriesActivity(t *testing.T) {
 		t.Errorf("duplicate category must be 409, got %d", status)
 	}
 
-	// Создать event.
 	status, body = s.do("POST", "/events", bearer(access), map[string]any{
 		"organization_id": personal,
 		"name":            "Квиз",
@@ -470,11 +457,11 @@ func TestIntegrationHTTP_EventsCategoriesActivity(t *testing.T) {
 		t.Fatalf("list events failed: %d %+v", status, body)
 	}
 
-	// Создать item и списать на мероприятие по event_id.
 	status, body = s.do("POST", "/items", bearer(access), map[string]any{
-		"organization_id": personal,
-		"name":            "Сок",
-		"quantity":        2,
+		"organization_id":  personal,
+		"name":             "Сок",
+		"quantity":         2,
+		"location_address": "Москва, событие тест",
 	})
 	if status != http.StatusCreated {
 		t.Fatalf("create item failed: %d %+v", status, body)
@@ -495,7 +482,6 @@ func TestIntegrationHTTP_EventsCategoriesActivity(t *testing.T) {
 		t.Errorf("archive event must reference event_id, got %+v", archivedEvent)
 	}
 
-	// Activity log должен содержать минимум: category.created, event.created, item.created, item.archived.
 	status, body = s.do("GET", "/organizations/"+personal+"/activity", bearer(access), nil)
 	if status != http.StatusOK {
 		t.Fatalf("activity failed: %d %+v", status, body)
@@ -505,13 +491,11 @@ func TestIntegrationHTTP_EventsCategoriesActivity(t *testing.T) {
 		t.Errorf("expected at least 4 activity entries, got %d: %+v", len(entries), entries)
 	}
 
-	// Удаление категории.
 	status, _ = s.do("DELETE", "/org-categories/"+catID, bearer(access), nil)
 	if status != http.StatusNoContent {
 		t.Errorf("delete category failed: %d", status)
 	}
 
-	// Удаление event.
 	status, _ = s.do("DELETE", "/events/"+eventID, bearer(access), nil)
 	if status != http.StatusNoContent {
 		t.Errorf("delete event failed: %d", status)

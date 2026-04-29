@@ -38,8 +38,6 @@ func (c *fakeClock) Advance(d time.Duration) {
 
 // MARK: PasswordHasher
 
-// Детерминированный «хэшер» для тестов: hash(password) = "hash:" + password,
-// проверка сравнивает суффикс.
 type fakeHasher struct{}
 
 func (f *fakeHasher) Hash(password string) (string, error) { return "hash:" + password, nil }
@@ -114,6 +112,12 @@ func (r *fakeUserRepo) Create(ctx context.Context, user *domain.User) error {
 		if u.Email == user.Email {
 			return domain.ErrEmailAlreadyUsed
 		}
+		if user.TelegramSub != nil && u.TelegramSub != nil && *u.TelegramSub == *user.TelegramSub {
+			return domain.ErrEmailAlreadyUsed
+		}
+		if user.GoogleSub != nil && u.GoogleSub != nil && *u.GoogleSub == *user.GoogleSub {
+			return domain.ErrEmailAlreadyUsed
+		}
 	}
 	clone := *user
 	r.users[user.ID] = &clone
@@ -148,6 +152,18 @@ func (r *fakeUserRepo) FindByTelegramSub(ctx context.Context, sub string) (*doma
 	defer r.mu.Unlock()
 	for _, u := range r.users {
 		if u.TelegramSub != nil && *u.TelegramSub == sub {
+			clone := *u
+			return &clone, nil
+		}
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (r *fakeUserRepo) FindByGoogleSub(ctx context.Context, sub string) (*domain.User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, u := range r.users {
+		if u.GoogleSub != nil && *u.GoogleSub == sub {
 			clone := *u
 			return &clone, nil
 		}
@@ -243,11 +259,16 @@ func (r *fakeItemRepo) Create(ctx context.Context, item *domain.Item) error {
 	return nil
 }
 
-func (r *fakeItemRepo) Update(ctx context.Context, item *domain.Item) error {
+func (r *fakeItemRepo) Update(ctx context.Context, item *domain.Item, expectedUpdatedAt *time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.items[item.ID]; !ok {
+	cur, ok := r.items[item.ID]
+	if !ok {
 		return domain.ErrNotFound
+	}
+	if expectedUpdatedAt != nil && !cur.UpdatedAt.Equal(*expectedUpdatedAt) {
+		clone := *cur
+		return &domain.ItemVersionConflictError{ServerItem: clone}
 	}
 	clone := *item
 	r.items[item.ID] = &clone
@@ -726,8 +747,8 @@ func (r *fakeEventRepo) Delete(ctx context.Context, id uuid.UUID) error {
 // MARK: CategoryRepository
 
 type fakeCategoryRepo struct {
-	mu    sync.Mutex
-	cats  map[uuid.UUID]*domain.Category
+	mu   sync.Mutex
+	cats map[uuid.UUID]*domain.Category
 }
 
 func newFakeCategoryRepo() *fakeCategoryRepo {
@@ -829,9 +850,6 @@ func (r *fakeActivityRepo) ListByOrganization(ctx context.Context, orgID uuid.UU
 
 // MARK: PersonalOrgCreator
 
-// fakePersonalOrg реализует узкий порт PersonalOrgCreator.
-// В тестах заодно отражает данные в общих fake-репозиториях,
-// чтобы после регистрации у пользователя реально было членство.
 type fakePersonalOrg struct {
 	orgs    *fakeOrgRepo
 	members *fakeMemberRepo

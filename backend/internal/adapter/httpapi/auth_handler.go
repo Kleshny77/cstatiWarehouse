@@ -86,7 +86,6 @@ type updateProfileRequest struct {
 	AvatarURL *string `json:"avatar_url,omitempty"`
 }
 
-// UpdateProfile — PATCH /auth/me. Любое подмножество полей.
 func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUserID(r)
 	if !ok {
@@ -140,6 +139,24 @@ func (h *AuthHandler) Telegram(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, tokens, err := h.auth.LoginWithTelegram(r.Context(), req.IDToken)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, buildAuthResponse(user, tokens))
+}
+
+type googleAuthRequest struct {
+	IDToken string `json:"id_token"`
+}
+
+func (h *AuthHandler) Google(w http.ResponseWriter, r *http.Request) {
+	var req googleAuthRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	user, tokens, err := h.auth.LoginWithGoogle(r.Context(), req.IDToken)
 	if err != nil {
 		writeError(w, r, err)
 		return

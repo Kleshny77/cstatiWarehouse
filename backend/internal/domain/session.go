@@ -14,15 +14,13 @@ type RefreshToken struct {
 	CreatedAt time.Time
 }
 
-// AuthTokens — ответ клиенту при login/register/refresh.
 type AuthTokens struct {
-	AccessToken       string
-	AccessExpiresAt   time.Time
-	RefreshToken      string
-	RefreshExpiresAt  time.Time
+	AccessToken      string
+	AccessExpiresAt  time.Time
+	RefreshToken     string
+	RefreshExpiresAt time.Time
 }
 
-// TelegramClaims — извлечённые из валидного id_token данные Telegram-пользователя.
 type TelegramClaims struct {
 	Sub               string
 	Name              *string

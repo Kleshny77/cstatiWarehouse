@@ -170,8 +170,6 @@ func (h *EventsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// parseLimit читает опциональный query-параметр ?limit=N. Нулевое значение
-// означает "использовать дефолт в usecase".
 func parseLimit(r *http.Request, defaultLimit, max int) int {
 	raw := r.URL.Query().Get("limit")
 	if raw == "" {

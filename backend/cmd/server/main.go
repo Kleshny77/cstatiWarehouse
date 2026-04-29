@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/adapter/googleid"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/adapter/httpapi"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/adapter/repo"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/adapter/telegram"
@@ -18,6 +22,7 @@ import (
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/db"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/invitecode"
 	infrajwt "github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/jwt"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/netutil"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/password"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/usecase"
 )
@@ -37,6 +42,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	for _, w := range cfg.BindLANWarnings() {
+		slog.Warn(w)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -54,6 +62,7 @@ func run() error {
 
 	userRepo := repo.NewUserRepo(pool)
 	refreshRepo := repo.NewRefreshTokenRepo(pool)
+	pushTokenRepo := repo.NewDevicePushTokenRepo(pool)
 	itemRepo := repo.NewItemRepo(pool)
 	orgRepo := repo.NewOrganizationRepo(pool)
 	memberRepo := repo.NewMemberRepo(pool)
@@ -75,15 +84,26 @@ func run() error {
 		verifier = v
 	}
 
+	var googleVerifier usecase.GoogleVerifier
+	if cfg.GoogleConfigured() {
+		v, err := googleid.NewVerifier(ctx, cfg.GoogleClientID)
+		if err != nil {
+			return err
+		}
+		googleVerifier = v
+	}
+
 	inviteGen := invitecode.NewGenerator(invitecode.DefaultLength)
 	organizationsUC := usecase.NewOrganizationsUseCase(orgRepo, memberRepo, inviteRepo, inviteGen, clock.Real{}).
 		WithActivity(activityRepo)
 
 	authUC := usecase.NewAuthUseCase(
-		userRepo, refreshRepo, organizationsUC, hasher, issuer, refreshGen, verifier, clock.Real{},
+		userRepo, refreshRepo, organizationsUC, hasher, issuer, refreshGen,
+		verifier, googleVerifier, clock.Real{},
 		usecase.AuthConfig{
 			RefreshTTL:         cfg.JWTRefreshTTL,
 			TelegramConfigured: cfg.TelegramConfigured(),
+			GoogleConfigured:   cfg.GoogleConfigured(),
 		},
 	)
 	warehouseUC := usecase.NewWarehouseUseCase(itemRepo, memberRepo, clock.Real{}).
@@ -93,7 +113,17 @@ func run() error {
 	categoriesUC := usecase.NewCategoriesUseCase(categoryRepo, memberRepo, activityRepo, clock.Real{})
 	activityUC := usecase.NewActivityUseCase(activityRepo, memberRepo)
 
-	uploadsHandler := httpapi.NewUploadsHandler(cfg.UploadsDir, cfg.PublicBaseURL, cfg.MaxUploadBytes)
+	uploadSigner := infrajwt.NewUploadURLSigner(cfg.EffectiveUploadSigningSecret(), cfg.UploadURLTTL)
+	uploadsHandler := httpapi.NewUploadsHandler(cfg.UploadsDir, cfg.PublicBaseURL, cfg.MaxUploadBytes, uploadSigner)
+
+	proxies, err := netutil.ParseTrustedProxyCIDRs(cfg.TrustedProxyCIDRsRaw)
+	if err != nil {
+		return fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)
+	}
+	var clientIP func(*http.Request) string
+	if strings.TrimSpace(cfg.TrustedProxyCIDRsRaw) != "" {
+		clientIP = proxies.ClientIP
+	}
 
 	handler := httpapi.NewRouter(httpapi.RouterDeps{
 		Auth:          httpapi.NewAuthHandler(authUC),
@@ -103,20 +133,34 @@ func run() error {
 		Categories:    httpapi.NewCategoriesHandler(categoriesUC),
 		Activity:      httpapi.NewActivityHandler(activityUC),
 		Uploads:       uploadsHandler,
+		Notifications: httpapi.NewNotificationsHandler(pushTokenRepo),
 		Tokens:        issuer,
+		ClientIP:      clientIP,
 	})
 
+	listenAddr := normalizeListenAddrForGoDualStack(cfg.HTTPAddr)
+	ln, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		return fmt.Errorf("listen %s: %w", listenAddr, err)
+	}
+
 	server := &http.Server{
-		Addr:         cfg.HTTPAddr,
-		Handler:      handler,
-		ReadTimeout:  cfg.HTTPReadTimeout,
-		WriteTimeout: cfg.HTTPWriteTimeout,
+		Handler:           handler,
+		ReadTimeout:       cfg.HTTPReadTimeout,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      cfg.HTTPWriteTimeout,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	serverErr := make(chan error, 1)
 	go func() {
-		slog.Info("http server listening", "addr", cfg.HTTPAddr, "telegram_configured", cfg.TelegramConfigured())
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		slog.Info("http server listening",
+			"http_addr", cfg.HTTPAddr,
+			"listen_addr", ln.Addr().String(),
+			"telegram_configured", cfg.TelegramConfigured(),
+			"google_configured", cfg.GoogleConfigured(),
+		)
+		if err := server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- err
 		}
 	}()
@@ -134,4 +178,14 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// normalizeListenAddrForGoDualStack: «0.0.0.0:8080» слушает только IPv4; на macOS/iOS запросы часто идут через dual-stack.
+// «:8080» в Go принимает и IPv4, и IPv6 — меньше обрывов TCP RST со стороны клиента.
+func normalizeListenAddrForGoDualStack(addr string) string {
+	const pfx = "0.0.0.0:"
+	if strings.HasPrefix(addr, pfx) {
+		return ":" + strings.TrimPrefix(addr, pfx)
+	}
+	return addr
 }

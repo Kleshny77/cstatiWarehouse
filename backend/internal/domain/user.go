@@ -14,6 +14,8 @@ type User struct {
 	AvatarURL    *string
 	PasswordHash *string
 	TelegramSub  *string
+	AppleSub     *string
+	GoogleSub    *string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

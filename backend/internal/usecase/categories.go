@@ -17,8 +17,6 @@ import (
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/domain"
 )
 
-// CategoriesUseCase управляет общим справочником категорий организации.
-// Любой участник организации может читать, создание/удаление — owner/admin.
 type CategoriesUseCase struct {
 	categories CategoryRepository
 	members    OrganizationMemberRepository

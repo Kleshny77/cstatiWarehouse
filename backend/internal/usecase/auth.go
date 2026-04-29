@@ -13,8 +13,9 @@ import (
 )
 
 type AuthConfig struct {
-	RefreshTTL        time.Duration
+	RefreshTTL         time.Duration
 	TelegramConfigured bool
+	GoogleConfigured   bool
 }
 
 type AuthUseCase struct {
@@ -24,8 +25,9 @@ type AuthUseCase struct {
 	hasher        PasswordHasher
 	tokens        TokenIssuer
 	refreshGen    RefreshTokenGenerator
-	telegram      TelegramVerifier
-	clock         Clock
+	telegram TelegramVerifier
+	google   GoogleVerifier
+	clock    Clock
 	cfg           AuthConfig
 }
 
@@ -37,6 +39,7 @@ func NewAuthUseCase(
 	tokens TokenIssuer,
 	refreshGen RefreshTokenGenerator,
 	telegram TelegramVerifier,
+	google GoogleVerifier,
 	clock Clock,
 	cfg AuthConfig,
 ) *AuthUseCase {
@@ -47,8 +50,9 @@ func NewAuthUseCase(
 		hasher:        hasher,
 		tokens:        tokens,
 		refreshGen:    refreshGen,
-		telegram:      telegram,
-		clock:         clock,
+		telegram: telegram,
+		google:   google,
+		clock:    clock,
 		cfg:           cfg,
 	}
 }
@@ -151,7 +155,6 @@ func (uc *AuthUseCase) Login(ctx context.Context, in LoginInput) (*domain.User, 
 	return user, tokens, nil
 }
 
-// LoginWithTelegram валидирует id_token, находит или создаёт пользователя по Telegram sub.
 func (uc *AuthUseCase) LoginWithTelegram(ctx context.Context, idToken string) (*domain.User, domain.AuthTokens, error) {
 	if !uc.cfg.TelegramConfigured || uc.telegram == nil {
 		return nil, domain.AuthTokens{}, domain.ErrTelegramDisabled
@@ -211,7 +214,106 @@ func (uc *AuthUseCase) LoginWithTelegram(ctx context.Context, idToken string) (*
 	return user, tokens, nil
 }
 
-// Refresh ротирует refresh-токен: текущий ревокается, выпускается новая пара.
+func (uc *AuthUseCase) LoginWithGoogle(ctx context.Context, idToken string) (*domain.User, domain.AuthTokens, error) {
+	if !uc.cfg.GoogleConfigured || uc.google == nil {
+		return nil, domain.AuthTokens{}, domain.ErrGoogleDisabled
+	}
+	if strings.TrimSpace(idToken) == "" {
+		return nil, domain.AuthTokens{}, domain.NewValidationError("id_token must not be empty")
+	}
+	claims, err := uc.google.Verify(ctx, idToken)
+	if err != nil {
+		return nil, domain.AuthTokens{}, err
+	}
+	now := uc.clock.Now()
+
+	if existing, err := uc.users.FindByGoogleSub(ctx, claims.Sub); err == nil {
+		refreshed, err := uc.syncGoogleProfile(ctx, existing, claims, now)
+		if err != nil {
+			return nil, domain.AuthTokens{}, err
+		}
+		tokens, err := uc.issueTokens(ctx, refreshed.ID, now)
+		if err != nil {
+			return nil, domain.AuthTokens{}, err
+		}
+		return refreshed, tokens, nil
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return nil, domain.AuthTokens{}, err
+	}
+
+	if other, err := uc.users.FindByEmail(ctx, claims.Email); err == nil && other != nil {
+		_ = other
+		return nil, domain.AuthTokens{}, domain.ErrEmailAlreadyUsed
+	} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		return nil, domain.AuthTokens{}, err
+	}
+
+	first, last := splitGoogleDisplayName(claims)
+	sub := claims.Sub
+	user := &domain.User{
+		ID:        uuid.New(),
+		Email:     claims.Email,
+		Name:      first,
+		LastName:  last,
+		AvatarURL: copyPtr(claims.PictureURL),
+		GoogleSub: &sub,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := uc.users.Create(ctx, user); err != nil {
+		return nil, domain.AuthTokens{}, err
+	}
+	if _, err := uc.personalOrg.CreatePersonal(ctx, user.ID, user.FullName()); err != nil {
+		return nil, domain.AuthTokens{}, err
+	}
+	tokens, err := uc.issueTokens(ctx, user.ID, now)
+	if err != nil {
+		return nil, domain.AuthTokens{}, err
+	}
+	return user, tokens, nil
+}
+
+func (uc *AuthUseCase) syncGoogleProfile(ctx context.Context, user *domain.User, claims domain.GoogleIDClaims, now time.Time) (*domain.User, error) {
+	patch := UserProfileUpdate{}
+	first, last := splitGoogleDisplayName(claims)
+	if first != "" && first != user.Name {
+		n := first
+		patch.Name = &n
+	}
+	if last != user.LastName {
+		patch.LastName = &last
+	}
+	if claims.PictureURL != nil {
+		cur := ""
+		if user.AvatarURL != nil {
+			cur = *user.AvatarURL
+		}
+		if *claims.PictureURL != cur {
+			pic := *claims.PictureURL
+			patch.AvatarURL = &pic
+		}
+	}
+	if patch.Name == nil && patch.LastName == nil && patch.AvatarURL == nil {
+		return user, nil
+	}
+	return uc.users.UpdateProfile(ctx, user.ID, patch, now)
+}
+
+func splitGoogleDisplayName(c domain.GoogleIDClaims) (first, last string) {
+	if strings.TrimSpace(c.GivenName) != "" || strings.TrimSpace(c.FamilyName) != "" {
+		return strings.TrimSpace(c.GivenName), strings.TrimSpace(c.FamilyName)
+	}
+	full := strings.TrimSpace(c.FullName)
+	if full == "" {
+		return "Пользователь", ""
+	}
+	parts := strings.Fields(full)
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
+	return parts[0], strings.Join(parts[1:], " ")
+}
+
 func (uc *AuthUseCase) Refresh(ctx context.Context, refreshToken string) (*domain.User, domain.AuthTokens, error) {
 	if refreshToken == "" {
 		return nil, domain.AuthTokens{}, domain.ErrUnauthorized
@@ -247,8 +349,6 @@ func (uc *AuthUseCase) Refresh(ctx context.Context, refreshToken string) (*domai
 	return user, tokens, nil
 }
 
-// Logout ревокает переданный refresh-токен. Если его нет — тихий no-op,
-// чтобы нельзя было по ответу различать существующие/несуществующие токены.
 func (uc *AuthUseCase) Logout(ctx context.Context, refreshToken string) error {
 	if refreshToken == "" {
 		return nil
@@ -265,15 +365,12 @@ func (uc *AuthUseCase) CurrentUser(ctx context.Context, userID uuid.UUID) (*doma
 	return uc.users.FindByID(ctx, userID)
 }
 
-// UpdateProfileInput — частичное обновление своего профиля из клиента.
-// Поле nil означает "не менять".
 type UpdateProfileInput struct {
 	Name      *string
 	LastName  *string
 	AvatarURL *string
 }
 
-// UpdateProfile применяет патч к собственному профилю. Возвращает актуальную версию пользователя.
 func (uc *AuthUseCase) UpdateProfile(ctx context.Context, userID uuid.UUID, in UpdateProfileInput) (*domain.User, error) {
 	patch := UserProfileUpdate{}
 	if in.Name != nil {
@@ -297,8 +394,6 @@ func (uc *AuthUseCase) UpdateProfile(ctx context.Context, userID uuid.UUID, in U
 	return uc.users.UpdateProfile(ctx, userID, patch, uc.clock.Now())
 }
 
-// syncTelegramProfile подтягивает свежие name/avatar из claims на каждый вход.
-// Сохраняем только если данные реально поменялись и/или поле пустое.
 func (uc *AuthUseCase) syncTelegramProfile(ctx context.Context, user *domain.User, claims domain.TelegramClaims, now time.Time) (*domain.User, error) {
 	patch := UserProfileUpdate{}
 
