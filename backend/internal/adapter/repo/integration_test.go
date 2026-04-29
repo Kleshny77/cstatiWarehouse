@@ -125,6 +125,7 @@ func TestIntegration_ItemRepo_Lifecycle(t *testing.T) {
 		Name: "Кола", Description: "0.5л", CategoryName: "Напитки", Quantity: 3,
 		Status: domain.ItemStatusInStock, CreatedAt: now, UpdatedAt: now,
 		LocationAddress: &loc,
+		MeasureUnit:     domain.MeasureUnitPiece,
 	}
 	if err := items.Create(context.Background(), item); err != nil {
 		t.Fatalf("create item: %v", err)
