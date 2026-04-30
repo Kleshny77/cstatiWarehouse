@@ -202,12 +202,12 @@ func TestIntegrationHTTP_WarehouseCRUD(t *testing.T) {
 	orgID := s.personalOrgID(access)
 
 	status, body := s.do("POST", "/items", bearer(access), map[string]any{
-		"organization_id":   orgID,
-		"name":              "Кола",
-		"description":       "0.5л",
-		"category_name":     "Напитки",
-		"quantity":          3,
-		"location_address":  "Москва, ул. Тестовая, д. 1",
+		"organization_id":  orgID,
+		"name":             "Кола",
+		"description":      "0.5л",
+		"category_name":    "Напитки",
+		"quantity":         3,
+		"location_address": "Москва, ул. Тестовая, д. 1",
 	})
 	if status != http.StatusCreated {
 		t.Fatalf("create item failed: %d %+v", status, body)
@@ -282,15 +282,6 @@ func TestIntegrationHTTP_WarehouseCRUD(t *testing.T) {
 	events, _ := body["events"].([]any)
 	if len(events) != 2 {
 		t.Errorf("expected 2 archive events, got %d", len(events))
-	}
-
-	status, body = s.do("GET", "/categories"+orgQuery, bearer(access), nil)
-	if status != http.StatusOK {
-		t.Fatalf("categories failed: %d %+v", status, body)
-	}
-	cats, _ := body["categories"].([]any)
-	if len(cats) != 1 || cats[0] != "Напитки" {
-		t.Errorf("unexpected categories: %+v", cats)
 	}
 
 	status, _ = s.do("DELETE", "/items/"+itemID, bearer(access), nil)

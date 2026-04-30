@@ -56,22 +56,6 @@ struct MockWarehouseServiceTests {
     }
     
     @Test
-    func fetchCategories_returnsDistinctFromActiveItems_sortedLocalized() async {
-        let service = MockWarehouseService(seed: [
-            makeItem(name: "a", categoryName: "напитки"),
-            makeItem(name: "b", categoryName: "еда"),
-            makeItem(name: "c", categoryName: "напитки"),
-            makeItem(name: "d", categoryName: "десерт",
-                     status: .archived(reason: .disposed, at: .now))
-        ])
-        
-        let result = await run { service.fetchCategories(organizationID: testOrgID, completion: $0) }
-        let categories = try! result.get()
-        
-        #expect(categories == ["еда", "напитки"])
-    }
-    
-    @Test
     func createItem_addsToActiveList() async {
         let service = MockWarehouseService(seed: [])
         let item = makeItem(name: "new")

@@ -6,6 +6,9 @@
 //
 
 import Foundation
+import OSLog
+
+private let wsLog = Logger(subsystem: "cstatiWarehouse", category: "WebSocket")
 
 protocol MyWarehouseInteractorInputProtocol: AnyObject {
     func resolveActiveOrganization()
@@ -267,22 +270,22 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
 extension MyWarehouseInteractor: WebSocketEventHandler {
     
     func handleItemCreated(_ item: Item) {
-        print("[WebSocket] Item created: \(item.name)")
+        wsLog.debug("Item created: \(item.name, privacy: .private)")
         presenter?.itemChangedExternally(item, isNew: true)
     }
     
     func handleItemUpdated(_ item: Item) {
-        print("[WebSocket] Item updated: \(item.name)")
+        wsLog.debug("Item updated: \(item.name, privacy: .private)")
         presenter?.itemChangedExternally(item, isNew: false)
     }
     
     func handleItemArchived(_ item: Item) {
-        print("[WebSocket] Item archived: \(item.name)")
+        wsLog.debug("Item archived: \(item.name, privacy: .private)")
         presenter?.itemChangedExternally(item, isNew: false)
     }
     
     func handleItemDeleted(itemID: UUID) {
-        print("[WebSocket] Item deleted: \(itemID)")
+        wsLog.debug("Item deleted: \(itemID.uuidString, privacy: .public)")
         presenter?.itemDeleted(id: itemID)
     }
 }

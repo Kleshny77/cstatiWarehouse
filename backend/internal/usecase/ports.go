@@ -68,7 +68,6 @@ type ItemRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.Item, error)
 	ListByOrganization(ctx context.Context, orgID uuid.UUID, filter ItemFilter) ([]domain.Item, error)
 	Delete(ctx context.Context, id uuid.UUID) error
-	ListCategoriesByOrganization(ctx context.Context, orgID uuid.UUID) ([]string, error)
 	RecordArchiveEvent(ctx context.Context, item *domain.Item, event *domain.ArchiveEvent) error
 	ListArchiveEvents(ctx context.Context, orgID uuid.UUID, limit, offset int) ([]domain.ArchiveEvent, error)
 	HasChildRows(ctx context.Context, parentID uuid.UUID) (bool, error)

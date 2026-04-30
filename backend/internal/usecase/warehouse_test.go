@@ -308,14 +308,6 @@ func TestWarehouseUseCase_ListAndCategories(t *testing.T) {
 		t.Errorf("expected 0 archived items, got %d", len(onlyArchived))
 	}
 
-	cats, err := uc.Categories(context.Background(), userID, orgID)
-	if err != nil {
-		t.Fatalf("categories failed: %v", err)
-	}
-	if len(cats) != 2 || cats[0] != "Еда" || cats[1] != "Напитки" {
-		t.Errorf("unexpected categories: %+v", cats)
-	}
-
 	if _, err := uc.List(context.Background(), userID, otherOrg, ItemFilter{}); !errors.Is(err, domain.ErrForbidden) {
 		t.Errorf("expected ErrForbidden for non-member list, got %v", err)
 	}

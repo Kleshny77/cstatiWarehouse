@@ -49,33 +49,18 @@ final class ItemEditInteractor: ItemEditInteractorInputProtocol {
 
 
     func loadCategories() {
-        let group = DispatchGroup()
-        var orgCats: [OrgCategory] = []
-        var legacyNames: [String] = []
-
-        group.enter()
-        orgCategoriesService.list(organizationID: organizationID) { result in
+        // После миграции 00012 уникальные категории живут только в `OrgCategoriesService`.
+        // Старый запрос `warehouseService.fetchCategories` (DISTINCT по items) почти
+        // всегда возвращал то же самое и создавал лишний round-trip — убран.
+        orgCategoriesService.list(organizationID: organizationID) { [weak self] result in
+            guard let self else { return }
+            let orgCats: [OrgCategory]
             if case .success(let list) = result {
                 orgCats = list
+            } else {
+                orgCats = []
             }
-            group.leave()
-        }
-
-        group.enter()
-        warehouseService.fetchCategories(organizationID: organizationID) { result in
-            if case .success(let names) = result {
-                legacyNames = names
-            }
-            group.leave()
-        }
-
-        group.notify(queue: .main) { [weak self] in
-            guard let self else { return }
-            let orgNamesLower = Set(orgCats.map { $0.name.lowercased() })
-            let extra = legacyNames.filter { name in
-                !orgNamesLower.contains(name.lowercased())
-            }
-            self.presenter?.categoriesLoaded(orgCategories: orgCats, extraNames: extra.sorted { $0.localizedCompare($1) == .orderedAscending })
+            self.presenter?.categoriesLoaded(orgCategories: orgCats, extraNames: [])
         }
     }
 

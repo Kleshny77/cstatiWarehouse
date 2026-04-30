@@ -149,10 +149,6 @@ type itemResponse struct {
 	Item itemDTO `json:"item"`
 }
 
-type categoriesResponse struct {
-	Categories []string `json:"categories"`
-}
-
 type createItemRequest struct {
 	OrganizationID  string     `json:"organization_id"`
 	HeldByUserID    *string    `json:"held_by_user_id,omitempty"`
@@ -170,17 +166,17 @@ type createItemRequest struct {
 }
 
 type updateItemRequest struct {
-	HeldByUserID    *string    `json:"held_by_user_id,omitempty"`
-	Name            string     `json:"name"`
-	Description     string     `json:"description"`
-	CategoryName    string     `json:"category_name"`
-	Quantity        int        `json:"quantity"`
-	ExpirationDate  *time.Time `json:"expiration_date,omitempty"`
-	ImageURL        *string    `json:"image_url,omitempty"`
-	LocationAddress *string    `json:"location_address,omitempty"`
-	VariantLabel    string     `json:"variant_label"`
-	MeasureUnit     string     `json:"measure_unit"`
-	VolumePerUnit   *float64   `json:"volume_per_unit,omitempty"`
+	HeldByUserID      *string    `json:"held_by_user_id,omitempty"`
+	Name              string     `json:"name"`
+	Description       string     `json:"description"`
+	CategoryName      string     `json:"category_name"`
+	Quantity          int        `json:"quantity"`
+	ExpirationDate    *time.Time `json:"expiration_date,omitempty"`
+	ImageURL          *string    `json:"image_url,omitempty"`
+	LocationAddress   *string    `json:"location_address,omitempty"`
+	VariantLabel      string     `json:"variant_label"`
+	MeasureUnit       string     `json:"measure_unit"`
+	VolumePerUnit     *float64   `json:"volume_per_unit,omitempty"`
 	ExpectedUpdatedAt *time.Time `json:"expected_updated_at,omitempty"`
 }
 
@@ -479,28 +475,6 @@ func (h *WarehouseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *WarehouseHandler) Categories(w http.ResponseWriter, r *http.Request) {
-	userID, ok := currentUserID(r)
-	if !ok {
-		writeError(w, r, domain.ErrUnauthorized)
-		return
-	}
-	orgID, err := requireOrganizationID(r)
-	if err != nil {
-		writeError(w, r, err)
-		return
-	}
-	cats, err := h.warehouse.Categories(r.Context(), userID, orgID)
-	if err != nil {
-		writeError(w, r, err)
-		return
-	}
-	if cats == nil {
-		cats = []string{}
-	}
-	writeJSON(w, http.StatusOK, categoriesResponse{Categories: cats})
 }
 
 func parseIDPath(r *http.Request, name string) (uuid.UUID, error) {

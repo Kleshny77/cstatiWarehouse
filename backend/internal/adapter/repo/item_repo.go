@@ -228,28 +228,6 @@ func (r *ItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID, limit
 	return out, rows.Err()
 }
 
-func (r *ItemRepo) ListCategoriesByOrganization(ctx context.Context, orgID uuid.UUID) ([]string, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT DISTINCT category_name FROM items
-		WHERE organization_id = $1 AND category_name <> ''
-		ORDER BY category_name
-	`, orgID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []string
-	for rows.Next() {
-		var c string
-		if err := rows.Scan(&c); err != nil {
-			return nil, err
-		}
-		out = append(out, c)
-	}
-	return out, rows.Err()
-}
-
 func scanItem(row pgx.Row) (*domain.Item, error) {
 	var (
 		item       domain.Item

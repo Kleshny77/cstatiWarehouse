@@ -50,7 +50,6 @@ protocol WarehouseServiceProtocol: AnyObject {
     func fetchActiveItems(organizationID: UUID, scope: WarehouseScope, completion: @escaping (Result<[Item], WarehouseError>) -> Void)
     func fetchHistory(organizationID: UUID, completion: @escaping (Result<[Item], WarehouseError>) -> Void)
     func fetchArchiveEvents(organizationID: UUID, completion: @escaping (Result<[ArchiveEvent], WarehouseError>) -> Void)
-    func fetchCategories(organizationID: UUID, completion: @escaping (Result<[String], WarehouseError>) -> Void)
     func createItem(_ item: Item, organizationID: UUID, completion: @escaping (Result<Item, WarehouseError>) -> Void)
     func updateItem(_ item: Item, completion: @escaping (Result<Item, WarehouseError>) -> Void)
     func archiveItem(

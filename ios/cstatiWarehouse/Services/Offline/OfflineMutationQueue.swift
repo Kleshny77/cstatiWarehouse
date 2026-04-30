@@ -6,6 +6,9 @@
 //
 
 import Foundation
+import OSLog
+
+private let log = Logger(subsystem: "cstatiWarehouse", category: "OfflineQueue")
 
 enum OfflineMutation {
     case createItem(Item, organizationID: UUID)
@@ -90,7 +93,7 @@ final class OfflineMutationQueue: OfflineMutationQueueProtocol {
 
                 if updated.retryCount >= maxRetries {
                     queue.removeFirst()
-                    print("⚠️ Mutation \(mutation.id) failed after \(maxRetries) retries")
+                    log.error("Mutation \(mutation.id.uuidString, privacy: .public) failed after \(self.maxRetries) retries")
                 } else {
                     queue[0] = updated
                     try? await Task.sleep(nanoseconds: UInt64(retryDelay * 1_000_000_000))

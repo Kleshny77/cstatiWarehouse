@@ -1,3 +1,7 @@
+-- NOTE: paired no-op with 00012_drop_item_minimum_quantity.sql.
+-- This column was rolled back before launch; the pair is preserved
+-- for migration history integrity (do NOT squash on existing databases).
+
 -- +goose Up
 -- +goose StatementBegin
 

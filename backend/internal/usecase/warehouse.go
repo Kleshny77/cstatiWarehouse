@@ -168,19 +168,19 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*do
 }
 
 type UpdateItemInput struct {
-	ID              uuid.UUID
-	UserID          uuid.UUID
-	HeldByUserID    *uuid.UUID
-	Name            string
-	Description     string
-	CategoryName    string
-	Quantity        int
-	ExpirationDate  *time.Time
-	ImageURL        *string
-	LocationAddress *string
-	VariantLabel    string
-	MeasureUnit     string
-	VolumePerUnit   *float64
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	HeldByUserID      *uuid.UUID
+	Name              string
+	Description       string
+	CategoryName      string
+	Quantity          int
+	ExpirationDate    *time.Time
+	ImageURL          *string
+	LocationAddress   *string
+	VariantLabel      string
+	MeasureUnit       string
+	VolumePerUnit     *float64
 	ExpectedUpdatedAt *time.Time
 }
 
@@ -382,13 +382,6 @@ func (uc *WarehouseUseCase) List(ctx context.Context, userID, orgID uuid.UUID, f
 		return nil, err
 	}
 	return uc.items.ListByOrganization(ctx, orgID, filter)
-}
-
-func (uc *WarehouseUseCase) Categories(ctx context.Context, userID, orgID uuid.UUID) ([]string, error) {
-	if _, err := uc.requireMember(ctx, userID, orgID); err != nil {
-		return nil, err
-	}
-	return uc.items.ListCategoriesByOrganization(ctx, orgID)
 }
 
 // MARK: private helpers

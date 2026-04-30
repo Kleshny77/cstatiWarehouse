@@ -23,10 +23,10 @@ type RouterDeps struct {
 	Reservations            *ReservationsHandler
 	WebSocket               *WebSocketHandler
 	Tokens                  usecase.TokenIssuer
-	ClientIP func(*http.Request) string
-	SkipAuthRateLimit bool
-	UserLimiter *ratelimit.UserLimiter
-	CORSAllowedOrigins []string
+	ClientIP                func(*http.Request) string
+	SkipAuthRateLimit       bool
+	UserLimiter             *ratelimit.UserLimiter
+	CORSAllowedOrigins      []string
 }
 
 func NewRouter(deps RouterDeps) http.Handler {
@@ -62,7 +62,6 @@ func NewRouter(deps RouterDeps) http.Handler {
 	mux.Handle("PUT /items/{id}", authWithUserRL(http.HandlerFunc(deps.Warehouse.Update)))
 	mux.Handle("POST /items/{id}/archive", authWithUserRL(http.HandlerFunc(deps.Warehouse.Archive)))
 	mux.Handle("DELETE /items/{id}", authWithUserRL(http.HandlerFunc(deps.Warehouse.Delete)))
-	mux.Handle("GET /categories", authWithUserRL(http.HandlerFunc(deps.Warehouse.Categories)))
 	mux.Handle("GET /archive-events", authWithUserRL(http.HandlerFunc(deps.Warehouse.ArchiveEvents)))
 
 	mux.Handle("GET /organizations", authWithUserRL(http.HandlerFunc(deps.Organizations.List)))

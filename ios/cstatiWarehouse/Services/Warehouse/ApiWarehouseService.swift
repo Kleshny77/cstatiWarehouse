@@ -42,21 +42,6 @@ final class ApiWarehouseService: WarehouseServiceProtocol {
         }
     }
 
-    func fetchCategories(organizationID: UUID, completion: @escaping (Result<[String], WarehouseError>) -> Void) {
-        client.request(
-            path: "/categories",
-            method: .get,
-            query: [URLQueryItem(name: "organizationId", value: organizationID.uuidString.lowercased())]
-        ) { (result: Result<CategoriesResponseDTO, APIError>) in
-            switch result {
-            case .success(let dto):
-                completion(.success(dto.categories))
-            case .failure(let error):
-                completion(.failure(Self.mapError(error)))
-            }
-        }
-    }
-
     func createItem(_ item: Item, organizationID: UUID, completion: @escaping (Result<Item, WarehouseError>) -> Void) {
         let body = CreateItemRequestDTO(item: item, organizationID: organizationID)
         client.request(
@@ -228,10 +213,6 @@ private struct ItemListResponseDTO: Decodable {
 
 private struct ItemResponseDTO: Decodable {
     let item: ItemDTO
-}
-
-private struct CategoriesResponseDTO: Decodable {
-    let categories: [String]
 }
 
 private struct ArchiveResponseDTO: Decodable {

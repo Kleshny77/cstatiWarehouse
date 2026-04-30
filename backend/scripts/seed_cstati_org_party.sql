@@ -96,12 +96,12 @@ variants(id, parent_id, name, variant_label, volume_per_unit, quantity, expires_
          'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/Moscow_Mule.jpg/500px-Moscow_Mule.jpg'),
         ('c3fa0000-0000-4000-a000-000000000121'::uuid, 'c3fa0000-0000-4000-a000-000000000102'::uuid,
          'Вода минеральная негазированная', '5 л', 5.0::double precision, 4, 400, 6,
-         'Крупная фасовка для станций с льдом у бара.',
+         'Крупная упаковка для станций с льдом у бара.',
          'Лофт «Графит», склад за баром, штабелёр H',
          'https://upload.wikimedia.org/wikipedia/commons/0/02/Stilles_Mineralwasser.jpg'),
         ('c3fa0000-0000-4000-a000-000000000122'::uuid, 'c3fa0000-0000-4000-a000-000000000102'::uuid,
          'Вода минеральная негазированная', '1,5 л', 1.5::double precision, 24, 540, 5,
-         'Мобильная фасовка для сервиса на зоне программы.',
+         'Мобильная упаковка для сервиса на зоне программы.',
          'Лофт «Графит», зона программы, контейнер «вода»',
          'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Plastic_water_bottle.jpg/500px-Plastic_water_bottle.jpg')
 )

@@ -373,27 +373,6 @@ func (r *fakeItemRepo) ListArchiveEvents(ctx context.Context, orgID uuid.UUID, l
 	return out, nil
 }
 
-func (r *fakeItemRepo) ListCategoriesByOrganization(ctx context.Context, orgID uuid.UUID) ([]string, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	seen := map[string]struct{}{}
-	for _, i := range r.items {
-		if i.OrganizationID != orgID {
-			continue
-		}
-		if i.CategoryName == "" {
-			continue
-		}
-		seen[i.CategoryName] = struct{}{}
-	}
-	out := make([]string, 0, len(seen))
-	for c := range seen {
-		out = append(out, c)
-	}
-	sort.Strings(out)
-	return out, nil
-}
-
 // MARK: OrganizationRepository
 
 type fakeOrgRepo struct {

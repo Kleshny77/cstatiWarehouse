@@ -6,6 +6,9 @@
 //
 
 import Foundation
+import OSLog
+
+private let log = Logger(subsystem: "cstatiWarehouse", category: "WebSocket")
 
 enum WebSocketMessageType: String {
     case itemCreated = "item.created"
@@ -46,7 +49,7 @@ final class WebSocketService {
         disconnect() // Disconnect previous connection if any
         
         guard let accessToken = sessionStorage.accessToken else {
-            print("[WebSocket] No access token available")
+            log.warning("No access token available")
             return
         }
         
@@ -54,7 +57,7 @@ final class WebSocketService {
         wsURL = wsURL.replacingOccurrences(of: "https://", with: "wss://")
         
         guard var urlComponents = URLComponents(string: "\(wsURL)/ws") else {
-            print("[WebSocket] Invalid URL")
+            log.error("Invalid URL")
             return
         }
         
@@ -63,7 +66,7 @@ final class WebSocketService {
         ]
         
         guard let url = urlComponents.url else {
-            print("[WebSocket] Failed to construct URL")
+            log.error("Failed to construct URL")
             return
         }
         
@@ -75,7 +78,7 @@ final class WebSocketService {
         isConnected = true
         currentOrganizationID = organizationID
 
-        print("[WebSocket] Connecting: \(url.absoluteString)")
+        log.debug("Connecting: \(url.absoluteString, privacy: .public)")
         
         receiveMessage()
     }
@@ -85,7 +88,7 @@ final class WebSocketService {
         webSocketTask = nil
         isConnected = false
         currentOrganizationID = nil
-        print("[WebSocket] Disconnected")
+        log.debug("Disconnected")
     }
     
     private func receiveMessage() {
@@ -98,7 +101,7 @@ final class WebSocketService {
                 self.receiveMessage()
                 
             case .failure(let error):
-                print("[WebSocket] Receive error: \(error)")
+                log.error("Receive error: \(error.localizedDescription, privacy: .public)")
                 self.isConnected = false
             }
         }
@@ -122,12 +125,12 @@ final class WebSocketService {
         do {
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let type = json["type"] as? String else {
-                print("[WebSocket] Invalid message format")
+                log.warning("Invalid message format")
                 return
             }
             
             guard let messageType = WebSocketMessageType(rawValue: type) else {
-                print("[WebSocket] Unknown message type: \(type)")
+                log.warning("Unknown message type: \(type, privacy: .public)")
                 return
             }
             
@@ -160,7 +163,7 @@ final class WebSocketService {
                 }
             }
         } catch {
-            print("[WebSocket] Failed to parse message: \(error)")
+            log.error("Failed to parse message: \(error.localizedDescription, privacy: .public)")
         }
     }
     
@@ -184,7 +187,7 @@ final class WebSocketService {
             let itemDTO = try decoder.decode(ItemDTO.self, from: data)
             return itemDTO.toItem()
         } catch {
-            print("[WebSocket] Failed to decode item: \(error)")
+            log.error("Failed to decode item: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }

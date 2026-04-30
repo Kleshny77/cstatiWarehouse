@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -89,12 +90,24 @@ func (uc *ReservationsUseCase) Create(
 	if item.Status != domain.ItemStatusInStock {
 		return nil, domain.NewValidationError("item is archived")
 	}
-	if in.Quantity > item.Quantity {
-		return nil, domain.ErrConflict
+
+	if err := uc.assertMember(ctx, item.OrganizationID, in.ActorID); err != nil {
+		return nil, err
 	}
 
-	if _, err := uc.memberRepo.FindRole(ctx, item.OrganizationID, in.ActorID); err != nil {
-		return nil, domain.ErrForbidden
+	// Учитываем уже активные резервы при проверке доступности.
+	// NB: это всё ещё TOCTOU — для строгой гарантии нужен SERIALIZABLE
+	// или SELECT … FOR UPDATE на item внутри транзакции в репозитории.
+	reserved, err := uc.repo.GetActiveTotalReservedForItem(ctx, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	available := item.Quantity - reserved
+	if available < 0 {
+		available = 0
+	}
+	if in.Quantity > available {
+		return nil, domain.ErrConflict
 	}
 
 	if in.EventID != nil && uc.eventRepo != nil {
@@ -229,8 +242,8 @@ func (uc *ReservationsUseCase) ListByItem(
 	if item == nil {
 		return nil, domain.ErrNotFound
 	}
-	if _, err := uc.memberRepo.FindRole(ctx, item.OrganizationID, actorID); err != nil {
-		return nil, domain.ErrForbidden
+	if err := uc.assertMember(ctx, item.OrganizationID, actorID); err != nil {
+		return nil, err
 	}
 	return uc.repo.ListByItem(ctx, itemID, status)
 }
@@ -240,8 +253,8 @@ func (uc *ReservationsUseCase) ListByOrganization(
 	actorID, orgID uuid.UUID,
 	status *domain.ReservationStatus,
 ) ([]domain.ItemReservation, error) {
-	if _, err := uc.memberRepo.FindRole(ctx, orgID, actorID); err != nil {
-		return nil, domain.ErrForbidden
+	if err := uc.assertMember(ctx, orgID, actorID); err != nil {
+		return nil, err
 	}
 	return uc.repo.ListByOrganization(ctx, orgID, status)
 }
@@ -257,8 +270,8 @@ func (uc *ReservationsUseCase) GetAvailableQuantity(
 	if item == nil {
 		return 0, 0, 0, domain.ErrNotFound
 	}
-	if _, err := uc.memberRepo.FindRole(ctx, item.OrganizationID, actorID); err != nil {
-		return 0, 0, 0, domain.ErrForbidden
+	if err := uc.assertMember(ctx, item.OrganizationID, actorID); err != nil {
+		return 0, 0, 0, err
 	}
 	reserved, err = uc.repo.GetActiveTotalReservedForItem(ctx, itemID)
 	if err != nil {
@@ -306,7 +319,23 @@ func (uc *ReservationsUseCase) ExpireDueReservations(ctx context.Context) (Reser
 func (uc *ReservationsUseCase) isAdmin(ctx context.Context, orgID, userID uuid.UUID) (bool, error) {
 	role, err := uc.memberRepo.FindRole(ctx, orgID, userID)
 	if err != nil {
-		return false, domain.ErrForbidden
+		if errors.Is(err, domain.ErrNotFound) {
+			return false, domain.ErrForbidden
+		}
+		return false, err
 	}
 	return role == domain.OrgRoleOwner || role == domain.OrgRoleAdmin, nil
+}
+
+// assertMember проверяет, что пользователь состоит в организации.
+// Различает «не член» (ErrForbidden) и транспортные/инфраструктурные ошибки —
+// раньше любая ошибка маппилась в Forbidden, что маскировало проблемы БД.
+func (uc *ReservationsUseCase) assertMember(ctx context.Context, orgID, userID uuid.UUID) error {
+	if _, err := uc.memberRepo.FindRole(ctx, orgID, userID); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return domain.ErrForbidden
+		}
+		return err
+	}
+	return nil
 }

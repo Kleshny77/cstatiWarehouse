@@ -15,6 +15,12 @@ enum HTTPMethod: String {
     case delete = "DELETE"
 }
 
+/// Внутренние ошибки `APIClient`, заворачиваемые в `APIError.decoding`.
+enum APIClientError: Error {
+    /// Сервер вернул пустое тело, но ожидаемый `Response` — не `EmptyResponse`.
+    case emptyResponseTypeMismatch
+}
+
 final class APIClient {
 
     private let session: URLSession
@@ -86,7 +92,14 @@ final class APIClient {
             switch result {
             case .success(let data):
                 if Response.self == EmptyResponse.self, data.isEmpty {
-                    Self.completeOnMain(completion, .success(EmptyResponse() as! Response))
+                    if let empty = EmptyResponse() as? Response {
+                        Self.completeOnMain(completion, .success(empty))
+                    } else {
+                        Self.completeOnMain(
+                            completion,
+                            .failure(.decoding(underlying: APIClientError.emptyResponseTypeMismatch))
+                        )
+                    }
                     return
                 }
                 do {
@@ -389,6 +402,7 @@ final class APIClient {
     ) {
         let semaphore = DispatchSemaphore(value: 0)
         var result: Result<Void, APIError> = .failure(.unauthorized)
+        let resultLock = NSLock()
 
         let body = RefreshRequestDTO(refreshToken: refreshToken)
         performRequest(
@@ -401,6 +415,7 @@ final class APIClient {
         ) { [weak self] raw in
             defer { semaphore.signal() }
             guard let self else { return }
+            let computed: Result<Void, APIError>
             switch raw {
             case .success(let data):
                 do {
@@ -409,18 +424,39 @@ final class APIClient {
                         accessToken: dto.accessToken,
                         refreshToken: dto.refreshToken
                     )
-                    result = .success(())
+                    computed = .success(())
                 } catch {
-                    result = .failure(.decoding(underlying: error))
+                    computed = .failure(.decoding(underlying: error))
                 }
             case .failure(let err):
-                result = .failure(err)
+                computed = .failure(err)
             }
+            resultLock.lock()
+            result = computed
+            resultLock.unlock()
         }
 
-        semaphore.wait()
-        completion(result)
+        // Подстраховка от дедлока: URLSession уже имеет свой таймаут
+        // (по умолчанию 60 секунд), но если по какой-то причине callback
+        // не будет вызван — этот таймаут не даст зависнуть синхронному вызову.
+        let waitDeadline = DispatchTime.now() + Self.refreshSemaphoreTimeout
+        if semaphore.wait(timeout: waitDeadline) == .timedOut {
+            let timeoutError = NSError(
+                domain: NSURLErrorDomain,
+                code: NSURLErrorTimedOut,
+                userInfo: [NSLocalizedDescriptionKey: "Token refresh timed out"]
+            )
+            resultLock.lock()
+            result = .failure(.transport(underlying: timeoutError))
+            resultLock.unlock()
+        }
+        resultLock.lock()
+        let finalResult = result
+        resultLock.unlock()
+        completion(finalResult)
     }
+
+    private static let refreshSemaphoreTimeout: DispatchTimeInterval = .seconds(30)
 
     private func makeURLRequest(
         path: String,

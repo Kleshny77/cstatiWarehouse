@@ -66,17 +66,6 @@ final class MockWarehouseService: WarehouseServiceProtocol {
         }
     }
 
-    func fetchCategories(organizationID: UUID, completion: @escaping (Result<[String], WarehouseError>) -> Void) {
-        respond {
-            let active = self.items.values
-                .filter { $0.orgID == organizationID && !$0.item.status.isArchived }
-                .map(\.item)
-            let names = Set(active.map(\.categoryName))
-                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            completion(.success(names.sorted { $0.localizedCompare($1) == .orderedAscending }))
-        }
-    }
-
     func createItem(_ item: Item, organizationID: UUID, completion: @escaping (Result<Item, WarehouseError>) -> Void) {
         respond {
             self.items[item.id] = (organizationID, item)

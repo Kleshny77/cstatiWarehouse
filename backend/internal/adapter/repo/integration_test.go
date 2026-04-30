@@ -170,14 +170,6 @@ func TestIntegration_ItemRepo_Lifecycle(t *testing.T) {
 		t.Errorf("archive reason not persisted: %+v", onlyArchived[0].ArchiveReason)
 	}
 
-	cats, err := items.ListCategoriesByOrganization(context.Background(), orgID)
-	if err != nil {
-		t.Fatalf("categories: %v", err)
-	}
-	if len(cats) != 1 || cats[0] != "Напитки" {
-		t.Errorf("unexpected categories: %+v", cats)
-	}
-
 	if err := items.Delete(context.Background(), item.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}

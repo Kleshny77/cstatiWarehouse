@@ -38,10 +38,12 @@ enum PickupRouteOrdering {
         ordered.append(current)
 
         while !remaining.isEmpty {
-            let bestIdx = remaining.indices.min(by: {
+            guard let bestIdx = remaining.indices.min(by: {
                 distanceMeters(current.coordinate, remaining[$0].coordinate)
                     < distanceMeters(current.coordinate, remaining[$1].coordinate)
-            })!
+            }) else {
+                break
+            }
             current = remaining.remove(at: bestIdx)
             ordered.append(current)
         }

@@ -213,10 +213,6 @@ struct RoutePlanningInteractorTests {
             DispatchQueue.main.async { completion(.success([])) }
         }
 
-        func fetchCategories(organizationID: UUID, completion: @escaping (Result<[String], WarehouseError>) -> Void) {
-            DispatchQueue.main.async { completion(.success([])) }
-        }
-
         func createItem(_ item: Item, organizationID: UUID, completion: @escaping (Result<Item, WarehouseError>) -> Void) {
             DispatchQueue.main.async { completion(.failure(.notFound)) }
         }
