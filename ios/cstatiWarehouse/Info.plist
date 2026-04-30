@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>GoogleSignIn</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.18703846128-nns9shatdk8fmt3s7a6slg7s9c9f1st6</string>
+			</array>
+		</dict>
+	</array>
+	<key>GIDClientID</key>
+	<string>18703846128-nns9shatdk8fmt3s7a6slg7s9c9f1st6.apps.googleusercontent.com</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>127.0.0.1</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Напоминания за месяц и за неделю до окончания срока годности позиций на складе.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>CenturyGothicBlack.ttf</string>
+		<string>CenturyGothicBlackItalic.ttf</string>
+		<string>CenturyGothicBold.ttf</string>
+		<string>CenturyGothicBoldItalic.ttf</string>
+		<string>CenturyGothicExtraBold.ttf</string>
+		<string>CenturyGothicExtraBoldItalic.ttf</string>
+		<string>CenturyGothicItalic.ttf</string>
+		<string>CenturyGothicLight.ttf</string>
+		<string>CenturyGothicLightItalic.ttf</string>
+		<string>CenturyGothicRegular.ttf</string>
+		<string>CenturyGothicRegularItalic.ttf</string>
+		<string>CenturyGothicSemiBold.ttf</string>
+		<string>CenturyGothicSemiBoldItalic.ttf</string>
+		<string>CenturyGothicThin.ttf</string>
+		<string>CenturyGothicThinItalic.ttf</string>
+	</array>
+</dict>
+</plist>

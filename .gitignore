@@ -15,6 +15,7 @@ xcuserdata/
 # Xcode — build artifacts
 build/
 DerivedData/
+ios/DerivedData/
 *.hmap
 *.ipa
 *.dSYM.zip
@@ -49,5 +50,10 @@ fastlane/test_output
 # Редакторы / IDE
 .idea/
 .vscode/
+.claude/
+.cursor/
 *.swp
 *.swo
+
+# Локальные материалы по документации (не публиковать в репозиторий)
+документация/

@@ -1,0 +1,190 @@
+/* 
+  Localizable.strings (Russian)
+  cstatiWarehouse
+  
+  Created by Артём on 29.04.2026.
+*/
+
+// MARK: - Common
+"common.cancel" = "Отмена";
+"common.done" = "Готово";
+"common.save" = "Сохранить";
+"common.delete" = "Удалить";
+"common.edit" = "Редактировать";
+"common.add" = "Добавить";
+"common.close" = "Закрыть";
+"common.ok" = "ОК";
+"common.yes" = "Да";
+"common.no" = "Нет";
+"common.search" = "Поиск";
+"common.filter" = "Фильтр";
+"common.sort" = "Сортировка";
+"common.loading" = "Загрузка...";
+"common.error" = "Ошибка";
+"common.retry" = "Повторить";
+"common.create" = "Создать";
+"common.update" = "Обновить";
+"common.confirm" = "Подтвердить";
+"common.back" = "Назад";
+
+// MARK: - Tabs
+"tab.warehouse" = "Склад";
+"tab.organization" = "Организация";
+"tab.settings" = "Настройки";
+
+// MARK: - Warehouse
+"warehouse.title" = "Мой склад";
+"warehouse.empty.title" = "Нет предметов";
+"warehouse.empty.subtitle" = "Добавьте первый предмет";
+"warehouse.add_item" = "Добавить предмет";
+"warehouse.search.placeholder" = "Поиск предметов...";
+"warehouse.filter_button" = "Фильтр";
+"warehouse.sort_button" = "Сортировка";
+"warehouse.archive_history" = "История архивации";
+"warehouse.scope.all" = "Все";
+"warehouse.scope.my" = "Мои";
+"warehouse.items_count" = "%d предметов";
+
+// MARK: - Item
+"item.name" = "Название";
+"item.description" = "Описание";
+"item.category" = "Категория";
+"item.quantity" = "Количество";
+"item.location" = "Местоположение";
+"item.expiration_date" = "Срок годности";
+"item.photo" = "Фото";
+"item.holder" = "Держатель";
+"item.measure_unit" = "Единица измерения";
+"item.volume_per_unit" = "Объем на единицу";
+"item.packaging" = "Фасовка";
+"item.variant" = "Вариант";
+"item.add_variant" = "Добавить вариант";
+
+// MARK: - Item Edit
+"item_edit.title" = "Редактирование";
+"item_edit.create" = "Создать предмет";
+"item_edit.update" = "Обновить предмет";
+"item_edit.name_placeholder" = "Введите название";
+"item_edit.description_placeholder" = "Введите описание";
+"item_edit.category_placeholder" = "Выберите категорию";
+"item_edit.location_placeholder" = "Введите адрес";
+"item_edit.select_photo" = "Выбрать фото";
+"item_edit.change_photo" = "Изменить фото";
+"item_edit.remove_photo" = "Удалить фото";
+
+// MARK: - Archive
+"archive.title" = "Архивация";
+"archive.reason" = "Причина";
+"archive.quantity" = "Количество";
+"archive.confirm" = "Архивировать";
+"archive.detail" = "Детали";
+"archive.history" = "История архивации";
+"archive.event" = "Событие";
+"archive.select_event" = "Выберите событие";
+
+// Archive Reasons
+"archive.reason.expired" = "Истек срок годности";
+"archive.reason.damaged" = "Повреждено";
+"archive.reason.lost" = "Потеряно";
+"archive.reason.used" = "Использовано";
+"archive.reason.sold" = "Продано";
+"archive.reason.donated" = "Подарено";
+"archive.reason.used_at_event" = "Использовано на событии";
+"archive.reason.other" = "Другое";
+
+// MARK: - Organization
+"organization.title" = "Организация";
+"organization.members" = "Участники";
+"organization.invite" = "Пригласить";
+"organization.events" = "События";
+"organization.activity" = "Активность";
+"organization.categories" = "Категории";
+"organization.settings" = "Настройки";
+"organization.leave" = "Покинуть";
+"organization.create" = "Создать организацию";
+"organization.join" = "Присоединиться";
+"organization.switch" = "Переключить";
+"organization.name" = "Название";
+"organization.code" = "Код приглашения";
+
+// Organization Roles
+"organization.role.owner" = "Владелец";
+"organization.role.admin" = "Администратор";
+"organization.role.member" = "Участник";
+
+// MARK: - Settings
+"settings.title" = "Настройки";
+"settings.profile" = "Профиль";
+"settings.notifications" = "Уведомления";
+"settings.language" = "Язык";
+"settings.logout" = "Выйти";
+"settings.version" = "Версия";
+"settings.about" = "О приложении";
+
+// MARK: - Auth
+"auth.login" = "Войти";
+"auth.register" = "Регистрация";
+"auth.email" = "Email";
+"auth.password" = "Пароль";
+"auth.name" = "Имя";
+"auth.login_telegram" = "Войти через Telegram";
+"auth.login_google" = "Войти через Google";
+"auth.welcome" = "Добро пожаловать";
+"auth.create_account" = "Создать аккаунт";
+"auth.have_account" = "Уже есть аккаунт?";
+"auth.no_account" = "Нет аккаунта?";
+
+// MARK: - Errors
+"error.generic" = "Что-то пошло не так";
+"error.network" = "Ошибка сети";
+"error.unauthorized" = "Не авторизован";
+"error.not_found" = "Не найдено";
+"error.forbidden" = "Доступ запрещен";
+"error.validation" = "Ошибка валидации";
+"error.conflict" = "Конфликт данных";
+"error.server_error" = "Ошибка сервера";
+
+// MARK: - Measure Units
+"measure.piece" = "шт";
+"measure.kilogram" = "кг";
+"measure.gram" = "г";
+"measure.liter" = "л";
+"measure.milliliter" = "мл";
+"measure.meter" = "м";
+"measure.centimeter" = "см";
+"measure.package" = "упак";
+"measure.box" = "кор";
+"measure.bottle" = "бут";
+"measure.can" = "бан";
+
+// MARK: - Expiration Status
+"expiration.expired" = "Просрочено";
+"expiration.expiring_soon" = "Скоро истечет";
+"expiration.ok" = "Годен";
+"expiration.no_date" = "Без срока";
+"expiration.expired_on" = "Просрочено %@";
+"expiration.expires_on" = "Истекает %@";
+"expiration.valid_until" = "Годен до %@";
+
+// MARK: - Filters
+"filter.title" = "Фильтры";
+"filter.category" = "Категория";
+"filter.holder" = "Держатель";
+"filter.expiration" = "Срок годности";
+"filter.clear" = "Очистить";
+"filter.apply" = "Применить";
+"filter.all_categories" = "Все категории";
+"filter.all_holders" = "Все держатели";
+
+// MARK: - Sort
+"sort.title" = "Сортировка";
+"sort.by_name" = "По названию";
+"sort.by_date" = "По дате";
+"sort.by_quantity" = "По количеству";
+"sort.by_expiration" = "По сроку годности";
+"sort.by_category" = "По категории";
+
+// MARK: - Delete Confirmation
+"delete.confirm.title" = "Удалить предмет?";
+"delete.confirm.message" = "Это действие нельзя отменить";
+"delete.confirm.button" = "Удалить";
