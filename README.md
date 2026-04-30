@@ -589,7 +589,416 @@ Read и write репозитории — отдельные интерфейсы
 
 ### 6.7 Middleware (порядок)
 [`router.go`](backend/internal/adapter/httpapi/router.go:1):
-1. `securityHeadersMiddleware`,
-2. `recoverMiddleware` (паника → 500, не падает процесс),
-3. `loggingMiddleware` (request-id, method, path, status, latency),
-4. `corsM
+1. `securityHeadersMiddleware` — `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Strict-Transport-Security`.
+2. `recoverMiddleware` — паника → 500, процесс не падает, стек попадает в лог.
+3. `loggingMiddleware` — request-id, method, path, status, latency, user-id (если известен).
+4. `corsMiddleware` — whitelisted-origins из env, `OPTIONS` short-circuit.
+5. `authRateLimitMiddleware` — токен-бакет на IP для `/api/v1/auth/*` (защита от brute-force).
+6. `authMiddleware` — JWT HS256, кладёт `userID` в контекст ([`middleware.go`](backend/internal/adapter/httpapi/middleware.go:1)).
+7. `userRateLimitMiddleware` — токен-бакет на пользователя для основной API.
+
+---
+
+## 7. HTTP API — полный каталог эндпоинтов
+
+База: `/api/v1`. Авторизация: `Authorization: Bearer <access_token>` (кроме `/auth/*`). Все ответы — JSON, тела ошибок: `{ "error": "code", "message": "human-readable" }`.
+
+### 7.1 Auth ([`auth_handler.go`](backend/internal/adapter/httpapi/auth_handler.go:1))
+| Метод | Путь | Описание |
+| --- | --- | --- |
+| `POST` | `/auth/register` | Регистрация (email + password). Возвращает `access_token` + `refresh_token` + `user`. |
+| `POST` | `/auth/login` | Логин email/password. |
+| `POST` | `/auth/refresh` | Обмен `refresh_token` → новая пара токенов (rotation). |
+| `POST` | `/auth/logout` | Инвалидация refresh-токена. |
+| `POST` | `/auth/oauth/telegram` | Telegram Login: проверка подписи `hash` + дата. |
+| `POST` | `/auth/oauth/google` | Google Sign-In: верификация `id_token` через JWKS. |
+| `POST` | `/auth/oauth/apple` | Apple Sign In: верификация `identity_token` через JWKS. |
+
+### 7.2 Items / Warehouse ([`warehouse_handler.go`](backend/internal/adapter/httpapi/warehouse_handler.go:1))
+| Метод | Путь | Описание |
+| --- | --- | --- |
+| `GET` | `/items?org_id=&scope=active|archive&search=&category=` | Список вещей (root + варианты). |
+| `POST` | `/items` | Создание (root или вариант через `parent_item_id`). |
+| `GET` | `/items/{id}` | Детальная карточка. |
+| `PATCH` | `/items/{id}` | Частичное обновление. Optimistic lock через `If-Match: <updated_at_iso>`; конфликт → 412. |
+| `POST` | `/items/{id}/archive` | Софт-архив с `reason` (`used`/`expired`/`damaged`/`lost`/`other`). |
+| `POST` | `/items/{id}/restore` | Восстановление из архива. |
+| `DELETE` | `/items/{id}` | Hard-delete (только owner/admin, без активных резервов). |
+| `GET` | `/organizations/{id}/archive-events` | История архивных событий. |
+| `GET` | `/organizations/{id}/categories` | Используемые категории. |
+
+### 7.3 Organizations ([`organizations_handler.go`](backend/internal/adapter/httpapi/organizations_handler.go:1))
+| Метод | Путь | Описание |
+| --- | --- | --- |
+| `GET` | `/organizations` | Все организации текущего пользователя. |
+| `POST` | `/organizations` | Создать организацию (creator → owner). |
+| `PATCH` | `/organizations/{id}` | Переименовать (owner/admin). |
+| `GET` | `/organizations/{id}/members` | Список участников + профили. |
+| `PATCH` | `/organizations/{id}/members/{userID}` | Сменить роль (`viewer`/`member`/`admin`/`owner`). |
+| `DELETE` | `/organizations/{id}/members/{userID}` | Удалить участника (или leave self). |
+| `POST` | `/organizations/{id}/invites` | Сгенерировать invite-код. |
+| `POST` | `/organizations/join` | Присоединиться по коду (`{ code }`). |
+| `POST` | `/organizations/{id}/transfer` | Передать ownership другому участнику. |
+
+### 7.4 Events / Categories ([`events_handler.go`](backend/internal/adapter/httpapi/events_handler.go:1), [`categories_handler.go`](backend/internal/adapter/httpapi/categories_handler.go:1))
+| Метод | Путь | Описание |
+| --- | --- | --- |
+| `GET` | `/organizations/{id}/events` | Список событий организации. |
+| `POST` | `/organizations/{id}/events` | Создать событие. |
+| `PATCH` | `/events/{id}` | Переименовать. |
+| `DELETE` | `/events/{id}` | Удалить (резервации с этим event_id обнуляют ссылку). |
+| Аналогично | `/organizations/{id}/categories/*` | CRUD категорий. |
+
+### 7.5 Comments ([`comments_handler.go`](backend/internal/adapter/httpapi/comments_handler.go:1))
+| Метод | Путь | Описание |
+| --- | --- | --- |
+| `GET` | `/items/{id}/comments` | Тред с реакциями и mentions (вложенность через `parent_comment_id`). |
+| `POST` | `/items/{id}/comments` | Создать (`text`, опц. `parent_comment_id`, `mentions: [user_id]`). |
+| `PATCH` | `/comments/{id}` | Редактировать (только автор). Сервер пересчитывает mentions через SQL-функцию. |
+| `DELETE` | `/comments/{id}` | Удалить (автор / admin / owner). Каскадно удаляются ответы. |
+| `POST` | `/comments/{id}/reactions` | Поставить реакцию (`type`: `thumbs_up`/`thumbs_down`/`heart`/`laugh`/`party`/`eyes`). |
+| `DELETE` | `/comments/{id}/reactions/{type}` | Убрать свою реакцию. |
+
+### 7.6 Reservations ([`reservations_handler.go`](backend/internal/adapter/httpapi/reservations_handler.go:1))
+| Метод | Путь | Описание |
+| --- | --- | --- |
+| `GET` | `/items/{id}/reservations?status=` | Резервы по вещи. |
+| `GET` | `/organizations/{id}/reservations?status=` | Резервы по организации (для экрана «Резервы»). |
+| `GET` | `/items/{id}/availability` | Доступное количество (`total - active_reserved`). |
+| `POST` | `/items/{id}/reservations` | Создать (`quantity`, `event_id?`, `expires_at?`, `note?`). |
+| `POST` | `/reservations/{id}/fulfill` | Перевести в `fulfilled` + автоматически списать со склада. |
+| `POST` | `/reservations/{id}/cancel` | Отменить (`reason`). |
+
+Lifecycle: `active → fulfilled` или `active → cancelled` или `active → expired` (по TTL фоновым джобом).
+
+### 7.7 Analytics ([`analytics_handler.go`](backend/internal/adapter/httpapi/analytics_handler.go:1))
+| Метод | Путь | Описание |
+| --- | --- | --- |
+| `GET` | `/organizations/{id}/dashboard` | Метрики: total/in-stock/archived/reserved, top categories, expiring soon, низкий остаток. Кеш в памяти ~60s. |
+
+### 7.8 Notifications / Preferences ([`expiration_notifications_handler.go`](backend/internal/adapter/httpapi/expiration_notifications_handler.go:1))
+| Метод | Путь | Описание |
+| --- | --- | --- |
+| `GET` | `/notifications/preferences` | Текущие настройки пользователя. |
+| `PATCH` | `/notifications/preferences` | Обновить (`first_warning_enabled`, `last_warning_enabled`, `expired_enabled`, `quiet_hours_start_min`, `quiet_hours_end_min`, `timezone`). |
+| `POST` | `/notifications/snooze` | Заглушить уведомления для item на `duration` (формат Go `time.Duration` строкой). |
+| `POST` | `/devices` | Регистрация APNs-токена устройства. |
+
+### 7.9 Activity / Uploads / WS
+| Метод | Путь | Описание |
+| --- | --- | --- |
+| `GET` | `/organizations/{id}/activity` | Лента активности (создание/изменение/архив/восстановление вещи, резервы). |
+| `POST` | `/uploads/photo` | Multipart upload вещи (валидация MIME, ресайз/реcompression, S3/локальный диск). |
+| `GET` | `/ws?token=...` | WebSocket-канал ([`websocket/hub.go`](backend/internal/adapter/websocket/hub.go:1)). Сообщения: `item.created/updated/archived/deleted`, `reservation.*`, `comment.*`. |
+
+---
+
+## 8. Доменные модели и инварианты
+
+### 8.1 Item ([`backend/internal/domain/item.go`](backend/internal/domain/item.go:1), [`ios/.../Entity/Item.swift`](ios/cstatiWarehouse/Entity/Item.swift:1))
+Поля: `id`, `organization_id`, `name`, `description`, `category`, `holder_user_id`, `parent_item_id`, `measure_unit` (`piece`/`kg`/`liter`/...), `volume_per_unit`, `quantity`, `expiration_date`, `image_url`, `status` (`in_stock`/`archived`), `archive_reason`, `archived_at`, `created_at`, `updated_at`.
+
+Инварианты:
+- root и варианты разделены через `parent_item_id`. У варианта `category` наследуется от родителя (валидация на сервере).
+- `quantity >= 0`, у root с детьми сервер не редактирует количество напрямую — только сумма по детям.
+- Архив root возможен только если у всех живых детей `quantity = 0` ([`item_repo.go`](backend/internal/adapter/repo/item_repo.go:126)).
+- Optimistic concurrency: PATCH требует `updated_at` совпадающий с базой; иначе `ItemVersionConflictError` → 412.
+
+### 8.2 Organization & Roles ([`organization.go`](backend/internal/domain/organization.go:1))
+- Роли: `owner` > `admin` > `member` > `viewer`.
+- `viewer` — read-only, `member` — мутации без управления участниками, `admin` — + участники + роли (кроме owner), `owner` — всё.
+- Личная организация (`is_personal=true`) создаётся при регистрации, не удаляется, owner не может выйти.
+- Передача владения через `/transfer` — единственный способ сменить owner.
+
+### 8.3 Reservation lifecycle ([`reservation.go`](backend/internal/domain/reservation.go:1))
+- Статусы: `active`/`fulfilled`/`cancelled`/`expired`.
+- При `Create` сервер проверяет `available = total - SUM(active.quantity)` ([`reservations.go`](backend/internal/usecase/reservations.go:1)).
+- `Fulfill` атомарно: списывает `quantity` со склада + статус `fulfilled`.
+- `Cancel` принимает текстовый `reason`.
+- `event_id` — опциональная привязка к событию (для группировки в UI и Route Planning).
+- Фоновый джоб помечает `expired`, когда `expires_at < now AND status='active'`.
+
+### 8.4 Comments ([`comment.go`](backend/internal/domain/comment.go:1))
+- Поля: `id`, `item_id`, `author_id`, `parent_comment_id`, `text`, `mentions: [uuid]`, `created_at`, `updated_at`.
+- Реакции: 6 типов (`thumbs_up`/`thumbs_down`/`heart`/`laugh`/`party`/`eyes`), `(comment_id, user_id, type)` уникален.
+- Mentions парсятся SQL-функцией из миграции `00023` (формат `@username`).
+- При создании/редактировании всем упомянутым отправляется push (если разрешено в preferences).
+
+### 8.5 Smart Expiration ([`expiration_notifications.go`](backend/internal/usecase/expiration_notifications.go:1))
+- Уровни: `first_warning` (за `thresholdDays`), `last_warning` (за меньший порог), `expired` (после).
+- Cron-сканер пробегает items с `expiration_date IS NOT NULL`, сверяется с `expiration_notifications` (anti-duplication) и preferences.
+- Дедупликация: `(item_id, level, user_id)` уникальна; уже отправленное не повторяется.
+- Quiet hours: окно «не беспокоить» в локальной TZ пользователя.
+- Snooze: запись `snoozed_until` для конкретного item.
+
+---
+
+## 9. БД-схема и миграции
+
+`backend/migrations/00001..00025_*.sql` (goose). Сводная таблица:
+
+| № | Файл | Что вводит |
+| --- | --- | --- |
+| 00001 | `init` | `users`, базовые расширения (`uuid-ossp`/`pgcrypto`). |
+| 00002 | `organizations` | `organizations` + `organization_members(role)`. |
+| 00003 | `items` | основная таблица items. |
+| 00004 | `archive_events` | лог архивных операций. |
+| 00005 | `categories` | категории организаций. |
+| 00006 | `personal_org` | автосоздание личной организации при регистрации. |
+| 00007 | `invites` | invite-коды организаций. |
+| 00008 | `activity_log` | агрегатная лента активности. |
+| 00009 | `oauth_identities` | связки внешних провайдеров. |
+| 00010 | `refresh_tokens` | rotation refresh-токенов. |
+| 00011 | `device_tokens` | APNs/FCM токены. |
+| 00012 | `categories_unique_per_org` | уникальность имени. |
+| 00013 | `variants_measure_unit` | `parent_item_id`, `measure_unit`, `volume_per_unit`. |
+| 00014 | `holder_user_id` | назначение ответственного на вещь. |
+| 00015 | `events` | события организации. |
+| 00016 | `item_event` | первая версия связи (заменена в 00025). |
+| 00017 | `indexes` | индексы для основных запросов и поиска. |
+| 00018 | `image_url_text` | расширение поля под CDN-URL. |
+| 00019 | `archive_reason_enum` | enum для причин архива. |
+| 00020 | `optimistic_lock` | поддержка `updated_at`. |
+| 00021 | `soft_delete` | колонки `deleted_at` для soft-delete. |
+| 00022 | `expiration_notifications` | `expiration_notifications`, `user_notification_preferences`, `expiration_snoozes`. |
+| 00023 | `item_comments` | `item_comments`, `comment_reactions`, SQL-функция парсинга mentions. |
+| 00024 | `item_reservations` | `item_reservations(status, expires_at, ...)`. |
+| 00025 | `reservations.event_id` | замена order/delivery/production reasons на `event_id` (FK на `events`). |
+
+Подробности фич: см. [`Docs/Smart-Expiration-Notifications.md`](Docs/Smart-Expiration-Notifications.md), [`Docs/Item-Comments-System.md`](Docs/Item-Comments-System.md), [`Docs/Item-Reservation-System.md`](Docs/Item-Reservation-System.md), [`Docs/Soft-Delete-Implementation.md`](Docs/Soft-Delete-Implementation.md).
+
+---
+
+## 10. Безопасность
+
+- **JWT HS256** ([`internal/infra/jwt`](backend/internal/infra/jwt)). `JWT_SECRET` обязателен; refresh-токен — отдельный с длинным TTL.
+- **Refresh rotation**: каждый успешный `/auth/refresh` инвалидирует старый refresh, выпускает новый. Использование старого → отзыв всей цепочки.
+- **OAuth (Telegram/Google/Apple)**: Telegram — HMAC-проверка `hash`; Google/Apple — JWKS-валидация `id_token`/`identity_token` (audience, issuer, signature, expiry). См. [`Docs/TelegramLoginSetup.md`](Docs/TelegramLoginSetup.md).
+- **Rate limiting** ([`internal/infra/ratelimit/limiter.go`](backend/internal/infra/ratelimit/limiter.go:1)): токен-бакет на IP для `/auth/*` и на user для остального. Лимиты в env.
+- **CORS** ([`Docs/CORS-Configuration.md`](Docs/CORS-Configuration.md)): whitelist через `CORS_ALLOWED_ORIGINS`.
+- **Security headers**: HSTS, CSP-friendly, `X-Frame-Options: DENY`.
+- **File upload security** ([`Docs/File-Upload-Security.md`](Docs/File-Upload-Security.md)): MIME-sniffing, лимит размера, реcompression через `internal/infra/imagecodec`.
+- **CDN/S3** ([`Docs/CDN-S3-Integration.md`](Docs/CDN-S3-Integration.md)): абстракция `BlobStorage` (локальный fs / S3-совместимый).
+
+---
+
+## 11. Real-time / Push / Offline
+
+### 11.1 WebSocket
+- Backend: [`internal/adapter/websocket/hub.go`](backend/internal/adapter/websocket/hub.go:1) — central hub, broadcast на участников организации; [`broadcaster.go`](backend/internal/adapter/websocket/broadcaster.go:1) — публикация событий из usecase.
+- iOS: [`WebSocketService.swift`](ios/cstatiWarehouse/Services/WebSocket/WebSocketService.swift:1) — `URLSessionWebSocketTask`, авторекоонект, фильтрация по `organization_id`. Обновляет presenter-ы через `itemChangedExternally`.
+- См. [`backend/docs/WebSocket-Real-Time-Updates.md`](backend/docs/WebSocket-Real-Time-Updates.md).
+
+### 11.2 Push (APNs)
+- Регистрация токена: [`AppDelegate.swift`](ios/cstatiWarehouse/App/AppDelegate.swift:1) → `RemotePushRegistration` → `POST /devices`.
+- Backend отправляет push: при mentions, при сработавших уровнях expiration. См. [`Docs/Push-Notifications-Enhancement.md`](Docs/Push-Notifications-Enhancement.md).
+
+### 11.3 Local Notifications
+- [`SmartExpirationScheduler.swift`](ios/cstatiWarehouse/Services/Notifications/SmartExpirationScheduler.swift:1) — локальные `UNTimeIntervalNotificationTrigger` как fallback (если APNs недоступен / push выключен).
+- [`ExpirationNotificationActions.swift`](ios/cstatiWarehouse/Services/Notifications/ExpirationNotificationActions.swift:1) — actionable-уведомления: «Использовано», «+1 час», «+1 день», «Открыть».
+
+### 11.4 Offline queue
+- [`OfflineMutationQueue.swift`](ios/cstatiWarehouse/Services/Offline/OfflineMutationQueue.swift:1) — очередь мутаций при отсутствии сети (создание/архив/обновление). Воспроизводится при восстановлении.
+- Кеш данных: [`SwiftDataOfflineCacheStore.swift`](ios/cstatiWarehouse/Persistence/SwiftDataOfflineCacheStore.swift:1) (SwiftData), ключи в [`OfflineCacheKeys.swift`](ios/cstatiWarehouse/Persistence/OfflineCacheKeys.swift:1).
+- См. [`ios/cstatiWarehouse/Docs/CacheInvalidationStrategy.md`](ios/cstatiWarehouse/Docs/CacheInvalidationStrategy.md), [`BackgroundSyncStrategy.md`](ios/cstatiWarehouse/Docs/BackgroundSyncStrategy.md).
+
+---
+
+## 12. Smart Expiration — глубоко
+
+Документ: [`Docs/Smart-Expiration-Notifications.md`](Docs/Smart-Expiration-Notifications.md).
+
+- Backend cron: [`internal/infra/scheduler/expiration_scheduler.go`](backend/internal/infra/scheduler/expiration_scheduler.go:1), запускается из [`cmd/server/main.go`](backend/cmd/server/main.go:1) с интервалом из env.
+- Алгоритм: для каждого активного item с `expiration_date` определяется максимальный сработавший уровень; для каждого участника организации (с учётом role и preferences) проверяется не было ли уже отправлено через `expiration_notifications`; quiet-hours окно отсекает пуш.
+- Snooze: запись в `expiration_snoozes(item_id, user_id, snoozed_until)` блокирует уведомления до момента.
+- iOS UI: [`NotificationPreferencesView.swift`](ios/cstatiWarehouse/Scenes/NotificationPreferences/NotificationPreferencesView.swift:1) с тремя toggle, picker'ом quiet hours и timezone, индикатором сохранения.
+
+---
+
+## 13. Comments — глубоко
+
+Документ: [`Docs/Item-Comments-System.md`](Docs/Item-Comments-System.md).
+
+- Тред: одиночная вложенность (root + replies через `parent_comment_id`).
+- Mentions: парсинг через SQL-функцию (см. миграцию `00023`); при сохранении сервер проверяет, что упомянутые — участники организации.
+- Реакции: уникальный constraint `(comment_id, user_id, type)`; iOS делает оптимистичные обновления и откатывает на ошибку ([`CommentsPresenter.swift`](ios/cstatiWarehouse/Scenes/Comments/CommentsPresenter.swift:215)).
+- UI:
+  - [`CommentsView.swift`](ios/cstatiWarehouse/Scenes/Comments/CommentsView.swift:1): композер внизу, контекстное меню (edit/delete/reply), reactions row с emoji-чипами.
+  - empty/failed state, скелетоны, сборка реплик в `replies(for:)`.
+
+---
+
+## 14. Reservations — глубоко
+
+Документ: [`Docs/Item-Reservation-System.md`](Docs/Item-Reservation-System.md).
+
+- Доступность: `availability = item.quantity - sum(active.quantity)` через [`ReservationRepo.GetActiveTotalReservedForItem`](backend/internal/adapter/repo/reservation_repo.go:179).
+- Создание: `event_id` опционален; если нет — резерв «без события». UI [`CreateReservationSheet`](ios/cstatiWarehouse/Scenes/Reservations/ReservationsView.swift:381) делает чип-flow совпадающий с `ItemEditView` категориями.
+- Fulfill: атомарная транзакция в БД (резерв + `items.quantity -= reservation.quantity`).
+- Cancel: с обязательным reason (UI: [`CancelReservationSheet`](ios/cstatiWarehouse/Scenes/Reservations/ReservationsView.swift:630)).
+- TTL: фоновая задача переводит просроченные active в `expired`.
+- iOS экран [`ReservationsView.swift`](ios/cstatiWarehouse/Scenes/Reservations/ReservationsView.swift:1): метрики (total/active/fulfilled), фильтр-чипы (`Все/Активные/Выполнены/Отменены/Просрочены`), карточки с действиями `Выполнить`/`Отменить`.
+
+---
+
+## 15. Overview Dashboard
+
+Документ: [`Docs/Analytics-Dashboard.md`](Docs/Analytics-Dashboard.md).
+
+- Backend: [`analytics.go`](backend/internal/usecase/analytics.go:1) — `GetDashboard(orgID)` → метрики + кеш в памяти (~60s).
+- iOS: [`OverviewAssembly.swift`](ios/cstatiWarehouse/Scenes/Overview/OverviewAssembly.swift:1) + presenter/view. Карточки KPI, top-categories, shelf-risk bands ([`ShelfRiskBandTests.swift`](ios/cstatiWarehouseTests/Overview/ShelfRiskBandTests.swift:1)).
+
+---
+
+## 16. Route Planning
+
+- Сцена: [`RoutePlanningView.swift`](ios/cstatiWarehouse/Scenes/RoutePlanning/RoutePlanningView.swift:1) + [`RoutePlanningInteractor.swift`](ios/cstatiWarehouse/Scenes/RoutePlanning/RoutePlanningInteractor.swift:1).
+- Шаги:
+  1. Выбор события (опционально) → подтягиваются связанные active-резервы и расставляют количества по item.
+  2. Заполнение start/destination адресов (geocoding с debounce, inline preview).
+  3. Список item'ов (root) с steppers для выбора количества.
+  4. Сборка маршрута: [`MultiLegDrivingRouteAssembler.swift`](ios/cstatiWarehouse/Services/RoutePlanning/MultiLegDrivingRouteAssembler.swift:1) + `MKRoute`.
+  5. Карта с пинами, карточки stop'ов, deeplink в Яндекс.Карты ([`YandexMapsRouteURLBuilder.swift`](ios/cstatiWarehouse/Services/RoutePlanning/YandexMapsRouteURLBuilder.swift:1)).
+- Сортировка точек: [`PickupRouteOrdering.swift`](ios/cstatiWarehouse/Services/RoutePlanning/PickupRouteOrdering.swift:1) (TSP-greedy по distance matrix).
+
+---
+
+## 17. Локализация
+
+- iOS: `Localizable.strings` (en/ru) + типобезопасный код-ген [`L10n.swift`](ios/cstatiWarehouse/Resources/Localization/L10n.swift:1). См. [`ios/cstatiWarehouse/Resources/Localization/README.md`](ios/cstatiWarehouse/Resources/Localization/README.md).
+- Backend: [`internal/infra/i18n`](backend/internal/infra/i18n) — переводы шаблонов сообщений активности, пушей, ошибок.
+- См. [`Docs/Internationalization-i18n.md`](Docs/Internationalization-i18n.md).
+
+---
+
+## 18. Дизайн-слой / UI-компоненты iOS
+
+[`ios/cstatiWarehouse/CoreUI/`](ios/cstatiWarehouse/CoreUI):
+- [`DesignSystem.swift`](ios/cstatiWarehouse/CoreUI/DesignSystem.swift:1) — токены: цвета, отступы, типографика, радиусы.
+- [`AppGlass.swift`](ios/cstatiWarehouse/CoreUI/AppGlass.swift:1) — стеклянные подложки (`ultraThinMaterial`).
+- [`GlassChip.swift`](ios/cstatiWarehouse/CoreUI/GlassChip.swift:1), [`GlassPillButton.swift`](ios/cstatiWarehouse/CoreUI/GlassPillButton.swift:1), [`GlassTextField.swift`](ios/cstatiWarehouse/CoreUI/GlassTextField.swift:1), [`GlassConfirmationSheet.swift`](ios/cstatiWarehouse/CoreUI/GlassConfirmationSheet.swift:1).
+- [`FlowLayout.swift`](ios/cstatiWarehouse/CoreUI/FlowLayout.swift:1) — wrapping flow для чипов.
+- [`DrumDatePicker.swift`](ios/cstatiWarehouse/CoreUI/DrumDatePicker.swift:1) — кастомный «барабанный» picker.
+- [`ShimmerModifier.swift`](ios/cstatiWarehouse/CoreUI/ShimmerModifier.swift:1) — скелетоны.
+- [`PassiveNetworkBanner.swift`](ios/cstatiWarehouse/CoreUI/PassiveNetworkBanner.swift:1) — статус сети.
+- [`AnimatedGradientBackground.swift`](ios/cstatiWarehouse/CoreUI/GradientBackground/AnimatedGradientBackground.swift:1) — анимированный фон auth.
+- [`ImagePicker/`](ios/cstatiWarehouse/CoreUI/ImagePicker) — `PhotoSourceSheet`, `RemoteImageView`, `RemoteImageCache`.
+- [`AddressPreviewSheet.swift`](ios/cstatiWarehouse/CoreUI/AddressPreviewSheet.swift:1) и [`AddressGeocodeInlinePreview.swift`](ios/cstatiWarehouse/CoreUI/AddressGeocodeInlinePreview.swift:1) — UX для адресов.
+- [`SheetHeader.swift`](ios/cstatiWarehouse/CoreUI/Sheets/SheetHeader.swift:1) — единый header модалок.
+- [`TelegramLoginButton.swift`](ios/cstatiWarehouse/CoreUI/TelegramLoginButton.swift:1).
+- [`WarehouseItemCard.swift`](ios/cstatiWarehouse/CoreUI/WarehouseItemCard.swift:1) — карточка вещи на главной.
+
+Хаптика: см. [`Docs/Haptic-Feedback-Guidelines.md`](Docs/Haptic-Feedback-Guidelines.md).
+
+---
+
+## 19. Quick start
+
+```bash
+# Backend
+cd backend
+cp .env.example .env
+# заполнить JWT_SECRET и DB_DSN
+make migrate-up
+make run        # http://localhost:8080
+```
+
+```bash
+# iOS
+open ios/cstatiWarehouse.xcodeproj
+# выбрать схему cstatiWarehouse, target — симулятор iOS 17+
+# выставить APIClient.baseURL под локальный backend (по умолчанию http://localhost:8080)
+```
+
+См. также [`backend/README.md`](backend/README.md) §4 и [`ios/README.md`](ios/README.md) §7.
+
+---
+
+## 20. Тестирование
+
+### 20.1 Backend
+- `go test ./...` запускает unit и integration тесты ([`backend/docs/Integration-Testing-Guide.md`](backend/docs/Integration-Testing-Guide.md)).
+- Тестовый Postgres поднимается через `docker-compose` или testcontainers.
+- Контракты usecase — [`internal/usecase/*_test.go`](backend/internal/usecase) с фейковыми портами ([`fakes_test.go`](backend/internal/usecase/fakes_test.go:1)).
+
+### 20.2 iOS
+- Unit: `cstatiWarehouseTests/` — Swift Testing framework (`@Suite`/`@Test`). Покрытие: presenters, interactors, services, persistence, utilities.
+- UI: `cstatiWarehouseUITests/` — `XCUIApplication`, флаги через [`UITestArguments.swift`](ios/cstatiWarehouseUITests/UITestArguments.swift:1).
+- Подмены сервисов: [`MockAuthService.swift`](ios/cstatiWarehouseTests/TestDoubles/MockAuthService.swift:1), [`MockWarehouseService.swift`](ios/cstatiWarehouseTests/TestDoubles/MockWarehouseService.swift:1) и др.
+- Запуск: `xcodebuild test -scheme cstatiWarehouse -destination 'platform=iOS Simulator,name=iPhone 15'`.
+
+---
+
+## 21. Конфигурация (env)
+
+См. [`backend/.env.example`](backend/.env.example) и [`backend/README.md`](backend/README.md) §5. Ключевые переменные:
+- `APP_ENV`, `LISTEN_ADDR`, `BASE_URL`.
+- `DB_DSN` (Postgres).
+- `JWT_SECRET`, `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL`.
+- `CORS_ALLOWED_ORIGINS`.
+- `RATE_LIMIT_AUTH_*`, `RATE_LIMIT_USER_*`.
+- `EXPIRATION_SCAN_INTERVAL`, `RESERVATION_EXPIRY_SCAN_INTERVAL`.
+- `S3_BUCKET`/`S3_ENDPOINT`/`S3_REGION`/`S3_ACCESS_KEY`/`S3_SECRET_KEY` (опционально).
+- `APNS_*` (для push).
+- `TG_BOT_TOKEN`, `GOOGLE_OAUTH_CLIENT_ID`, `APPLE_*` (OAuth).
+
+---
+
+## 22. Указатель документации
+
+### Корневой `Docs/`
+- [`ADR/ADR-0001-clean-architecture.md`](Docs/ADR/ADR-0001-clean-architecture.md)
+- [`Analytics-Dashboard.md`](Docs/Analytics-Dashboard.md)
+- [`CDN-S3-Integration.md`](Docs/CDN-S3-Integration.md)
+- [`CORS-Configuration.md`](Docs/CORS-Configuration.md)
+- [`Database-Query-Optimization.md`](Docs/Database-Query-Optimization.md)
+- [`Deployment-Guide.md`](Docs/Deployment-Guide.md)
+- [`File-Upload-Security.md`](Docs/File-Upload-Security.md)
+- [`Haptic-Feedback-Guidelines.md`](Docs/Haptic-Feedback-Guidelines.md)
+- [`Image-Compression-Strategy.md`](Docs/Image-Compression-Strategy.md)
+- [`Internationalization-i18n.md`](Docs/Internationalization-i18n.md)
+- [`iOS-Lazy-Image-Loading.md`](Docs/iOS-Lazy-Image-Loading.md)
+- [`Item-Comments-System.md`](Docs/Item-Comments-System.md)
+- [`Item-Reservation-System.md`](Docs/Item-Reservation-System.md)
+- [`OpenAPI-Swagger-Documentation.md`](Docs/OpenAPI-Swagger-Documentation.md)
+- [`Push-Notifications-Enhancement.md`](Docs/Push-Notifications-Enhancement.md)
+- [`Rate-Limiting.md`](Docs/Rate-Limiting.md)
+- [`Smart-Expiration-Notifications.md`](Docs/Smart-Expiration-Notifications.md)
+- [`Soft-Delete-Implementation.md`](Docs/Soft-Delete-Implementation.md)
+- [`TelegramLoginSetup.md`](Docs/TelegramLoginSetup.md)
+
+### `backend/docs/`
+- [`Context-UserID-Migration.md`](backend/docs/Context-UserID-Migration.md)
+- [`CQRS-Repository-Split.md`](backend/docs/CQRS-Repository-Split.md)
+- [`Feature-Implementation-Roadmap.md`](backend/docs/Feature-Implementation-Roadmap.md)
+- [`Integration-Testing-Guide.md`](backend/docs/Integration-Testing-Guide.md)
+- [`Observability.md`](backend/docs/Observability.md)
+- [`WebSocket-Real-Time-Updates.md`](backend/docs/WebSocket-Real-Time-Updates.md)
+
+### `ios/cstatiWarehouse/Docs/`
+- [`BackgroundSyncStrategy.md`](ios/cstatiWarehouse/Docs/BackgroundSyncStrategy.md)
+- [`CacheInvalidationStrategy.md`](ios/cstatiWarehouse/Docs/CacheInvalidationStrategy.md)
+- [`ErrorHandlingStrategy.md`](ios/cstatiWarehouse/Docs/ErrorHandlingStrategy.md)
+
+---
+
+## 23. Частые задачи → куда смотреть
+
+| Задача | Файлы |
+| --- | --- |
+| Добавить новый эндпоинт | `backend/internal/usecase/<feature>.go` → `adapter/repo/...` → `adapter/httpapi/<feature>_handler.go` → регистрация в [`router.go`](backend/internal/adapter/httpapi/router.go:1) → клиент `ios/.../Services/<Feature>/Api*.swift` |
+| Новое поле у вещи | миграция в `backend/migrations/` → `domain/item.go` → `repo/item_repo.go` → DTO в handler → `Entity/Item.swift` → presenter/view |
+| Новый экран | `ios/cstatiWarehouse/Scenes/<Name>/` (Assembly + Interactor + Presenter + Router + View) → роутинг через [`AppCoordinator`](ios/cstatiWarehouse/Coordinator/AppCoordinator.swift:1) или [`MainTabCoordinator`](ios/cstatiWarehouse/Coordinator/MainTabCoordinator.swift:1) |
+| Push-уведомление | usecase публикует через port `PushNotifier` → `infra/push` → APNs; на iOS — ловит [`AppDelegate`](ios/cstatiWarehouse/App/AppDelegate.swift:1) / `UNUserNotificationCenter` |
+| Локализация | добавить ключ в обе `Localizable.strings`, перегенерировать [`L10n.swift`](ios/cstatiWarehouse/Resources/Localization/L10n.swift:1) |
+| Изменить роль/доступ | проверки в usecase (порт `MemberReadPort.FindRole`) → возврат `domain.ForbiddenError` → клиент маппит через `APIError` |
+
+---
+
+## 24. Стандарты кода
+
+- **Backend (Go):** `gofmt -s`, `go vet`, ошибки оборачиваем `fmt.Errorf("%w", err)`, `context.Context` первым параметром, никаких `panic` в HTTP-слое (recover-middleware ловит). Доменные ошибки — типизированные ([`internal/domain/errors.go`](backend/internal/domain/errors.go:1)). Logging — структурированный, минимум персональных данных.
+- **iOS (Swift):** SwiftUI + `@Observable`, без `Combine` в новых сценах. VIPER-разделение (Assembly/Interactor/Presenter/Router/View). Без force-unwrap в production-коде; force-try только в тестах. Все «main-actor isolated» структуры тестов помечены `@MainActor` ([`RoutePlanningInteractorTests.swift`](ios/cstatiWarehouseTests/Scenes/RoutePlanning/RoutePlanningInteractorTests.swift:13)).
+- **DTO ↔ Entity:** DTO живут в Api*-сервисах, Entity — в `Entity/`. Маппинг — в `toDomain()`. Ключи snake_case через `JSONDecoder.keyDecodingStrategy = .convertFromSnakeCase` (исключения через явные `CodingKeys`).
+- **Тесты:** один тест — одна проверка; имя теста описывает поведение.
+- **Документация:** новые фичи — отдельный `.md` в `Docs/`; ссылка из этого README в §22.
