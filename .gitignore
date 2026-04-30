@@ -51,5 +51,9 @@ fastlane/test_output
 .idea/
 .vscode/
 .claude/
+.cursor/
 *.swp
 *.swo
+
+# Локальные материалы по документации (не публиковать в репозиторий)
+документация/
