@@ -8,39 +8,40 @@ import (
 	"github.com/google/uuid"
 )
 
-// Message типы для WebSocket событий
 const (
-	MessageTypeItemCreated  = "item.created"
-	MessageTypeItemUpdated  = "item.updated"
-	MessageTypeItemArchived = "item.archived"
-	MessageTypeItemDeleted  = "item.deleted"
+	MessageTypeItemCreated          = "item.created"
+	MessageTypeItemUpdated          = "item.updated"
+	MessageTypeItemArchived         = "item.archived"
+	MessageTypeItemDeleted          = "item.deleted"
+	MessageTypeCommentCreated       = "comment.created"
+	MessageTypeCommentUpdated       = "comment.updated"
+	MessageTypeCommentDeleted       = "comment.deleted"
+	MessageTypeReactionAdded        = "comment.reaction.added"
+	MessageTypeReactionRemoved      = "comment.reaction.removed"
+	MessageTypeReservationCreated   = "reservation.created"
+	MessageTypeReservationFulfilled = "reservation.fulfilled"
+	MessageTypeReservationCancelled = "reservation.cancelled"
+	MessageTypeReservationExpired   = "reservation.expired"
 )
 
-// Message представляет WebSocket сообщение
 type Message struct {
 	Type           string      `json:"type"`
 	OrganizationID uuid.UUID   `json:"organization_id"`
 	Data           interface{} `json:"data"`
 }
 
-// Hub управляет WebSocket подключениями и рассылкой сообщений
 type Hub struct {
-	// Зарегистрированные клиенты по организациям
 	clients map[uuid.UUID]map[*Client]bool
 
-	// Канал для регистрации клиентов
 	register chan *Client
 
-	// Канал для отмены регистрации клиентов
 	unregister chan *Client
 
-	// Канал для broadcast сообщений
 	broadcast chan Message
 
 	mu sync.RWMutex
 }
 
-// NewHub создаёт новый Hub
 func NewHub() *Hub {
 	return &Hub{
 		clients:    make(map[uuid.UUID]map[*Client]bool),
@@ -50,7 +51,6 @@ func NewHub() *Hub {
 	}
 }
 
-// Run запускает Hub (должен вызываться в отдельной горутине)
 func (h *Hub) Run() {
 	for {
 		select {
@@ -92,7 +92,6 @@ func (h *Hub) Run() {
 				select {
 				case client.send <- message:
 				default:
-					// Канал переполнен - отключаем клиента
 					h.mu.Lock()
 					close(client.send)
 					delete(h.clients[message.OrganizationID], client)
@@ -103,22 +102,18 @@ func (h *Hub) Run() {
 	}
 }
 
-// Broadcast отправляет сообщение всем клиентам организации
 func (h *Hub) Broadcast(msg Message) {
 	h.broadcast <- msg
 }
 
-// Register регистрирует клиента в Hub
 func (h *Hub) Register(client *Client) {
 	h.register <- client
 }
 
-// Unregister отменяет регистрацию клиента
 func (h *Hub) Unregister(client *Client) {
 	h.unregister <- client
 }
 
-// ClientCount возвращает количество подключённых клиентов для организации
 func (h *Hub) ClientCount(orgID uuid.UUID) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

@@ -52,6 +52,10 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     var interactor: MyWarehouseInteractorInputProtocol?
     var router: MyWarehouseRouterProtocol?
     var shelfLifeNotifier: ShelfLifeNotificationServiceProtocol = AppServices.shelfLifeNotifier
+    var smartExpirationScheduler: SmartExpirationSchedulerProtocol = AppServices.smartExpirationScheduler
+    var notificationPreferencesService: NotificationPreferencesServiceProtocol = AppServices.notificationPreferencesService()
+    private var notificationPreferences: NotificationPreferences = .defaults()
+    private var hasLoadedNotificationPreferences = false
 
     var sections: [WarehouseSection] = []
     var organizationMembers: [OrganizationMember] = []
@@ -63,7 +67,6 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         }
     }
     var isLoading: Bool = false
-    /// После смены сегмента «Мои»/«Все»: не показываем скелетон, пока не выяснили, есть ли снимок в кэше.
     private(set) var isAwaitingWarehouseCacheHydration: Bool = false
     var errorMessage: String?
     var passiveNoticeMessage: String?
@@ -87,14 +90,32 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     var isFiltersActive: Bool { filters.isActive }
 
     var scope: WarehouseScope = .mine
-    /// Переключатель «Мои / Все» нужен всем участникам общей организации, не только админам.
     var canSwitchScope: Bool {
         guard let summary = activeOrganization else { return false }
         return !summary.organization.isPersonal
     }
 
-    /// Создание и изменение позиций на общем складе — только у владельца и администраторов.
-    var canEditWarehouseItems: Bool {
+    var canCreateWarehouseItems: Bool {
+        activeOrganization != nil
+    }
+
+    func canMutateWarehouseItem(_ item: Item) -> Bool {
+        guard let summary = activeOrganization else { return false }
+        if summary.organization.isPersonal { return true }
+        if summary.role.canManageMembers { return true }
+        guard let held = item.heldByUserID, let uid = currentUserUUID else { return false }
+        return held == uid
+    }
+
+    private var currentUserUUID: UUID? {
+        guard let raw = AppServices.sessionStorage.currentUser?.id?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return nil }
+        return UUID(uuidString: raw)
+    }
+
+    var currentUserID: UUID? { currentUserUUID }
+
+    var isCurrentUserAdmin: Bool {
         guard let summary = activeOrganization else { return false }
         if summary.organization.isPersonal { return true }
         return summary.role.canManageMembers
@@ -115,6 +136,10 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
             && !loadedScopes.contains(scope)
     }
 
+    var hasLoadedCurrentScopeOnce: Bool {
+        loadedScopes.contains(scope)
+    }
+
 
     func viewDidLoad() {
         guard !hasResolvedOrganization else { return }
@@ -124,7 +149,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
 
     func addButtonTapped() {
-        guard canEditWarehouseItems, activeOrganization != nil else { return }
+        guard canCreateWarehouseItems else { return }
         editPresentation = ItemEditPresentation(mode: .create(suggestedCategory: nil))
     }
 
@@ -151,17 +176,17 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
 
     func editItemRequested(_ item: Item) {
-        guard canEditWarehouseItems else { return }
+        guard canMutateWarehouseItem(item) else { return }
         editPresentation = ItemEditPresentation(mode: .edit(item))
     }
 
     func addVariantTapped(parent: Item) {
-        guard canEditWarehouseItems else { return }
+        guard canMutateWarehouseItem(parent) else { return }
         editPresentation = ItemEditPresentation(mode: .createVariant(parent: parent))
     }
 
     func archiveItemRequested(_ item: Item) {
-        guard canEditWarehouseItems else { return }
+        guard canMutateWarehouseItem(item) else { return }
         if item.isProductGroup {
             errorMessage = "Чтобы списать, откройте карточку и выберите конкретный вариант."
             return
@@ -170,7 +195,7 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
     }
 
     func hardDeleteRequested(_ item: Item) {
-        guard canEditWarehouseItems else { return }
+        guard canMutateWarehouseItem(item) else { return }
         deleteConfirmation = DeleteConfirmation(item: item)
     }
 
@@ -366,7 +391,6 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
         searchTextByScope = [:]
         filtersByScope = [:]
         loadedScopes = []
-        // Пока грузим кэш/сеть — не показываем скелетон (избегаем мигания при смене орг/сегмента).
         isAwaitingWarehouseCacheHydration = true
         if activeOrganization?.organization.isPersonal == true {
             scope = .mine
@@ -455,6 +479,32 @@ final class MyWarehousePresenter: MyWarehousePresenterProtocol {
             organizationName: summary.organization.name,
             items: lines
         )
+        smartExpirationScheduler.synchronize(
+            organizationID: summary.organization.id,
+            organizationName: summary.organization.name,
+            items: lines,
+            preferences: notificationPreferences
+        )
+        loadNotificationPreferencesIfNeeded()
+    }
+
+    private func loadNotificationPreferencesIfNeeded() {
+        guard !hasLoadedNotificationPreferences else { return }
+        hasLoadedNotificationPreferences = true
+        notificationPreferencesService.fetch { [weak self] result in
+            guard let self else { return }
+            if case .success(let prefs) = result {
+                self.notificationPreferences = prefs
+                guard let summary = self.activeOrganization else { return }
+                let lines = self.allItems.flatMap { $0.allStockLinesForNotifications() }
+                self.smartExpirationScheduler.synchronize(
+                    organizationID: summary.organization.id,
+                    organizationName: summary.organization.name,
+                    items: lines,
+                    preferences: prefs
+                )
+            }
+        }
     }
 
     private func sortItems(_ items: [Item], by option: WarehouseSortOption) -> [Item] {
@@ -527,7 +577,8 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
         archivePresentation = ArchivePresentation(item: item, orgEvents: orgEvents)
     }
 
-    func itemsLoaded(_ items: [Item]) {
+    func itemsLoaded(_ items: [Item], scope: WarehouseScope) {
+        guard scope == self.scope else { return }
         passiveNoticeMessage = nil
         isAwaitingWarehouseCacheHydration = false
         loadedScopes.insert(scope)
@@ -538,8 +589,8 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
         finishPullToRefreshIfNeeded()
     }
 
-    func warehouseActiveItemsCacheMissed() {
-        // Не сбрасываем isAwaitingWarehouseCacheHydration — иначе на мгновение включается скелетон до ответа сети.
+    func warehouseActiveItemsCacheMissed(scope: WarehouseScope) {
+        guard scope == self.scope else { return }
         isLoading = true
     }
 
@@ -623,7 +674,8 @@ extension MyWarehousePresenter: MyWarehouseInteractorOutputProtocol {
         organizationMembers = members
     }
 
-    func itemsLoadFailed(message: String) {
+    func itemsLoadFailed(message: String, scope: WarehouseScope) {
+        guard scope == self.scope else { return }
         loadedScopes.insert(scope)
         isAwaitingWarehouseCacheHydration = false
         isLoading = false

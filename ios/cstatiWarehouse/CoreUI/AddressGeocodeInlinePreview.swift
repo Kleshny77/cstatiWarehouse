@@ -9,7 +9,6 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
-/// Состояние автоматической проверки адреса (геокодинг + миникарта).
 enum AddressGeocodeInlineStatus: Equatable {
     case hidden
     case idleTyping
@@ -18,11 +17,9 @@ enum AddressGeocodeInlineStatus: Equatable {
     case failed(String)
 }
 
-/// Автоматическая проверка адреса: статус и миникарта под полем.
 struct AddressGeocodeInlinePreview: View {
 
     let status: AddressGeocodeInlineStatus
-    /// Текст подсказки для пользователя (единый для экранов).
     let manualCheckHint: String
     let secondaryLabelColor: Color
     let tertiaryLabelColor: Color

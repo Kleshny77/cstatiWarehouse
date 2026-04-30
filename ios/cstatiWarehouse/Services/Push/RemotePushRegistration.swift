@@ -7,8 +7,6 @@
 
 import UIKit
 
-/// Регистрация APNs device token на backend (`POST /notifications/apns-token`).
-/// Локальные напоминания о сроках годности работают без этого; удалённые пуши требуют возможности Push в Xcode и учётной записи разработчика Apple.
 enum RemotePushRegistration {
 
     static func registerForRemoteNotificationsIfPossible() {

@@ -10,19 +10,16 @@ import (
 	infrajwt "github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/jwt"
 )
 
-// Response represents a structured API error response.
 type Response struct {
 	Error   string `json:"error"`
 	Message string `json:"message,omitempty"`
 }
 
-// HTTPError represents an error with HTTP status code and API error response.
 type HTTPError struct {
 	StatusCode int
 	Response   Response
 }
 
-// Common error responses that can be reused across handlers.
 var (
 	BadJSON = HTTPError{
 		StatusCode: http.StatusBadRequest,
@@ -38,7 +35,6 @@ var (
 	}
 )
 
-// Validation creates a validation error with a custom message.
 func Validation(message string) HTTPError {
 	return HTTPError{
 		StatusCode: http.StatusUnprocessableEntity,
@@ -46,7 +42,6 @@ func Validation(message string) HTTPError {
 	}
 }
 
-// BadRequest creates a bad request error with a custom message.
 func BadRequest(message string) HTTPError {
 	return HTTPError{
 		StatusCode: http.StatusBadRequest,
@@ -54,8 +49,6 @@ func BadRequest(message string) HTTPError {
 	}
 }
 
-// MapDomainError maps domain errors to HTTP errors with appropriate status codes.
-// It returns the HTTP status code, error code, and user-facing message.
 func MapDomainError(err error) (int, string, string) {
 	switch {
 	case errors.Is(err, domain.ErrValidation):
@@ -99,12 +92,10 @@ func MapDomainError(err error) (int, string, string) {
 	}
 }
 
-// ShouldLog returns true if the error should be logged (5xx errors).
 func ShouldLog(statusCode int) bool {
 	return statusCode >= 500
 }
 
-// LogError logs an error with context if it's a server error (5xx).
 func LogError(statusCode int, err error, path string) {
 	if ShouldLog(statusCode) {
 		slog.Error("request failed", "err", err, "path", path, "status", statusCode)

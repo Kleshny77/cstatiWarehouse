@@ -22,7 +22,6 @@ final class LoginPresenter: LoginPresenterProtocol {
     var router: LoginRouterProtocol?
 
     var errorMessage: String?
-    /// Индикатор загрузки для OAuth (Telegram / Google).
     var isOAuthLoginInProgress: Bool = false
 
     func viewDidLoad() {

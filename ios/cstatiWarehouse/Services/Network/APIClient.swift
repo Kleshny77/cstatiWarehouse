@@ -306,7 +306,6 @@ final class APIClient {
         refreshQueue.async { [weak self] in
             guard let self else { return }
 
-            // Check if token was already refreshed by another request
             if let current = self.sessionStorage.accessToken, current != triedAccess {
                 self.performDataRequest(
                     path: originalPath,
@@ -327,10 +326,8 @@ final class APIClient {
                 return
             }
 
-            // Critical section: check if refresh is already in progress
             self.refreshLock.lock()
             if self.isRefreshing {
-                // Another request is already refreshing, queue this completion
                 self.refreshCompletionHandlers.append { result in
                     switch result {
                     case .success:
@@ -352,25 +349,20 @@ final class APIClient {
                 return
             }
             
-            // Mark refresh as in progress
             self.isRefreshing = true
             self.refreshLock.unlock()
 
-            // Perform the actual token refresh
             self.refreshTokensSync(refreshToken: refresh) { refreshResult in
-                // Notify all waiting requests
                 self.refreshLock.lock()
                 let handlers = self.refreshCompletionHandlers
                 self.refreshCompletionHandlers.removeAll()
                 self.isRefreshing = false
                 self.refreshLock.unlock()
                 
-                // Execute all queued handlers
                 for handler in handlers {
                     handler(refreshResult)
                 }
                 
-                // Execute original request
                 switch refreshResult {
                 case .success:
                     self.performDataRequest(

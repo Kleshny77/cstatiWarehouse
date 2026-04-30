@@ -7,7 +7,6 @@
 
 import SwiftUI
 
-/// Горизонтальная раскладка с переносом на следующую строку (аналог flex-wrap).
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 

@@ -2,32 +2,26 @@
 // Currently supports Russian language for activity log messages.
 package i18n
 
-// Activity log message templates in Russian.
 const (
-	// Organization activities
 	ActivityOrgRenamed           = "организация переименована в «%s»"
 	ActivityMemberRemoved        = "участник удалён из организации"
 	ActivityMemberRoleChanged    = "роль участника изменена на %s"
 	ActivityOwnershipTransferred = "владелец организации передал права новому владельцу"
 	ActivityMemberJoined         = "новый участник присоединился к организации"
 
-	// Category activities
 	ActivityCategoryCreated = "добавлена категория «%s»"
 	ActivityCategoryDeleted = "удалена категория «%s»"
 
-	// Event activities
 	ActivityEventCreated = "создано мероприятие «%s»"
 	ActivityEventUpdated = "обновлено мероприятие «%s»"
 	ActivityEventDeleted = "удалено мероприятие «%s»"
 
-	// Item activities
 	ActivityItemCreated  = "создана позиция «%s»"
 	ActivityItemUpdated  = "обновлена позиция «%s»"
 	ActivityItemArchived = "списана позиция «%s» — %s"
 	ActivityItemDeleted  = "удалена позиция «%s»"
 )
 
-// Default names and labels.
 const (
 	DefaultWarehouseName          = "Мой склад"
 	DefaultWarehouseNameWithOwner = "Склад %s"

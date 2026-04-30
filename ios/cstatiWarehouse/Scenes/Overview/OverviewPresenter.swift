@@ -10,7 +10,7 @@ import Foundation
 protocol OverviewPresenterProtocol: AnyObject {
     func viewDidLoad()
     func refreshAsync() async
-    func categoryRowTapped(_ row: OverviewCategoryRow)
+    func expiringItemTapped(_ item: ExpiringItem)
     func routePlanningTapped()
     func dismissPassiveNotice()
 }
@@ -22,7 +22,9 @@ final class OverviewPresenter: OverviewPresenterProtocol {
     var router: OverviewRouterProtocol?
 
     var isLoading: Bool = false
-    var snapshot: OverviewAnalyticsSnapshot?
+    var metrics: DashboardMetrics?
+    var overviewSnapshot: OverviewAnalyticsSnapshot?
+    var organizationTitle: String = ""
     var errorMessage: String?
     var passiveNoticeMessage: String?
     var emptyOrganizationMessage: String?
@@ -46,9 +48,7 @@ final class OverviewPresenter: OverviewPresenterProtocol {
         }
     }
 
-    func categoryRowTapped(_ row: OverviewCategoryRow) {
-        guard row.canNavigateToWarehouse else { return }
-        router?.openWarehouseFiltered(byCategory: row.filterKey)
+    func expiringItemTapped(_ item: ExpiringItem) {
     }
 
     func routePlanningTapped() {
@@ -76,23 +76,39 @@ final class OverviewPresenter: OverviewPresenterProtocol {
 extension OverviewPresenter: OverviewInteractorOutputProtocol {
 
     func noActiveOrganization() {
-        snapshot = nil
+        metrics = nil
+        overviewSnapshot = nil
+        organizationTitle = ""
         isLoading = false
         passiveNoticeMessage = nil
         emptyOrganizationMessage = "Выберите организацию на вкладке «Мой склад»."
         finishRefreshIfNeeded()
     }
 
-    func analyticsLoaded(_ snapshot: OverviewAnalyticsSnapshot) {
+    func analyticsCacheHit(_ metrics: DashboardMetrics, organizationTitle: String) {
+        errorMessage = nil
+        self.metrics = metrics
+        self.organizationTitle = organizationTitle
+        self.emptyOrganizationMessage = nil
+        self.overviewSnapshot = nil
+    }
+
+    func analyticsLoaded(
+        _ metrics: DashboardMetrics,
+        snapshot: OverviewAnalyticsSnapshot,
+        organizationTitle: String
+    ) {
         passiveNoticeMessage = nil
-        self.snapshot = snapshot
+        self.metrics = metrics
+        self.overviewSnapshot = snapshot
+        self.organizationTitle = organizationTitle
         isLoading = false
         emptyOrganizationMessage = nil
         finishRefreshIfNeeded()
     }
 
     func loadFailed(message: String) {
-        if snapshot != nil {
+        if metrics != nil {
             passiveNoticeMessage = message
         } else {
             errorMessage = message

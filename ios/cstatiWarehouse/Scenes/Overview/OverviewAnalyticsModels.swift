@@ -16,7 +16,6 @@ struct OverviewAnalyticsSnapshot: Equatable, Codable {
 struct OverviewCategoryRow: Identifiable, Equatable, Hashable, Codable {
     let id: String
     let title: String
-    /// Совпадает с `Item.categoryName` (пустая строка для позиций без категории).
     let filterKey: String
     let totalUnits: Int
     let canNavigateToWarehouse: Bool
@@ -59,7 +58,6 @@ enum ShelfRiskBand: String, CaseIterable, Identifiable, Hashable, Codable {
 
     var id: String { rawValue }
 
-    /// Полная подпись для списка и подсказок.
     var title: String {
         switch self {
         case .expired:
@@ -73,7 +71,6 @@ enum ShelfRiskBand: String, CaseIterable, Identifiable, Hashable, Codable {
         }
     }
 
-    /// Короткая подпись для оси графика.
     var chartAxisLabel: String {
         switch self {
         case .expired:

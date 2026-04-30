@@ -181,7 +181,6 @@ type updateItemRequest struct {
 	VariantLabel    string     `json:"variant_label"`
 	MeasureUnit     string     `json:"measure_unit"`
 	VolumePerUnit   *float64   `json:"volume_per_unit,omitempty"`
-	// ExpectedUpdatedAt при optimistic locking: клиент передаёт updated_at с момента открытия формы.
 	ExpectedUpdatedAt *time.Time `json:"expected_updated_at,omitempty"`
 }
 
@@ -419,8 +418,7 @@ func (h *WarehouseHandler) ArchiveEvents(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Parse pagination parameters
-	limit := 50 // default
+	limit := 50
 	offset := 0
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 100 {

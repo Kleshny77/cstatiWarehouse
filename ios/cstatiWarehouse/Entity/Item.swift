@@ -7,7 +7,6 @@
 
 import SwiftUI
 
-/// Единица меры для размера одной упаковки и для расчёта итога: упаковок × размер.
 enum ItemMeasureUnit: String, Hashable, CaseIterable, Codable {
     case piece
     case liter
@@ -25,7 +24,6 @@ enum ItemMeasureUnit: String, Hashable, CaseIterable, Codable {
         }
     }
 
-    /// Короткий суффикс для подписей (если нужен отдельно от числа).
     var shortSuffix: String {
         switch self {
         case .piece: return "шт"
@@ -62,12 +60,10 @@ struct Item: Identifiable, Hashable {
     var updatedAt: Date
     var status: ItemStatus
     var heldByUserID: UUID?
-    /// Адрес хранения (обязателен для новых и редактируемых позиций).
     var locationAddress: String
     var parentItemID: UUID?
     var variantLabel: String
     var measureUnit: ItemMeasureUnit
-    /// Сколько единиц меры в одной упаковке (л, мл, кг, г или штук в коробке). `nil` — как 1.
     var volumePerUnit: Double?
     var variants: [Item]
     var aggregatedVolumeLiters: Double?
@@ -121,22 +117,17 @@ struct Item: Identifiable, Hashable {
         return [self] + variants
     }
 
-    /// После миграции БД для многих строк в `quantity` лежали суммарные мл, а `volume_per_unit` обнулили —
-    /// это не модель «упаковки по 1 мл», а плоский остаток в мл.
     private var isLegacyFlatMilliliterTotal: Bool {
         measureUnit == .milliliter && volumePerUnit == nil
     }
 
-    /// Число упаковок на складе (коробок, бутылок и т.д.).
     var packageCount: Int { quantity }
 
-    /// Размер одной упаковки в выбранной мере; если не задан — 1 единица на упаковку (кроме legacy-мл, см. `isLegacyFlatMilliliterTotal`).
     var amountPerPackage: Double {
         if let v = volumePerUnit, v > 0 { return v }
         return 1
     }
 
-    /// Итог в базовых единицах меры: упаковки × размер упаковки (для legacy-мл `quantity` уже суммарные мл).
     var totalAmountBase: Double {
         if isLegacyFlatMilliliterTotal {
             return Double(quantity)
@@ -144,7 +135,6 @@ struct Item: Identifiable, Hashable {
         return Double(quantity) * amountPerPackage
     }
 
-    /// Сумма литров по вариантам (для группы напитков).
     var displayTotalLiters: Double? {
         if let aggregatedVolumeLiters { return aggregatedVolumeLiters }
         let parts = variants.compactMap { v -> Double? in
@@ -155,7 +145,6 @@ struct Item: Identifiable, Hashable {
         return parts.reduce(0, +)
     }
 
-    /// Эквивалент в литрах для одной строки (литры или миллилитры с учётом размера упаковки).
     var liquidLitersEquivalent: Double? {
         switch measureUnit {
         case .liter:
@@ -171,7 +160,6 @@ struct Item: Identifiable, Hashable {
         }
     }
 
-    /// Одна строка для бейджа количества на карточке (nil при нуле упаковок, кроме группы по литрам).
     var stockBadgeText: String? {
         if isProductGroup, let liters = displayTotalLiters {
             return Self.formatLitersNumber(liters) + " л"
@@ -180,7 +168,6 @@ struct Item: Identifiable, Hashable {
         return stockTotalLine
     }
 
-    /// Итоговый объём/масса/штуки — одна строка.
     var stockTotalLine: String {
         let total = totalAmountBase
         switch measureUnit {
@@ -198,7 +185,6 @@ struct Item: Identifiable, Hashable {
         }
     }
 
-    /// Сколько упаковок и чего в каждой (для подписей). Для legacy-мл без упаковочной модели — только итог в л/мл.
     var stockPackagingLine: String {
         guard quantity > 0 else { return "Нет в наличии" }
         if isLegacyFlatMilliliterTotal {
@@ -208,7 +194,6 @@ struct Item: Identifiable, Hashable {
         return "\(Self.formatIntRu(quantity)) уп. × \(amt) \(measureUnit.shortSuffix)"
     }
 
-    /// Полная строка для форм и карточек: разложение и итог.
     var stockAccountingSummary: String {
         guard quantity > 0 else { return "Нет в наличии" }
         if isLegacyFlatMilliliterTotal {
@@ -217,7 +202,6 @@ struct Item: Identifiable, Hashable {
         return "\(stockPackagingLine) = \(stockTotalLine)"
     }
 
-    /// Количество для подписей и листов деталей (включая ноль) — как полная бухгалтерская строка.
     var stockQuantityLine: String {
         guard quantity > 0 else {
             return stockTotalLine

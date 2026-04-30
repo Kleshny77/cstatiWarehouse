@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strip Swift comments; keep file header (leading // and blank lines until real code)."""
+"""Strip Swift comments; keep file header, // MARK:, swiftlint/swift-format directives."""
 
 from __future__ import annotations
 
@@ -19,13 +19,27 @@ def split_header(lines: list[str]) -> tuple[list[str], list[str]]:
     return lines[:i], lines[i:]
 
 
+def keep_full_line_comment(stripped: str) -> bool:
+    if not stripped.startswith("//"):
+        return False
+    if stripped.startswith("///"):
+        return False
+    if re.match(r"^//\s*MARK:", stripped):
+        return True
+    if re.match(r"^//\s*swiftlint", stripped):
+        return True
+    if re.match(r"^//\s*swiftformat", stripped):
+        return True
+    return False
+
+
 def strip_body(lines: list[str]) -> list[str]:
     out: list[str] = []
     for line in lines:
         st = line.strip()
-        if st.startswith("///"):
-            continue
         if st.startswith("//"):
+            if keep_full_line_comment(st):
+                out.append(line.rstrip("\r"))
             continue
         out.append(line.rstrip("\r"))
     return out
@@ -73,7 +87,7 @@ def process_file(path: Path) -> bool:
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
     changed = 0
-    for sub in ("cstatiWarehouse", "cstatiWarehouseTests"):
+    for sub in ("ios/cstatiWarehouse", "ios/cstatiWarehouseTests"):
         d = root / sub
         if not d.is_dir():
             continue

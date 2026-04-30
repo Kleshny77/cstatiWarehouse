@@ -7,84 +7,37 @@
 
 import Foundation
 
-/// Движок фильтрации позиций склада.
-/// Инкапсулирует всю логику применения фильтров к списку позиций.
 final class WarehouseFilterEngine {
-    
-    /// Применяет фильтры к списку позиций.
-    /// - Parameters:
-    ///   - items: Исходный список позиций
-    ///   - filters: Активные фильтры
-    ///   - availableCategories: Доступные категории для проверки
-    /// - Returns: Отфильтрованный список позиций
-    func apply(
-        filters: WarehouseFilters,
-        to items: [Item],
-        availableCategories: [String]
-    ) -> [Item] {
+
+    func apply(filters: WarehouseFilters, to items: [Item]) -> [Item] {
         var result = items
-        
-        // Фильтр по категориям
         if !filters.selectedCategories.isEmpty {
             result = result.filter { item in
-                categoryMatches(selected: filters.selectedCategories, itemCategory: item.categoryName)
+                categoryMatchesFilter(selected: filters.selectedCategories, itemCategory: item.categoryName)
             }
         }
-        
-        // Фильтр по держателю
-        if let holderID = filters.holderUserID {
-            result = result.filter { $0.heldByUserID == holderID }
-        }
-        
-        // Фильтр по статусу срока годности
-        if let expiryFilter = filters.expirationStatus {
+        if !filters.expirationSet.isEmpty {
             result = result.filter { item in
-                matchesExpirationFilter(item: item, filter: expiryFilter)
+                let status = item.expirationStatusConsideringVariants()
+                return filters.expirationSet.contains { $0.matches(status) }
             }
         }
-        
-        // Фильтр "Только заканчивающиеся"
-        if filters.onlyLowStock {
+        if !filters.smartFilters.isEmpty {
             result = result.filter { item in
-                isLowStock(item: item)
+                filters.smartFilters.allSatisfy { $0.matches(item) }
             }
         }
-        
         return result
     }
-    
-    // MARK: - Private Helpers
-    
-    private func categoryMatches(selected: Set<String>, itemCategory: String) -> Bool {
-        selected.contains(itemCategory)
-    }
-    
-    private func matchesExpirationFilter(item: Item, filter: ExpirationStatus) -> Bool {
-        let status = item.expirationStatusConsideringVariants()
-        switch filter {
-        case .expired:
-            if case .expired = status { return true }
-            return false
-        case .expiringSoon:
-            if case .expiringSoon = status { return true }
-            return false
-        case .ok:
-            if case .ok = status { return true }
-            return false
-        case .none:
-            if case .none = status { return true }
-            return false
-        }
-    }
-    
-    private func isLowStock(item: Item) -> Bool {
-        // Считаем "заканчивающимся" если количество <= 2
-        // Для родительских позиций проверяем суммарное количество вариантов
-        if item.variants.isEmpty {
-            return item.quantity <= 2
-        } else {
-            let totalVariants = item.variants.reduce(0) { $0 + $1.quantity }
-            return totalVariants <= 2
+
+    private func categoryMatchesFilter(selected: Set<String>, itemCategory: String) -> Bool {
+        let itemKey = itemCategory.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !itemKey.isEmpty else { return false }
+        let locale = Locale(identifier: "ru_RU")
+        return selected.contains { raw in
+            let candidate = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !candidate.isEmpty else { return false }
+            return candidate.compare(itemKey, options: [.caseInsensitive], locale: locale) == .orderedSame
         }
     }
 }

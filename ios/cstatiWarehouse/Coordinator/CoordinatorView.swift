@@ -2,7 +2,7 @@
 //  CoordinatorView.swift
 //  cstatiWarehouse
 //
-//  Created by Artem Samsonov on 17.01.2026.
+//  Created by Артём on 26.04.2026.
 //
 
 import SwiftUI
@@ -12,7 +12,8 @@ struct CoordinatorView: View {
     
     init(sessionStorage: UserSessionStorageProtocol = AppServices.sessionStorage) {
         let coord = AppCoordinator()
-        if sessionStorage.isLoggedIn {
+        let uitestInjectSession = ProcessInfo.processInfo.arguments.contains(UITestingLaunchArgument.injectSession)
+        if sessionStorage.isLoggedIn || uitestInjectSession {
             coord.path.append(AppRoute.main)
         }
         _coordinator = State(initialValue: coord)

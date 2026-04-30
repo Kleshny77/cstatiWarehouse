@@ -33,7 +33,7 @@ struct MyWarehousePresenterTests {
             status: .archived(reason: .expired, at: .now)
         )
         
-        sut.itemsLoaded([a, b, c, archived])
+        sut.itemsLoaded([a, b, c, archived], scope: .mine)
         
         #expect(sut.isLoading == false)
         #expect(sut.totalItemsCount == 3)
@@ -47,7 +47,7 @@ struct MyWarehousePresenterTests {
         let (sut, _) = makeSUT()
         let a = makeItem(name: "Пиво", description: "светлое", category: "напитки")
         let b = makeItem(name: "Водка", description: "крепкая", category: "напитки")
-        sut.itemsLoaded([a, b])
+        sut.itemsLoaded([a, b], scope: .mine)
         
         sut.searchText = "КРЕП"
         
@@ -83,11 +83,15 @@ struct MyWarehousePresenterTests {
     }
 
     @Test
-    func memberRole_doesNotOpenEditFlows() {
+    func memberRole_canCreateItems_cannotMutateUnheldItems() {
         let (sut, _) = makeSUT()
         sut.activeOrganization = makeOrganizationSummary(role: .member)
         let item = makeItem(name: "x", category: "y")
 
+        sut.addButtonTapped()
+        #expect(sut.editPresentation != nil)
+
+        sut.editPresentation = nil
         sut.editItemRequested(item)
         #expect(sut.editPresentation == nil)
 
@@ -96,9 +100,6 @@ struct MyWarehousePresenterTests {
 
         sut.hardDeleteRequested(item)
         #expect(sut.deleteConfirmation == nil)
-
-        sut.addButtonTapped()
-        #expect(sut.editPresentation == nil)
     }
     
     @Test
@@ -130,6 +131,7 @@ struct MyWarehousePresenterTests {
         #expect(fake.archiveCalls.first?.2 == .usedAtEvent)
         #expect(fake.archiveCalls.first?.3 == "корпоратив")
         #expect(fake.archiveCalls.first?.4 == nil)
+        #expect(fake.archiveCalls.first?.5 == item.updatedAt)
     }
 
     @Test
@@ -177,7 +179,7 @@ struct MyWarehousePresenterTests {
     func itemArchived_removesItemFromSections() {
         let (sut, _) = makeSUT()
         let item = makeItem(name: "x", category: "y")
-        sut.itemsLoaded([item])
+        sut.itemsLoaded([item], scope: .mine)
         
         var archived = item
         archived.status = .archived(reason: .disposed, at: .now)
@@ -192,7 +194,7 @@ struct MyWarehousePresenterTests {
         let (sut, _) = makeSUT()
         let a = makeItem(name: "a", category: "c")
         let b = makeItem(name: "b", category: "c")
-        sut.itemsLoaded([a, b])
+        sut.itemsLoaded([a, b], scope: .mine)
         
         sut.itemDeleted(id: a.id)
         
@@ -204,7 +206,7 @@ struct MyWarehousePresenterTests {
     func itemChangedExternally_insertsWhenNew_updatesWhenExisting() {
         let (sut, _) = makeSUT()
         let a = makeItem(name: "a", category: "c")
-        sut.itemsLoaded([a])
+        sut.itemsLoaded([a], scope: .mine)
         
         let newItem = makeItem(name: "new", category: "c")
         sut.itemChangedExternally(newItem, isNew: true)
@@ -238,7 +240,7 @@ struct MyWarehousePresenterTests {
         let (sut, fake) = makeSUT()
         sut.activeOrganization = makeOrganizationSummary()
         let original = makeItem(name: "orig", category: "c")
-        sut.itemsLoaded([original])
+        sut.itemsLoaded([original], scope: .mine)
         sut.editItemRequested(original)
         
         var edited = original
@@ -264,9 +266,9 @@ struct MyWarehousePresenterTests {
     @Test
     func itemsLoadFailed_withCachedItems_showsStaleNotice() {
         let (sut, _) = makeSUT()
-        sut.itemsLoaded([makeItem(name: "a", category: "c")])
+        sut.itemsLoaded([makeItem(name: "a", category: "c")], scope: .mine)
 
-        sut.itemsLoadFailed(message: "ошибка сети")
+        sut.itemsLoadFailed(message: "ошибка сети", scope: .mine)
 
         #expect(sut.passiveNoticeMessage == "Не удалось обновить список. Показаны сохранённые данные.")
     }
@@ -275,7 +277,7 @@ struct MyWarehousePresenterTests {
     func itemsLoadFailed_withoutItems_showsOriginalMessage() {
         let (sut, _) = makeSUT()
 
-        sut.itemsLoadFailed(message: "ошибка сети")
+        sut.itemsLoadFailed(message: "ошибка сети", scope: .mine)
 
         #expect(sut.passiveNoticeMessage == "ошибка сети")
     }
@@ -295,7 +297,7 @@ struct MyWarehousePresenterTests {
     func selectScope_suppressesSkeletonUntilCacheMissNotification() {
         let (sut, _) = makeSUT()
         sut.activeOrganization = makeOrganizationSummary(role: .admin)
-        sut.itemsLoaded([makeItem(name: "a", category: "c")])
+        sut.itemsLoaded([makeItem(name: "a", category: "c")], scope: .mine)
 
         sut.selectScope(.all)
 
@@ -304,7 +306,7 @@ struct MyWarehousePresenterTests {
         #expect(sut.shouldShowSkeleton == false)
         #expect(sut.totalItemsCount == 1)
 
-        sut.warehouseActiveItemsCacheMissed()
+        sut.warehouseActiveItemsCacheMissed(scope: .all)
 
         #expect(sut.isAwaitingWarehouseCacheHydration == true)
         #expect(sut.isLoading == true)

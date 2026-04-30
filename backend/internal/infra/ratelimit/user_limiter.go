@@ -8,22 +8,15 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// UserLimiter реализует rate limiting на уровне пользователя
 type UserLimiter struct {
 	limiters map[uuid.UUID]*rate.Limiter
 	mu       sync.RWMutex
 	rate     rate.Limit
 	burst    int
-	// Время жизни неактивного лимитера (для очистки памяти)
 	ttl time.Duration
-	// Последнее использование каждого лимитера
 	lastSeen map[uuid.UUID]time.Time
 }
 
-// NewUserLimiter создаёт новый UserLimiter
-// rate: количество запросов в секунду на пользователя
-// burst: максимальное количество burst запросов
-// ttl: время жизни неактивного лимитера (0 = бесконечно)
 func NewUserLimiter(r rate.Limit, burst int, ttl time.Duration) *UserLimiter {
 	ul := &UserLimiter{
 		limiters: make(map[uuid.UUID]*rate.Limiter),
@@ -33,7 +26,6 @@ func NewUserLimiter(r rate.Limit, burst int, ttl time.Duration) *UserLimiter {
 		ttl:      ttl,
 	}
 
-	// Запускаем фоновую очистку, если указан TTL
 	if ttl > 0 {
 		go ul.cleanupLoop()
 	}
@@ -41,7 +33,6 @@ func NewUserLimiter(r rate.Limit, burst int, ttl time.Duration) *UserLimiter {
 	return ul
 }
 
-// Allow проверяет, разрешён ли запрос для пользователя
 func (ul *UserLimiter) Allow(userID uuid.UUID) bool {
 	ul.mu.Lock()
 	defer ul.mu.Unlock()
@@ -56,7 +47,6 @@ func (ul *UserLimiter) Allow(userID uuid.UUID) bool {
 	return limiter.Allow()
 }
 
-// cleanupLoop периодически удаляет неактивные лимитеры
 func (ul *UserLimiter) cleanupLoop() {
 	ticker := time.NewTicker(ul.ttl)
 	defer ticker.Stop()
@@ -66,7 +56,6 @@ func (ul *UserLimiter) cleanupLoop() {
 	}
 }
 
-// cleanup удаляет лимитеры, которые не использовались дольше TTL
 func (ul *UserLimiter) cleanup() {
 	ul.mu.Lock()
 	defer ul.mu.Unlock()
@@ -80,7 +69,6 @@ func (ul *UserLimiter) cleanup() {
 	}
 }
 
-// Count возвращает количество активных лимитеров
 func (ul *UserLimiter) Count() int {
 	ul.mu.RLock()
 	defer ul.mu.RUnlock()

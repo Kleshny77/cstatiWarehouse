@@ -29,6 +29,7 @@ struct RoutePlanningView: View {
                         headerCopy
                         transportPicker
                         addressFields
+                        eventQuickPickSection
                         itemsSection
                         buildButton
                         mapSection
@@ -135,6 +136,59 @@ struct RoutePlanningView: View {
                 presenter.startAddressChanged()
             }
         }
+    }
+
+    private var eventQuickPickSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Под мероприятие")
+                    .font(font: .bold, size: 17)
+                    .defaultTextStyle()
+                Spacer(minLength: 8)
+                if presenter.isApplyingEventReservations {
+                    ProgressView().tint(Color.brandAccent)
+                }
+            }
+
+            Text("Выбери мероприятие — забронированные позиции подставятся автоматически.")
+                .font(font: .semiBold, size: 13)
+                .secondaryTextStyle()
+                .fixedSize(horizontal: false, vertical: true)
+
+            if presenter.availableEvents.isEmpty {
+                Text("В организации пока нет мероприятий — создайте их при бронировании позиции.")
+                    .font(font: .semiBold, size: 12)
+                    .foregroundStyle(Color.textTertiary)
+                    .padding(.top, 2)
+            } else {
+                FlowLayout(spacing: 8) {
+                    GlassChip(
+                        title: "Без мероприятия",
+                        isSelected: presenter.selectedEventID == nil
+                    ) {
+                        presenter.selectEvent(nil)
+                    }
+                    ForEach(presenter.availableEvents) { event in
+                        GlassChip(
+                            title: event.name,
+                            isSelected: presenter.selectedEventID == event.id
+                        ) {
+                            presenter.selectEvent(event.id)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if let hint = presenter.eventApplyHint {
+                Text(hint)
+                    .font(font: .semiBold, size: 12)
+                    .foregroundStyle(Color.textTertiary)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var itemsSection: some View {

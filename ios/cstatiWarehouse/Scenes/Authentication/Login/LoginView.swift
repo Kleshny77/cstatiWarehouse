@@ -83,7 +83,8 @@ struct LoginView: View {
                 keyboardType: .emailAddress,
                 submitLabel: .next,
                 onSubmit: { passwordIsFocused = true },
-                isFocused: $emailIsFocused
+                isFocused: $emailIsFocused,
+                accessibilityIdentifier: AccessibilityID.Login.emailField
             )
             GlassTextField(
                 title: "Пароль",
@@ -92,7 +93,8 @@ struct LoginView: View {
                 isSecure: true,
                 submitLabel: .done,
                 onSubmit: { presenter.loginButtonTapped(email: email, password: password) },
-                isFocused: $passwordIsFocused
+                isFocused: $passwordIsFocused,
+                accessibilityIdentifier: AccessibilityID.Login.passwordField
             )
         }
     }
@@ -140,8 +142,9 @@ struct LoginView: View {
         }
         .appGlass()
         .buttonStyle(.pressable)
+        .accessibilityIdentifier(AccessibilityID.Login.submitButton)
     }
-    
+
     private var textFooter: some View {
         HStack(spacing: 4) {
             Text("Нет аккаунта?")
@@ -155,6 +158,7 @@ struct LoginView: View {
                     .font(font: .bold, size: 14)
             }
             .buttonStyle(.pressable)
+            .accessibilityIdentifier(AccessibilityID.Login.registerLink)
         }
     }
 }

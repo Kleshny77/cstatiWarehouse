@@ -12,7 +12,6 @@ import MapKit
 struct AssembledRoute {
     let coordinates: [CLLocationCoordinate2D]
     let legs: [MKRoute]
-    /// Ложь, если между точками нарисована только прямая (дорожный маршрут недоступен).
     let usedRoadDirections: Bool
 }
 
@@ -98,7 +97,6 @@ final class MultiLegDrivingRouteAssembler {
         return MKMapItem(location: location, address: nil)
     }
 
-    /// Прямая линия между точками, если MKDirections не вернул полилинию.
     private func fallbackLineString(waypoints: [CLLocationCoordinate2D]) -> [CLLocationCoordinate2D]? {
         guard waypoints.count >= 2 else { return nil }
         return waypoints

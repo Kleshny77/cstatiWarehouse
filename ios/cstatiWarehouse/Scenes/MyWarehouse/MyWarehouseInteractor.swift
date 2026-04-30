@@ -17,7 +17,7 @@ protocol MyWarehouseInteractorInputProtocol: AnyObject {
     func createOrganization(name: String)
     func joinOrganization(code: String)
     func prepareArchive(for item: Item)
-    func archiveItem(id: UUID, quantity: Int, reason: ArchiveReason, reasonDetail: String, eventID: UUID?)
+    func archiveItem(id: UUID, quantity: Int, reason: ArchiveReason, reasonDetail: String, eventID: UUID?, expectedUpdatedAt: Date)
     func deleteItem(id: UUID)
     func applyExternalChange(_ item: Item, isNew: Bool)
 }
@@ -27,7 +27,7 @@ protocol MyWarehouseInteractorOutputProtocol: AnyObject {
     func organizationsLoaded(_ organizations: [OrganizationSummary])
     func organizationCreated(_ summary: OrganizationSummary)
     func organizationJoined(_ summary: OrganizationSummary)
-    func itemsLoaded(_ items: [Item])
+    func itemsLoaded(_ items: [Item], scope: WarehouseScope)
     func archiveReady(item: Item, orgEvents: [OrgEvent])
     func itemArchived(_ item: Item)
     func itemDeleted(id: UUID)
@@ -36,11 +36,11 @@ protocol MyWarehouseInteractorOutputProtocol: AnyObject {
     func archiveHistoryFailed(_ message: String)
     func membersLoaded(_ members: [OrganizationMember])
     func initialLoadFailed(message: String)
-    func itemsLoadFailed(message: String)
+    func itemsLoadFailed(message: String, scope: WarehouseScope)
     func failed(error: String)
     func organizationFailed(error: String)
     func joinAlreadyInOrganization()
-    func warehouseActiveItemsCacheMissed()
+    func warehouseActiveItemsCacheMissed(scope: WarehouseScope)
 }
 
 final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
@@ -71,7 +71,6 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
         self.offlineCache = offlineCache
         self.webSocketService = webSocketService
         
-        // Set self as WebSocket event handler
         self.webSocketService.eventHandler = self
     }
     
@@ -88,7 +87,6 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
                 self.presenter?.organizationsLoaded(summaries)
                 let resolved = self.pickActive(from: summaries)
                 if let resolved {
-                    // Connect WebSocket to active organization
                     self.webSocketService.connect(organizationID: resolved.id)
                     self.activeOrgStorage.setActive(resolved.organization.id)
                 } else {
@@ -123,11 +121,11 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
             if let data = await self.offlineCache.payload(forKey: cacheKey),
                let items = try? WarehouseItemsCacheCodec.decodeItems(from: data) {
                 await MainActor.run {
-                    self.presenter?.itemsLoaded(items)
+                    self.presenter?.itemsLoaded(items, scope: scope)
                 }
             } else {
                 await MainActor.run {
-                    self.presenter?.warehouseActiveItemsCacheMissed()
+                    self.presenter?.warehouseActiveItemsCacheMissed(scope: scope)
                 }
             }
             self.warehouseService.fetchActiveItems(organizationID: organizationID, scope: scope) { [weak self] result in
@@ -140,11 +138,11 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
                         }
                     }
                     DispatchQueue.main.async {
-                        self.presenter?.itemsLoaded(items)
+                        self.presenter?.itemsLoaded(items, scope: scope)
                     }
                 case .failure(let error):
                     DispatchQueue.main.async {
-                        self.presenter?.itemsLoadFailed(message: error.message)
+                        self.presenter?.itemsLoadFailed(message: error.message, scope: scope)
                     }
                 }
             }
@@ -175,7 +173,6 @@ final class MyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
 
     func selectActiveOrganization(_ id: UUID) {
         activeOrgStorage.setActive(id)
-        // Reconnect WebSocket to new organization
         webSocketService.connect(organizationID: id)
     }
 
@@ -271,25 +268,21 @@ extension MyWarehouseInteractor: WebSocketEventHandler {
     
     func handleItemCreated(_ item: Item) {
         print("[WebSocket] Item created: \(item.name)")
-        // Notify presenter about external change (new item)
         presenter?.itemChangedExternally(item, isNew: true)
     }
     
     func handleItemUpdated(_ item: Item) {
         print("[WebSocket] Item updated: \(item.name)")
-        // Notify presenter about external change (existing item)
         presenter?.itemChangedExternally(item, isNew: false)
     }
     
     func handleItemArchived(_ item: Item) {
         print("[WebSocket] Item archived: \(item.name)")
-        // Notify presenter about external change (archived item)
         presenter?.itemChangedExternally(item, isNew: false)
     }
     
     func handleItemDeleted(itemID: UUID) {
         print("[WebSocket] Item deleted: \(itemID)")
-        // Notify presenter about deletion
         presenter?.itemDeleted(id: itemID)
     }
 }

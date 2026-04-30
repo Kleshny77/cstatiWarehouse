@@ -14,7 +14,6 @@ enum WarehouseError: Error {
     case networkError(Error?)
     case serverError(String)
     case unauthorized
-    /// Сервер отклонил сохранение: позиция уже изменена; в теле ответа пришла актуальная версия.
     case concurrentModification(Item)
 
     var message: String {

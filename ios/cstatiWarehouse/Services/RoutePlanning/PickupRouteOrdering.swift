@@ -10,7 +10,6 @@ import MapKit
 
 struct PickupWaypoint: Identifiable {
     let id: UUID
-    /// Нормализованный ключ адреса для группировки.
     let addressKey: String
     let displayAddress: String
     let coordinate: CLLocationCoordinate2D
@@ -24,7 +23,6 @@ struct PickupLineItem: Equatable {
 
 enum PickupRouteOrdering {
 
-    /// Жадный nearest-neighbor по координатам остановок (после группировки по адресу).
     static func orderPickups(_ pickups: [PickupWaypoint]) -> [PickupWaypoint] {
         guard pickups.count > 1 else { return pickups }
 

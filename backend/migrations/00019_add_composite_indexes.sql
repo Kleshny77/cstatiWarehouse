@@ -10,13 +10,13 @@ ON items(expiration_date)
 WHERE expiration_date IS NOT NULL AND status = 'in_stock';
 
 -- Index for archive events by organization and date
-CREATE INDEX IF NOT EXISTS idx_archive_events_org_date 
-ON archive_events(organization_id, archived_at DESC);
+CREATE INDEX IF NOT EXISTS idx_item_archive_events_org_date
+ON item_archive_events(organization_id, archived_at DESC);
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DROP INDEX IF EXISTS idx_archive_events_org_date;
+DROP INDEX IF EXISTS idx_item_archive_events_org_date;
 DROP INDEX IF EXISTS idx_items_expiration_date;
 DROP INDEX IF EXISTS idx_items_org_status_holder;
 -- +goose StatementEnd

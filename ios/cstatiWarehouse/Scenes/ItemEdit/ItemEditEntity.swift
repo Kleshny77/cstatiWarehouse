@@ -21,7 +21,6 @@ struct ItemEditDraft {
     var holderID: UUID?
     var isMultiPackGroup: Bool
     var measureUnit: ItemMeasureUnit
-    /// Размер одной упаковки в выбранной мере (строка для поля ввода).
     var volumePerUnitText: String
     var variantLabel: String
 

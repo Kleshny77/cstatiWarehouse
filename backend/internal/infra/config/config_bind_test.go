@@ -9,7 +9,7 @@ func TestIsLoopbackOnlyHTTPAddr(t *testing.T) {
 		want bool
 	}{
 		{":8080", false},
-		{"::8080", false}, // invalid for Go really, but don't mis-detect
+		{"::8080", false},
 		{"0.0.0.0:8080", false},
 		{"[::]:8080", false},
 		{"127.0.0.1:8080", true},

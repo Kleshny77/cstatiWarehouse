@@ -11,6 +11,8 @@ import MapKit
 
 protocol RoutePlanningInteractorInputProtocol: AnyObject {
     func loadPickupItems()
+    func loadEvents()
+    func applyEventReservations(eventID: UUID)
     func buildRoute(
         selection: [UUID: Int],
         destinationAddress: String,
@@ -21,6 +23,8 @@ protocol RoutePlanningInteractorInputProtocol: AnyObject {
 
 protocol RoutePlanningInteractorOutputProtocol: AnyObject {
     func pickupItemsLoaded(_ rows: [RoutePlanningItemRow])
+    func eventsLoaded(_ events: [OrgEvent])
+    func eventReservationsApplied(selection: [UUID: Int], skippedNames: [String])
     func routePlanningFailed(message: String)
     func routePlanningBuilt(model: RoutePlanningMapModel)
 }
@@ -33,6 +37,8 @@ final class RoutePlanningInteractor: RoutePlanningInteractorInputProtocol {
     private let activeOrgStorage: ActiveOrganizationStorageProtocol
     private let geocoder: AddressGeocoderProtocol
     private let routeAssembler: MultiLegDrivingRouteAssembler
+    private let eventsService: EventsServiceProtocol?
+    private let reservationsService: ReservationsServiceProtocol?
 
     private var cachedRoots: [Item] = []
 
@@ -40,12 +46,70 @@ final class RoutePlanningInteractor: RoutePlanningInteractorInputProtocol {
         warehouseService: WarehouseServiceProtocol,
         activeOrgStorage: ActiveOrganizationStorageProtocol,
         geocoder: AddressGeocoderProtocol,
-        routeAssembler: MultiLegDrivingRouteAssembler
+        routeAssembler: MultiLegDrivingRouteAssembler,
+        eventsService: EventsServiceProtocol? = nil,
+        reservationsService: ReservationsServiceProtocol? = nil
     ) {
         self.warehouseService = warehouseService
         self.activeOrgStorage = activeOrgStorage
         self.geocoder = geocoder
         self.routeAssembler = routeAssembler
+        self.eventsService = eventsService
+        self.reservationsService = reservationsService
+    }
+
+    func loadEvents() {
+        guard let orgID = activeOrgStorage.activeOrganizationID else { return }
+        guard let eventsService else { return }
+        eventsService.list(organizationID: orgID) { [weak self] result in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                if case .success(let events) = result {
+                    let sorted = events.sorted {
+                        ($0.startsAt ?? .distantFuture) > ($1.startsAt ?? .distantFuture)
+                    }
+                    self.presenter?.eventsLoaded(sorted)
+                }
+            }
+        }
+    }
+
+    func applyEventReservations(eventID: UUID) {
+        guard let orgID = activeOrgStorage.activeOrganizationID else {
+            presenter?.routePlanningFailed(message: "Нет активной организации.")
+            return
+        }
+        guard let reservationsService else {
+            presenter?.routePlanningFailed(message: "Сервис броней недоступен.")
+            return
+        }
+        reservationsService.listByOrganization(organizationID: orgID, status: .active) { [weak self] result in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                switch result {
+                case .failure(let err):
+                    self.presenter?.routePlanningFailed(message: err.message)
+                case .success(let reservations):
+                    let matching = reservations.filter { $0.eventID == eventID }
+                    var totals: [UUID: Int] = [:]
+                    for r in matching {
+                        totals[r.itemID, default: 0] += r.quantity
+                    }
+
+                    var selection: [UUID: Int] = [:]
+                    var skippedNames: [String] = []
+                    for (itemID, qty) in totals {
+                        if let row = self.cachedRoots.first(where: { $0.id == itemID }) {
+                            let max = Swift.max(row.effectiveQuantityForSort, 0)
+                            selection[itemID] = Swift.min(qty, max)
+                        } else {
+                            skippedNames.append(itemID.uuidString.prefix(8).description)
+                        }
+                    }
+                    self.presenter?.eventReservationsApplied(selection: selection, skippedNames: skippedNames)
+                }
+            }
+        }
     }
 
     func loadPickupItems() {

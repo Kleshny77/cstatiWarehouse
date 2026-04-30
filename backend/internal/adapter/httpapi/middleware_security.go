@@ -9,7 +9,6 @@ import (
 	"github.com/Kleshny77/cstatiWarehouse/backend/pkg/apierror"
 )
 
-// securityHeadersMiddleware — снижает риск MIME-sniffing, встраивания в iframe и лишних capability в WebView.
 func securityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -20,8 +19,6 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// authRateLimitMiddleware ограничивает частоту POST к публичным эндпоинтам входа (защита от перебора и спама).
-// clientIP возвращает строку IP для лимита (например из X-Forwarded-For за доверенным прокси).
 func authRateLimitMiddleware(limiter *ratelimit.PerIPLimiter, clientIP func(*http.Request) string) func(http.Handler) http.Handler {
 	if clientIP == nil {
 		clientIP = remoteIPForRateLimit

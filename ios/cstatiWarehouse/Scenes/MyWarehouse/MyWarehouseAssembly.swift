@@ -9,8 +9,6 @@ import SwiftUI
 
 final class MyWarehouseAssembly {
 
-    /// Единый презентер и зависимости для вкладки склада — не создавать заново на каждый body TabBarView,
-    /// иначе асинхронные ответы API могут теряться в освобождённом экземпляре (пустой экран до смены таба).
     static func makePresenter(
         appCoordinator: AppCoordinatorProtocol,
         warehouseService: WarehouseServiceProtocol = AppServices.warehouseService(),

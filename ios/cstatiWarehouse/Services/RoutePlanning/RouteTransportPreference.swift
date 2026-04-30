@@ -31,7 +31,6 @@ enum RouteTransportPreference: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Параметр `rtt` для ссылок Яндекс.Карт.
     var yandexRtt: String {
         switch self {
         case .automobile:

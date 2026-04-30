@@ -11,12 +11,14 @@ final class OverviewAssembly {
 
     static func makePresenter(
         tabCoordinator: MainTabCoordinator,
+        analyticsService: AnalyticsServiceProtocol = AppServices.analyticsService(),
         organizationsService: OrganizationsServiceProtocol = AppServices.organizationsService(),
         warehouseService: WarehouseServiceProtocol = AppServices.warehouseService(),
         activeOrgStorage: ActiveOrganizationStorageProtocol = AppServices.activeOrganizationStorage
     ) -> OverviewPresenter {
         let presenter = OverviewPresenter()
         let interactor = OverviewInteractor(
+            analyticsService: analyticsService,
             organizationsService: organizationsService,
             warehouseService: warehouseService,
             activeOrgStorage: activeOrgStorage

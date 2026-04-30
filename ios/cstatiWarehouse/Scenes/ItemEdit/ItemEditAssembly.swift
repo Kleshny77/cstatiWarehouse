@@ -62,7 +62,6 @@ final class ItemEditAssembly {
 
 // MARK: - ItemEditHostedScene
 
-// Стабильный презентер в `@State`: лист + `AnyView` в роутере иначе пересоздавали контент при каждом refresh родителя.
 struct ItemEditHostedScene: View {
     let mode: ItemEditMode
     let organizationID: UUID

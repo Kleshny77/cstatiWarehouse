@@ -13,14 +13,18 @@ final class RoutePlanningAssembly {
         warehouseService: WarehouseServiceProtocol = AppServices.warehouseService(),
         activeOrgStorage: ActiveOrganizationStorageProtocol = AppServices.activeOrganizationStorage,
         geocoder: AddressGeocoderProtocol = AddressGeocoder(),
-        routeAssembler: MultiLegDrivingRouteAssembler = MultiLegDrivingRouteAssembler()
+        routeAssembler: MultiLegDrivingRouteAssembler = MultiLegDrivingRouteAssembler(),
+        eventsService: EventsServiceProtocol = AppServices.eventsService(),
+        reservationsService: ReservationsServiceProtocol = AppServices.reservationsService()
     ) -> some View {
         let presenter = RoutePlanningPresenter(geocoder: geocoder)
         let interactor = RoutePlanningInteractor(
             warehouseService: warehouseService,
             activeOrgStorage: activeOrgStorage,
             geocoder: geocoder,
-            routeAssembler: routeAssembler
+            routeAssembler: routeAssembler,
+            eventsService: eventsService,
+            reservationsService: reservationsService
         )
         let router = RoutePlanningRouter(onDismiss: onDismiss)
 

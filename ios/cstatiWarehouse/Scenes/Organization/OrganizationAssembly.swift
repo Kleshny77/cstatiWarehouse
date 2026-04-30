@@ -9,7 +9,6 @@ import SwiftUI
 
 final class OrganizationAssembly {
 
-    /// Один презентер на вкладку — не пересоздавать при каждом body TabBarView (иначе мигание текста и лишние refresh).
     static func makePresenter(
         appCoordinator: AppCoordinatorProtocol,
         organizationsService: OrganizationsServiceProtocol = AppServices.organizationsService(),

@@ -465,29 +465,37 @@ func TestWarehouseUseCase_MemberCannotMutateWarehouse(t *testing.T) {
 		t.Fatalf("create failed: %v", err)
 	}
 
-	if _, err := uc.Create(context.Background(), CreateItemInput{
+	memberItem, err := uc.Create(context.Background(), CreateItemInput{
 		UserID: memberID, OrganizationID: orgID, Name: "X", Quantity: 1,
 		LocationAddress: addrPtr("Москва, тестовый адрес"),
-	}); !errors.Is(err, domain.ErrForbidden) {
-		t.Errorf("member create: want ErrForbidden, got %v", err)
+	})
+	if err != nil {
+		t.Errorf("member create: want success, got %v", err)
 	}
 
 	_, err = uc.Update(context.Background(), mergeItemUpdate(created, UpdateItemInput{
 		UserID: memberID, Name: "B", Quantity: 1,
 	}))
 	if !errors.Is(err, domain.ErrForbidden) {
-		t.Errorf("member update: want ErrForbidden, got %v", err)
+		t.Errorf("member update owner's item: want ErrForbidden, got %v", err)
+	}
+
+	_, err = uc.Update(context.Background(), mergeItemUpdate(memberItem, UpdateItemInput{
+		UserID: memberID, Name: "Y", Quantity: 2,
+	}))
+	if err != nil {
+		t.Errorf("member update own item: want success, got %v", err)
 	}
 
 	_, _, err = uc.Archive(context.Background(), ArchiveItemInput{
 		ItemID: created.ID, UserID: memberID, Quantity: 1, Reason: domain.ArchiveReasonExpired,
 	})
 	if !errors.Is(err, domain.ErrForbidden) {
-		t.Errorf("member archive: want ErrForbidden, got %v", err)
+		t.Errorf("member archive owner's item: want ErrForbidden, got %v", err)
 	}
 
 	if err := uc.Delete(context.Background(), created.ID, memberID); !errors.Is(err, domain.ErrForbidden) {
-		t.Errorf("member delete: want ErrForbidden, got %v", err)
+		t.Errorf("member delete owner's item: want ErrForbidden, got %v", err)
 	}
 }
 

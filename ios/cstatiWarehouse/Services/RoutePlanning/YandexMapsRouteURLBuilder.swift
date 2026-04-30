@@ -10,10 +10,6 @@ import Foundation
 
 enum YandexMapsRouteURLBuilder {
 
-    /// Маршрут через несколько точек в Яндекс.Картах (`rtext=lat,lon~…`).
-    /// - Parameters:
-    ///   - coordinates: порядок точек поездки (включая конечную).
-    ///   - transport: соответствует `rtt` (auto / mt).
     static func routeURL(coordinates: [CLLocationCoordinate2D], transport: RouteTransportPreference) -> URL? {
         guard coordinates.count >= 2 else { return nil }
 

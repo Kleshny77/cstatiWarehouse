@@ -9,23 +9,23 @@ import (
 )
 
 type RouterDeps struct {
-	Auth          *AuthHandler
-	Warehouse     *WarehouseHandler
-	Organizations *OrganizationHandler
-	Events        *EventsHandler
-	Categories    *CategoriesHandler
-	Activity      *ActivityHandler
-	Uploads       *UploadsHandler
-	Notifications *NotificationsHandler
-	WebSocket     *WebSocketHandler
-	Tokens        usecase.TokenIssuer
-	// ClientIP — опционально: IP клиента для rate limit (например за nginx с TRUSTED_PROXY_CIDRS). Nil = только RemoteAddr.
+	Auth                    *AuthHandler
+	Warehouse               *WarehouseHandler
+	Organizations           *OrganizationHandler
+	Events                  *EventsHandler
+	Categories              *CategoriesHandler
+	Activity                *ActivityHandler
+	Analytics               *AnalyticsHandler
+	Uploads                 *UploadsHandler
+	Notifications           *NotificationsHandler
+	ExpirationNotifications *ExpirationNotificationsHandler
+	Comments                *CommentsHandler
+	Reservations            *ReservationsHandler
+	WebSocket               *WebSocketHandler
+	Tokens                  usecase.TokenIssuer
 	ClientIP func(*http.Request) string
-	// SkipAuthRateLimit отключает лимит POST /auth/* (интеграционные тесты на одном IP).
 	SkipAuthRateLimit bool
-	// UserLimiter — rate limiter на пользователя для аутентифицированных запросов
 	UserLimiter *ratelimit.UserLimiter
-	// CORSAllowedOrigins — список разрешённых origins для CORS
 	CORSAllowedOrigins []string
 }
 
@@ -45,7 +45,6 @@ func NewRouter(deps RouterDeps) http.Handler {
 
 	auth := authMiddleware(deps.Tokens)
 
-	// Применяем user rate limiting к аутентифицированным эндпоинтам
 	var authWithUserRL func(http.Handler) http.Handler
 	if deps.UserLimiter != nil {
 		authWithUserRL = func(h http.Handler) http.Handler {
@@ -95,6 +94,9 @@ func NewRouter(deps RouterDeps) http.Handler {
 	if deps.Activity != nil {
 		mux.Handle("GET /organizations/{id}/activity", authWithUserRL(http.HandlerFunc(deps.Activity.List)))
 	}
+	if deps.Analytics != nil {
+		mux.Handle("GET /analytics/dashboard", authWithUserRL(http.HandlerFunc(deps.Analytics.GetDashboard)))
+	}
 
 	if deps.Uploads != nil {
 		mux.Handle("POST /uploads", authWithUserRL(http.HandlerFunc(deps.Uploads.Upload)))
@@ -102,6 +104,28 @@ func NewRouter(deps RouterDeps) http.Handler {
 	}
 	if deps.Notifications != nil {
 		mux.Handle("POST /notifications/apns-token", authWithUserRL(http.HandlerFunc(deps.Notifications.RegisterAPNs)))
+	}
+	if deps.ExpirationNotifications != nil {
+		mux.Handle("GET /notifications/preferences", authWithUserRL(http.HandlerFunc(deps.ExpirationNotifications.GetPreferences)))
+		mux.Handle("PUT /notifications/preferences", authWithUserRL(http.HandlerFunc(deps.ExpirationNotifications.UpdatePreferences)))
+		mux.Handle("GET /notifications/expiration", authWithUserRL(http.HandlerFunc(deps.ExpirationNotifications.ListRecent)))
+		mux.Handle("POST /notifications/expiration/snooze", authWithUserRL(http.HandlerFunc(deps.ExpirationNotifications.Snooze)))
+	}
+	if deps.Comments != nil {
+		mux.Handle("POST /items/{itemID}/comments", authWithUserRL(http.HandlerFunc(deps.Comments.Create)))
+		mux.Handle("GET /items/{itemID}/comments", authWithUserRL(http.HandlerFunc(deps.Comments.List)))
+		mux.Handle("PUT /comments/{commentID}", authWithUserRL(http.HandlerFunc(deps.Comments.Update)))
+		mux.Handle("DELETE /comments/{commentID}", authWithUserRL(http.HandlerFunc(deps.Comments.Delete)))
+		mux.Handle("POST /comments/{commentID}/reactions", authWithUserRL(http.HandlerFunc(deps.Comments.AddReaction)))
+		mux.Handle("DELETE /comments/{commentID}/reactions", authWithUserRL(http.HandlerFunc(deps.Comments.RemoveReaction)))
+	}
+	if deps.Reservations != nil {
+		mux.Handle("POST /items/{itemID}/reservations", authWithUserRL(http.HandlerFunc(deps.Reservations.Create)))
+		mux.Handle("GET /items/{itemID}/reservations", authWithUserRL(http.HandlerFunc(deps.Reservations.ListByItem)))
+		mux.Handle("GET /items/{itemID}/availability", authWithUserRL(http.HandlerFunc(deps.Reservations.Availability)))
+		mux.Handle("GET /organizations/{orgID}/reservations", authWithUserRL(http.HandlerFunc(deps.Reservations.ListByOrganization)))
+		mux.Handle("POST /reservations/{reservationID}/fulfill", authWithUserRL(http.HandlerFunc(deps.Reservations.Fulfill)))
+		mux.Handle("POST /reservations/{reservationID}/cancel", authWithUserRL(http.HandlerFunc(deps.Reservations.Cancel)))
 	}
 	if deps.WebSocket != nil {
 		mux.Handle("GET /ws", authWithUserRL(http.HandlerFunc(deps.WebSocket.ServeWS)))
@@ -113,7 +137,6 @@ func NewRouter(deps RouterDeps) http.Handler {
 		withRL = authRateLimitMiddleware(authLimiter, deps.ClientIP)(mux)
 	}
 
-	// Применяем middleware в порядке: CORS → security → recover → logging → rate limit
 	handler := withRL
 	if len(deps.CORSAllowedOrigins) > 0 {
 		handler = corsMiddleware(deps.CORSAllowedOrigins)(handler)

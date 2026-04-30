@@ -879,3 +879,147 @@ func (f *fakePersonalOrg) CreatePersonal(ctx context.Context, ownerID uuid.UUID,
 	}
 	return org, nil
 }
+
+// MARK: ReservationRepository
+
+type fakeReservationRepo struct {
+	mu   sync.Mutex
+	byID map[uuid.UUID]*domain.ItemReservation
+}
+
+func newFakeReservationRepo() *fakeReservationRepo {
+	return &fakeReservationRepo{byID: map[uuid.UUID]*domain.ItemReservation{}}
+}
+
+func (r *fakeReservationRepo) Create(ctx context.Context, reservation *domain.ItemReservation) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	clone := *reservation
+	r.byID[reservation.ID] = &clone
+	return nil
+}
+
+func (r *fakeReservationRepo) Update(ctx context.Context, reservation *domain.ItemReservation) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.byID[reservation.ID]; !ok {
+		return domain.ErrNotFound
+	}
+	clone := *reservation
+	r.byID[reservation.ID] = &clone
+	return nil
+}
+
+func (r *fakeReservationRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.ItemReservation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	x, ok := r.byID[id]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	clone := *x
+	return &clone, nil
+}
+
+func (r *fakeReservationRepo) listLocked(
+	pred func(*domain.ItemReservation) bool,
+) []domain.ItemReservation {
+	var out []domain.ItemReservation
+	for _, v := range r.byID {
+		if pred(v) {
+			out = append(out, *v)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out
+}
+
+func (r *fakeReservationRepo) ListByItem(
+	ctx context.Context,
+	itemID uuid.UUID,
+	status *domain.ReservationStatus,
+) ([]domain.ItemReservation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.listLocked(func(v *domain.ItemReservation) bool {
+		if v.ItemID != itemID {
+			return false
+		}
+		if status != nil && v.Status != *status {
+			return false
+		}
+		return true
+	}), nil
+}
+
+func (r *fakeReservationRepo) ListByOrganization(
+	ctx context.Context,
+	orgID uuid.UUID,
+	status *domain.ReservationStatus,
+) ([]domain.ItemReservation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.listLocked(func(v *domain.ItemReservation) bool {
+		if v.OrganizationID != orgID {
+			return false
+		}
+		if status != nil && v.Status != *status {
+			return false
+		}
+		return true
+	}), nil
+}
+
+func (r *fakeReservationRepo) GetActiveTotalReservedForItem(ctx context.Context, itemID uuid.UUID) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var sum int
+	for _, v := range r.byID {
+		if v.ItemID == itemID && v.Status == domain.ReservationStatusActive {
+			sum += v.Quantity
+		}
+	}
+	return sum, nil
+}
+
+func (r *fakeReservationRepo) GetActiveTotalsForItems(
+	ctx context.Context,
+	itemIDs []uuid.UUID,
+) (map[uuid.UUID]int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make(map[uuid.UUID]int, len(itemIDs))
+	for _, id := range itemIDs {
+		out[id] = 0
+	}
+	for _, v := range r.byID {
+		if v.Status != domain.ReservationStatusActive {
+			continue
+		}
+		if _, ok := out[v.ItemID]; ok {
+			out[v.ItemID] += v.Quantity
+		}
+	}
+	return out, nil
+}
+
+func (r *fakeReservationRepo) FindExpired(ctx context.Context, now time.Time) ([]domain.ItemReservation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []domain.ItemReservation
+	for _, v := range r.byID {
+		if v.Status != domain.ReservationStatusActive || v.ExpiresAt == nil {
+			continue
+		}
+		if !v.ExpiresAt.After(now) {
+			out = append(out, *v)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ExpiresAt == nil || out[j].ExpiresAt == nil {
+			return false
+		}
+		return out[i].ExpiresAt.Before(*out[j].ExpiresAt)
+	})
+	return out, nil
+}

@@ -29,6 +29,11 @@ final class RoutePlanningPresenter: RoutePlanningPresenterProtocol {
     var startAddress: String = ""
     var transport: RouteTransportPreference = .automobile
 
+    var availableEvents: [OrgEvent] = []
+    var selectedEventID: UUID?
+    var isApplyingEventReservations: Bool = false
+    var eventApplyHint: String?
+
     var builtModel: RoutePlanningMapModel?
     var isLoadingItems: Bool = false
     var isBuildingRoute: Bool = false
@@ -59,9 +64,24 @@ final class RoutePlanningPresenter: RoutePlanningPresenterProtocol {
             errorMessage = nil
             builtModel = nil
             interactor?.loadPickupItems()
+            interactor?.loadEvents()
         }
         destinationAddressChanged()
         startAddressChanged()
+    }
+
+    func selectEvent(_ id: UUID?) {
+        selectedEventID = id
+        eventApplyHint = nil
+        guard let id else {
+            // Clear selection when "no event" chip tapped.
+            for key in selection.keys {
+                selection[key] = 0
+            }
+            return
+        }
+        isApplyingEventReservations = true
+        interactor?.applyEventReservations(eventID: id)
     }
 
     func dismissTapped() {
@@ -244,9 +264,30 @@ extension RoutePlanningPresenter: RoutePlanningInteractorOutputProtocol {
         selection = next
     }
 
+    func eventsLoaded(_ events: [OrgEvent]) {
+        availableEvents = events
+    }
+
+    func eventReservationsApplied(selection: [UUID: Int], skippedNames: [String]) {
+        isApplyingEventReservations = false
+        // Reset all to zero, then apply
+        var next: [UUID: Int] = [:]
+        for r in rows {
+            next[r.id] = selection[r.id] ?? 0
+        }
+        self.selection = next
+        let appliedCount = selection.values.filter { $0 > 0 }.count
+        if appliedCount == 0 {
+            eventApplyHint = "Под это мероприятие нет активных броней."
+        } else {
+            eventApplyHint = "Подставлено позиций: \(appliedCount)."
+        }
+    }
+
     func routePlanningFailed(message: String) {
         errorMessage = message
         isBuildingRoute = false
+        isApplyingEventReservations = false
     }
 
     func routePlanningBuilt(model: RoutePlanningMapModel) {

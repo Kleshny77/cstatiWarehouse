@@ -8,12 +8,10 @@ import (
 	"net/netip"
 )
 
-// TrustedProxies — если пусто, ClientIP всегда берёт адрес из TCP соединения.
 type TrustedProxies struct {
 	prefixes []netip.Prefix
 }
 
-// ParseTrustedProxyCIDRs парсит список через запятую, например "127.0.0.1/32,10.0.0.0/8".
 func ParseTrustedProxyCIDRs(raw string) (*TrustedProxies, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -35,7 +33,6 @@ func ParseTrustedProxyCIDRs(raw string) (*TrustedProxies, error) {
 	return &TrustedProxies{prefixes: out}, nil
 }
 
-// ClientIP возвращает IP клиента: при доверенном прокси — первый адрес из X-Forwarded-For, иначе хост из RemoteAddr.
 func (t *TrustedProxies) ClientIP(r *http.Request) string {
 	peerHost := hostOnly(r.RemoteAddr)
 	if t == nil || len(t.prefixes) == 0 || peerHost == "" {

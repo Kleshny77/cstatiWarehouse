@@ -19,6 +19,7 @@ struct GlassTextField: View {
     var onSubmit: (() -> Void)? = nil
     var isFocused: FocusState<Bool>.Binding? = nil
     var autocapitalization: TextInputAutocapitalization = .never
+    var accessibilityIdentifier: String? = nil
 
     @State private var isPasswordVisible: Bool = false
 
@@ -36,6 +37,7 @@ struct GlassTextField: View {
                 regularFieldView
             }
         }
+        .optionalAccessibilityIdentifier(accessibilityIdentifier)
     }
 
     @ViewBuilder

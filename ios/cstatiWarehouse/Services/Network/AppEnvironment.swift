@@ -12,8 +12,6 @@ enum AppEnvironment {
     private static let backendBaseURLPlistKey = "BackendBaseURL"
     private static let backendURLProcessEnvKey = "BACKEND_URL"
 
-    /// Приоритет: переменная окружения `BACKEND_URL` (схема Xcode) → `BackendBaseURL` в Info.plist → `http://127.0.0.1:8080`.
-    /// На физическом устройстве задай `BACKEND_URL` или `BackendBaseURL` с LAN-адресом Mac, например `http://192.168.1.5:8080` (сервер должен слушать `:8080` на всех интерфейсах).
     static var backendBaseURL: URL {
         resolveBackendBaseURL()
     }

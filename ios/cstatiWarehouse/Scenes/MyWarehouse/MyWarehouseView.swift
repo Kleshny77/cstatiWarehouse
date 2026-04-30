@@ -9,8 +9,9 @@ import SwiftUI
 
 struct MyWarehouseView: View {
     @Bindable var presenter: MyWarehousePresenter
-    @Namespace private var scopePickerNamespace
     @State private var selectedItem: Item? = nil
+    @State private var commentsItem: Item? = nil
+    @State private var reservationsItem: Item? = nil
     @State private var expandedRoots: Set<UUID> = []
     @State private var localSearchText: String = ""
 
@@ -121,7 +122,7 @@ struct MyWarehouseView: View {
                 item: item,
                 parentName: parentName(for: item),
                 holderDisplayName: presenter.holderDisplayName(for: item),
-                onEdit: presenter.canEditWarehouseItems
+                onEdit: presenter.canMutateWarehouseItem(item)
                     ? {
                         selectedItem = nil
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
@@ -129,7 +130,7 @@ struct MyWarehouseView: View {
                         }
                     }
                     : nil,
-                onArchive: (presenter.canEditWarehouseItems && !item.status.isArchived)
+                onArchive: (presenter.canMutateWarehouseItem(item) && !item.status.isArchived)
                     ? {
                         selectedItem = nil
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
@@ -137,8 +138,70 @@ struct MyWarehouseView: View {
                         }
                     }
                     : nil,
+                onOpenComments: presenter.activeOrganization != nil && presenter.currentUserID != nil
+                    ? {
+                        let target = item
+                        selectedItem = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                            commentsItem = target
+                        }
+                    }
+                    : nil,
+                onOpenReservations: (presenter.activeOrganization != nil && presenter.currentUserID != nil && !item.status.isArchived)
+                    ? {
+                        let target = item
+                        selectedItem = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                            reservationsItem = target
+                        }
+                    }
+                    : nil,
                 onDismiss: { selectedItem = nil }
             )
+        }
+        .sheet(item: $commentsItem) { item in
+            if let orgID = presenter.activeOrganization?.organization.id,
+               let userID = presenter.currentUserID {
+                NavigationStack {
+                    CommentsAssembly.assemble(
+                        itemID: item.id,
+                        organizationID: orgID,
+                        currentUserID: userID,
+                        isCurrentUserAdmin: presenter.isCurrentUserAdmin
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Готово") { commentsItem = nil }
+                                .foregroundStyle(.white.opacity(0.95))
+                        }
+                    }
+                }
+                .presentationDragIndicator(.visible)
+            } else {
+                EmptyView()
+            }
+        }
+        .sheet(item: $reservationsItem) { item in
+            if let orgID = presenter.activeOrganization?.organization.id,
+               let userID = presenter.currentUserID {
+                NavigationStack {
+                    ReservationsAssembly.assemble(
+                        item: item,
+                        organizationID: orgID,
+                        currentUserID: userID,
+                        isCurrentUserAdmin: presenter.isCurrentUserAdmin
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Готово") { reservationsItem = nil }
+                                .foregroundStyle(.white.opacity(0.95))
+                        }
+                    }
+                }
+                .presentationDragIndicator(.visible)
+            } else {
+                EmptyView()
+            }
         }
         .sheet(isPresented: $presenter.isArchiveHistoryPresented) {
             ArchiveHistorySheet(
@@ -184,7 +247,7 @@ struct MyWarehouseView: View {
 
             Spacer()
 
-            if presenter.canEditWarehouseItems {
+            if presenter.canCreateWarehouseItems {
                 addButton
             }
         }
@@ -331,16 +394,13 @@ struct MyWarehouseView: View {
         }
         .padding(4)
         .appGlass(in: Capsule())
-        .appAnimation(AppAnimation.smooth, value: presenter.scope)
     }
 
     private func scopeButton(title: String, scope: WarehouseScope) -> some View {
         let isSelected = presenter.scope == scope
         return Button {
             AppHaptics.selection()
-            withAnimation(AppAnimation.smooth) {
-                presenter.selectScope(scope)
-            }
+            presenter.selectScope(scope)
         } label: {
             Text(title)
                 .font(font: .semiBold, size: 16)
@@ -348,31 +408,30 @@ struct MyWarehouseView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background {
-                    if isSelected {
-                        Capsule()
-                            .fill(Color.white.opacity(0.18))
-                            .matchedGeometryEffect(id: "scopePickerSelectedBackground", in: scopePickerNamespace)
-                    }
+                    Capsule()
+                        .fill(Color.white.opacity(isSelected ? 0.18 : 0))
                 }
                 .contentShape(Capsule())
         }
         .buttonStyle(.pressable)
-        .appAnimation(AppAnimation.snap, value: presenter.scope)
     }
 
     @ViewBuilder
     private var content: some View {
-        if presenter.shouldShowSkeleton {
-            skeletonList
-        } else if presenter.sections.isEmpty {
-            if presenter.isAwaitingWarehouseCacheHydration {
-                warehouseAwaitingCachePlaceholder
+        Group {
+            if presenter.shouldShowSkeleton {
+                skeletonList
+            } else if presenter.sections.isEmpty {
+                if presenter.isAwaitingWarehouseCacheHydration || !presenter.hasLoadedCurrentScopeOnce {
+                    warehouseAwaitingCachePlaceholder
+                } else {
+                    emptyState
+                }
             } else {
-                emptyState
+                itemsList
             }
-        } else {
-            itemsList
         }
+        .animation(nil, value: presenter.scope)
     }
 
     private var warehouseAwaitingCachePlaceholder: some View {
@@ -487,7 +546,7 @@ struct MyWarehouseView: View {
                                 warehouseVariantRow(for: variant)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
                             }
-                            if presenter.canEditWarehouseItems {
+                            if presenter.canMutateWarehouseItem(item) {
                                 addVariantRow(for: item)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
                             }
@@ -505,8 +564,8 @@ struct MyWarehouseView: View {
             await presenter.performPullToRefresh()
         }
         .navigationTitle("Склад")
-        .appAnimation(AppAnimation.smooth, value: presenter.sections)
-        .appAnimation(AppAnimation.smooth, value: expandedRoots)
+        .animation(nil, value: presenter.scope)
+        .appAnimation(AppAnimation.snap, value: expandedRoots)
     }
 
     private func activeVariants(for parent: Item) -> [Item] {
@@ -516,7 +575,7 @@ struct MyWarehouseView: View {
     @ViewBuilder
     private func warehouseRootRow(for item: Item) -> some View {
         Group {
-            if presenter.canEditWarehouseItems {
+            if presenter.canMutateWarehouseItem(item) {
                 warehouseRootRowButton(for: item)
                     .contextMenu {
                         itemContextMenu(for: item)
@@ -583,7 +642,7 @@ struct MyWarehouseView: View {
     @ViewBuilder
     private func warehouseVariantRow(for variant: Item) -> some View {
         Group {
-            if presenter.canEditWarehouseItems {
+            if presenter.canMutateWarehouseItem(variant) {
                 warehouseVariantRowButton(for: variant)
                     .contextMenu {
                         variantContextMenu(for: variant)

@@ -63,6 +63,10 @@ struct RootView: View {
     }
     .onAppear {
       RemotePushRegistration.registerForRemoteNotificationsIfPossible()
+      if UITestConfiguration.shouldSkipSplash {
+        showSplash = false
+        return
+      }
       DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
         withAnimation(.easeOut(duration: 0.5)) {
           showSplash = false

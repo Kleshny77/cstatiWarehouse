@@ -8,7 +8,6 @@
 import CoreLocation
 import Foundation
 
-/// Человекочитаемые сообщения вместо сырых `kCLErrorDomain error …`.
 enum GeocodingUserMessage {
 
     static func message(for error: AddressGeocoderError) -> String {

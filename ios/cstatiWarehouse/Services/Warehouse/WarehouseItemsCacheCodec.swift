@@ -60,7 +60,6 @@ private struct WarehouseItemsEnvelope: Codable {
     let items: [WarehouseWireItem]
 }
 
-/// Формат совместим с телом списка позиций API (`ItemDTO`).
 private struct WarehouseWireItem: Codable {
     let id: String
     let heldByUserId: String?

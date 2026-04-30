@@ -44,10 +44,28 @@ enum AppServices {
         ApiActivityService(client: apiClient)
     }
 
+    static func analyticsService() -> AnalyticsServiceProtocol {
+        ApiAnalyticsService(apiClient: apiClient)
+    }
+
+    static func notificationPreferencesService() -> NotificationPreferencesServiceProtocol {
+        ApiNotificationPreferencesService(apiClient: apiClient)
+    }
+
+    static func commentsService() -> CommentsServiceProtocol {
+        ApiCommentsService(apiClient: apiClient)
+    }
+
+    static func reservationsService() -> ReservationsServiceProtocol {
+        ApiReservationsService(apiClient: apiClient)
+    }
+
     static let shelfLifeNotifier: ShelfLifeNotificationServiceProtocol = ShelfLifeNotificationService()
+
+    static let smartExpirationScheduler: SmartExpirationSchedulerProtocol = SmartExpirationScheduler()
     
     static let webSocketService: WebSocketService = WebSocketService(
-        baseURL: apiClient.baseURL,
-        tokenStorage: sessionStorage
+        baseURL: AppEnvironment.backendBaseURL.absoluteString,
+        sessionStorage: sessionStorage
     )
 }

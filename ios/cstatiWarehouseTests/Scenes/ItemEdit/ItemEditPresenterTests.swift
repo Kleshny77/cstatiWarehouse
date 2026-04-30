@@ -231,6 +231,24 @@ struct ItemEditPresenterTests {
     }
     
     @Test
+    func createVariant_screenTitle_andQuantityLowerBound() {
+        let parent = Item(name: "Группа", categoryName: "напитки", quantity: 5)
+        let (sut, _, _) = makeSUT(mode: .createVariant(parent: parent))
+
+        #expect(sut.screenTitle == "Новый вариант")
+        #expect(sut.quantityLowerBound == 1)
+        #expect(sut.showsVariantFields == true)
+    }
+
+    @Test
+    func create_multiPackGroup_allowsQuantityZeroLowerBound() {
+        let (sut, _, _) = makeSUT(mode: .create(suggestedCategory: "кат"))
+        sut.draft.isMultiPackGroup = true
+
+        #expect(sut.quantityLowerBound == 0)
+    }
+
+    @Test
     func edit_productGroup_hidesMeasureFields() {
         let parentID = UUID()
         let variant = Item(
@@ -293,7 +311,11 @@ struct ItemEditPresenterTests {
     private func primeValidatedAddress(_ sut: ItemEditPresenter) async {
         sut.draft.locationAddress = "Москва, ул. Тестовая, 1"
         sut.locationAddressChanged()
-        await Task.yield()
+        for _ in 0..<100 {
+            if case .ok = sut.addressGeocodePreviewStatus { return }
+            if case .failed = sut.addressGeocodePreviewStatus { return }
+            await Task.yield()
+        }
     }
 
     private func makeSUT(

@@ -1,0 +1,190 @@
+/* 
+  Localizable.strings (English)
+  cstatiWarehouse
+  
+  Created by Артём on 29.04.2026.
+*/
+
+// MARK: - Common
+"common.cancel" = "Cancel";
+"common.done" = "Done";
+"common.save" = "Save";
+"common.delete" = "Delete";
+"common.edit" = "Edit";
+"common.add" = "Add";
+"common.close" = "Close";
+"common.ok" = "OK";
+"common.yes" = "Yes";
+"common.no" = "No";
+"common.search" = "Search";
+"common.filter" = "Filter";
+"common.sort" = "Sort";
+"common.loading" = "Loading...";
+"common.error" = "Error";
+"common.retry" = "Retry";
+"common.create" = "Create";
+"common.update" = "Update";
+"common.confirm" = "Confirm";
+"common.back" = "Back";
+
+// MARK: - Tabs
+"tab.warehouse" = "Warehouse";
+"tab.organization" = "Organization";
+"tab.settings" = "Settings";
+
+// MARK: - Warehouse
+"warehouse.title" = "My Warehouse";
+"warehouse.empty.title" = "No items";
+"warehouse.empty.subtitle" = "Add your first item";
+"warehouse.add_item" = "Add Item";
+"warehouse.search.placeholder" = "Search items...";
+"warehouse.filter_button" = "Filter";
+"warehouse.sort_button" = "Sort";
+"warehouse.archive_history" = "Archive History";
+"warehouse.scope.all" = "All";
+"warehouse.scope.my" = "My";
+"warehouse.items_count" = "%d items";
+
+// MARK: - Item
+"item.name" = "Name";
+"item.description" = "Description";
+"item.category" = "Category";
+"item.quantity" = "Quantity";
+"item.location" = "Location";
+"item.expiration_date" = "Expiration Date";
+"item.photo" = "Photo";
+"item.holder" = "Holder";
+"item.measure_unit" = "Measure Unit";
+"item.volume_per_unit" = "Volume per Unit";
+"item.packaging" = "Packaging";
+"item.variant" = "Variant";
+"item.add_variant" = "Add Variant";
+
+// MARK: - Item Edit
+"item_edit.title" = "Edit Item";
+"item_edit.create" = "Create Item";
+"item_edit.update" = "Update Item";
+"item_edit.name_placeholder" = "Enter name";
+"item_edit.description_placeholder" = "Enter description";
+"item_edit.category_placeholder" = "Select category";
+"item_edit.location_placeholder" = "Enter address";
+"item_edit.select_photo" = "Select Photo";
+"item_edit.change_photo" = "Change Photo";
+"item_edit.remove_photo" = "Remove Photo";
+
+// MARK: - Archive
+"archive.title" = "Archive";
+"archive.reason" = "Reason";
+"archive.quantity" = "Quantity";
+"archive.confirm" = "Archive";
+"archive.detail" = "Details";
+"archive.history" = "Archive History";
+"archive.event" = "Event";
+"archive.select_event" = "Select event";
+
+// Archive Reasons
+"archive.reason.expired" = "Expired";
+"archive.reason.damaged" = "Damaged";
+"archive.reason.lost" = "Lost";
+"archive.reason.used" = "Used";
+"archive.reason.sold" = "Sold";
+"archive.reason.donated" = "Donated";
+"archive.reason.used_at_event" = "Used at Event";
+"archive.reason.other" = "Other";
+
+// MARK: - Organization
+"organization.title" = "Organization";
+"organization.members" = "Members";
+"organization.invite" = "Invite";
+"organization.events" = "Events";
+"organization.activity" = "Activity";
+"organization.categories" = "Categories";
+"organization.settings" = "Settings";
+"organization.leave" = "Leave";
+"organization.create" = "Create Organization";
+"organization.join" = "Join";
+"organization.switch" = "Switch";
+"organization.name" = "Name";
+"organization.code" = "Invite Code";
+
+// Organization Roles
+"organization.role.owner" = "Owner";
+"organization.role.admin" = "Admin";
+"organization.role.member" = "Member";
+
+// MARK: - Settings
+"settings.title" = "Settings";
+"settings.profile" = "Profile";
+"settings.notifications" = "Notifications";
+"settings.language" = "Language";
+"settings.logout" = "Logout";
+"settings.version" = "Version";
+"settings.about" = "About";
+
+// MARK: - Auth
+"auth.login" = "Login";
+"auth.register" = "Register";
+"auth.email" = "Email";
+"auth.password" = "Password";
+"auth.name" = "Name";
+"auth.login_telegram" = "Login with Telegram";
+"auth.login_google" = "Login with Google";
+"auth.welcome" = "Welcome";
+"auth.create_account" = "Create Account";
+"auth.have_account" = "Already have an account?";
+"auth.no_account" = "Don't have an account?";
+
+// MARK: - Errors
+"error.generic" = "Something went wrong";
+"error.network" = "Network error";
+"error.unauthorized" = "Unauthorized";
+"error.not_found" = "Not found";
+"error.forbidden" = "Access denied";
+"error.validation" = "Validation error";
+"error.conflict" = "Data conflict";
+"error.server_error" = "Server error";
+
+// MARK: - Measure Units
+"measure.piece" = "pc";
+"measure.kilogram" = "kg";
+"measure.gram" = "g";
+"measure.liter" = "L";
+"measure.milliliter" = "mL";
+"measure.meter" = "m";
+"measure.centimeter" = "cm";
+"measure.package" = "pkg";
+"measure.box" = "box";
+"measure.bottle" = "btl";
+"measure.can" = "can";
+
+// MARK: - Expiration Status
+"expiration.expired" = "Expired";
+"expiration.expiring_soon" = "Expiring Soon";
+"expiration.ok" = "Valid";
+"expiration.no_date" = "No Date";
+"expiration.expired_on" = "Expired on %@";
+"expiration.expires_on" = "Expires on %@";
+"expiration.valid_until" = "Valid until %@";
+
+// MARK: - Filters
+"filter.title" = "Filters";
+"filter.category" = "Category";
+"filter.holder" = "Holder";
+"filter.expiration" = "Expiration";
+"filter.clear" = "Clear";
+"filter.apply" = "Apply";
+"filter.all_categories" = "All Categories";
+"filter.all_holders" = "All Holders";
+
+// MARK: - Sort
+"sort.title" = "Sort";
+"sort.by_name" = "By Name";
+"sort.by_date" = "By Date";
+"sort.by_quantity" = "By Quantity";
+"sort.by_expiration" = "By Expiration";
+"sort.by_category" = "By Category";
+
+// MARK: - Delete Confirmation
+"delete.confirm.title" = "Delete Item?";
+"delete.confirm.message" = "This action cannot be undone";
+"delete.confirm.button" = "Delete";

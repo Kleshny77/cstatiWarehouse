@@ -34,7 +34,6 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
     var isHolderPickerPresented: Bool = false
     var isNewCategorySheetPresented: Bool = false
 
-    /// Автоматическая проверка адреса (геокодинг + миникарта под полем).
     private(set) var addressGeocodePreviewStatus: AddressGeocodeInlineStatus = .hidden
 
     var screenTitle: String {
@@ -95,7 +94,6 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
         }
     }
 
-    /// Заголовок поля размера упаковки (зависит от меры).
     var amountPerPackageFieldTitle: String {
         switch draft.measureUnit {
         case .liter:
@@ -151,7 +149,6 @@ final class ItemEditPresenter: ItemEditPresenterProtocol {
     private var lastSuccessfulAddressFingerprint: String?
     private var didRunInitialViewLoad: Bool = false
 
-    /// Базовая позиция для режима редактирования (обновляется при конфликте версий с сервером).
     private var editBaselineItem: Item?
 
     private var isNew: Bool {

@@ -19,7 +19,6 @@ protocol AddressGeocoderProtocol: AnyObject {
     func geocodeAddress(_ address: String, completion: @escaping (Result<CLLocationCoordinate2D, AddressGeocoderError>) -> Void)
 }
 
-/// Геокодинг через MapKit `MKGeocodingRequest` (без API-ключей; точность зависит от формулировки адреса).
 final class AddressGeocoder: AddressGeocoderProtocol {
 
     func geocodeAddress(_ address: String, completion: @escaping (Result<CLLocationCoordinate2D, AddressGeocoderError>) -> Void) {

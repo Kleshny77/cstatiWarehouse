@@ -26,6 +26,7 @@ struct SettingsView: View {
                     if presenter.user != nil {
                         saveButton
                     }
+                    notificationPreferencesLink
                     logoutButton
                 }
                 .padding(.horizontal, 20)
@@ -191,6 +192,30 @@ struct SettingsView: View {
         .opacity(presenter.hasPendingChanges ? 1 : 0.5)
         .appAnimation(AppAnimation.smooth, value: presenter.hasPendingChanges)
         .appAnimation(AppAnimation.snap, value: presenter.isSaving)
+    }
+
+    private var notificationPreferencesLink: some View {
+        NavigationLink {
+            NotificationPreferencesAssembly.assemble()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "bell.badge")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                Text("Уведомления о сроках годности")
+                    .foregroundStyle(.white.opacity(0.95))
+                    .font(font: .bold, size: 15)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity)
+            .frame(height: 54)
+            .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.pressable)
     }
 
     private var logoutButton: some View {

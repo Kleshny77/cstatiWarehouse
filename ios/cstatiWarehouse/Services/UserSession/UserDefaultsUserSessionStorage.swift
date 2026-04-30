@@ -7,7 +7,6 @@
 
 import Foundation
 
-/// Профиль пользователя в UserDefaults. Токены не хранятся здесь — см. `PersistentUserSessionStorage` + Keychain.
 final class UserDefaultsUserSessionStorage: UserSessionStorageProtocol {
 
     private enum Keys {

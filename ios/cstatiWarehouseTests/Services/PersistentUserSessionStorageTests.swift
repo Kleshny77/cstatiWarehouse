@@ -10,6 +10,7 @@ import Testing
 import Foundation
 
 @Suite("PersistentUserSessionStorage")
+@MainActor
 struct PersistentUserSessionStorageTests {
 
     private func makeIsolatedDefaults() -> UserDefaults {

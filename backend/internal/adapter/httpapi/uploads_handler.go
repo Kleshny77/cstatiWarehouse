@@ -56,7 +56,6 @@ var allowedImageTypes = map[string]string{
 	"image/heif": ".heif",
 }
 
-// Имена файлов вида <uuid>.<ext> — только то, что создаёт Upload.
 var uploadFilenameRx = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|jpeg|png|webp|heic|heif)$`)
 
 func (h *UploadsHandler) Upload(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +78,6 @@ func (h *UploadsHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Read first 512 bytes for magic number validation
 	buf := make([]byte, 512)
 	n, err := io.ReadFull(file, buf)
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
@@ -88,7 +86,6 @@ func (h *UploadsHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate file type using magic numbers (file signatures)
 	fileType, err := filetype.ValidateImageFile(buf[:n])
 	if err != nil {
 		if errors.Is(err, filetype.ErrInsufficientData) {
@@ -104,10 +101,8 @@ func (h *UploadsHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use detected extension from magic numbers
 	ext := fileType.Extension
 
-	// Optionally prefer original extension if it matches the detected type
 	if headerExt := strings.ToLower(filepath.Ext(header.Filename)); headerExt != "" {
 		switch headerExt {
 		case ".jpg", ".jpeg":
@@ -156,7 +151,6 @@ func (h *UploadsHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, uploadResponse{URL: signedURL})
 }
 
-// Download отдаёт файл только при валидном query token= (JWT).
 func (h *UploadsHandler) Download(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimSpace(r.URL.Query().Get("token"))
 	if token == "" {

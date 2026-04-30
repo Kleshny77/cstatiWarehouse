@@ -7,7 +7,6 @@
 
 import Foundation
 
-/// Хранит профиль в UserDefaults, токены — в Keychain. При первом обращении переносит токены из старых ключей UserDefaults.
 final class PersistentUserSessionStorage: UserSessionStorageProtocol {
 
     private enum LegacyKeys {

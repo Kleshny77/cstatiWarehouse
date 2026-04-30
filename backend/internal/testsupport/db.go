@@ -25,8 +25,6 @@ const (
 	testDatabaseName       = "cstatiwarehouse_test"
 )
 
-// integrationBootstrapMu сериализует создание тестовой БД и прогон миграций, чтобы при параллельных
-// пакетах не было гонок на CREATE DATABASE / DDL миграций.
 var integrationBootstrapMu sync.Mutex
 
 func DatabaseURL() string {
@@ -59,7 +57,6 @@ func ensureDatabase(t *testing.T) {
 		return
 	}
 	if _, err := admin.ExecContext(ctx, `CREATE DATABASE `+testDatabaseName); err != nil {
-		// Параллельные пакеты могли создать БД между SELECT и CREATE.
 		if strings.Contains(err.Error(), "23505") {
 			return
 		}

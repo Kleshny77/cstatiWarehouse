@@ -7,40 +7,22 @@
 
 import Foundation
 
-/// Движок сортировки позиций склада.
-/// Инкапсулирует всю логику сортировки списка позиций.
 final class WarehouseSortEngine {
     
-    /// Сортирует список позиций согласно выбранной опции.
-    /// - Parameters:
-    ///   - items: Исходный список позиций
-    ///   - option: Опция сортировки
-    /// - Returns: Отсортированный список позиций
     func sort(_ items: [Item], by option: WarehouseSortOption) -> [Item] {
         switch option {
-        case .nameAsc:
-            return items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-            
-        case .nameDesc:
-            return items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedDescending }
-            
+        case .newest:
+            return items.sorted { $0.createdAt > $1.createdAt }
+        case .oldest:
+            return items.sorted { $0.createdAt < $1.createdAt }
         case .quantityAsc:
             return items.sorted { $0.effectiveQuantityForSort < $1.effectiveQuantityForSort }
-            
         case .quantityDesc:
             return items.sorted { $0.effectiveQuantityForSort > $1.effectiveQuantityForSort }
-            
-        case .expiryDateAsc:
+        case .expirationAsc:
             return sortByExpiryDate(items, ascending: true)
-            
-        case .expiryDateDesc:
-            return sortByExpiryDate(items, ascending: false)
-            
-        case .createdAtDesc:
-            return items.sorted { $0.createdAt > $1.createdAt }
-            
-        case .updatedAtDesc:
-            return items.sorted { $0.updatedAt > $1.updatedAt }
+        case .nameAsc:
+            return items.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
         }
     }
     
@@ -51,7 +33,6 @@ final class WarehouseSortEngine {
             let lhsDate = earliestExpiryDate(for: lhs)
             let rhsDate = earliestExpiryDate(for: rhs)
             
-            // Позиции без срока годности идут в конец
             switch (lhsDate, rhsDate) {
             case (nil, nil):
                 return false
@@ -66,7 +47,6 @@ final class WarehouseSortEngine {
     }
     
     private func earliestExpiryDate(for item: Item) -> Date? {
-        // Для родительских позиций проверяем варианты
         if !item.variants.isEmpty {
             return item.variants.compactMap { $0.expirationDate }.min()
         }

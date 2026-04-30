@@ -10,13 +10,11 @@ import MapKit
 
 enum MapDirectionsUserMessage {
 
-    /// Текст для пользователя вместо сырого `MKErrorDomain error 5`.
     static func friendlyDirectionsFailure(from error: Error) -> String {
         let ns = error as NSError
         guard ns.domain == MKError.errorDomain else {
             return "Не удалось построить маршрут по дорогам. Проверьте адреса и тип транспорта."
         }
-        // MKDirections: часто 5 = directionsNotFound
         switch ns.code {
         case 5:
             return "Маршрут по дорогам между точками не найден (нет пути для выбранного транспорта или точки слишком далеко). На карте можно показать прямую между точками — проверьте адреса."

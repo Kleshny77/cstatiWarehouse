@@ -82,12 +82,9 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, in CreateItemInput) (*do
 	if in.Quantity < 0 {
 		return nil, domain.NewValidationError("quantity must be >= 0")
 	}
-	role, err := uc.requireMember(ctx, in.UserID, in.OrganizationID)
+	_, err := uc.requireMember(ctx, in.UserID, in.OrganizationID)
 	if err != nil {
 		return nil, err
-	}
-	if !role.CanManageMembers() {
-		return nil, domain.ErrForbidden
 	}
 
 	mu := domain.MeasureUnitPiece
@@ -184,8 +181,6 @@ type UpdateItemInput struct {
 	VariantLabel    string
 	MeasureUnit     string
 	VolumePerUnit   *float64
-	// ExpectedUpdatedAt опционально: при указании обновление выполняется только если
-	// в БД всё ещё это значение updated_at (защита от параллельных правок).
 	ExpectedUpdatedAt *time.Time
 }
 
@@ -442,8 +437,14 @@ func (uc *WarehouseUseCase) requireMutableItem(ctx context.Context, itemID, user
 		}
 		return nil, err
 	}
-	if !role.CanManageMembers() {
+
+	if role.CanManageMembers() {
+		return item, nil
+	}
+
+	if item.HeldByUserID != userID {
 		return nil, domain.ErrForbidden
 	}
+
 	return item, nil
 }

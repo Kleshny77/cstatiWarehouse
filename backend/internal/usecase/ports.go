@@ -64,8 +64,6 @@ type ItemFilter struct {
 
 type ItemRepository interface {
 	Create(ctx context.Context, item *domain.Item) error
-	// Update сохраняет позицию. Если expectedUpdatedAt != nil, обновление выполняется
-	// только при совпадении updated_at (оптимистичная блокировка).
 	Update(ctx context.Context, item *domain.Item, expectedUpdatedAt *time.Time) error
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.Item, error)
 	ListByOrganization(ctx context.Context, orgID uuid.UUID, filter ItemFilter) ([]domain.Item, error)
@@ -151,10 +149,48 @@ type ActivityRepository interface {
 	ListByOrganization(ctx context.Context, orgID uuid.UUID, limit int) ([]domain.ActivityEntry, error)
 }
 
-// WebSocketBroadcaster отправляет real-time обновления через WebSocket
 type WebSocketBroadcaster interface {
 	BroadcastItemCreated(orgID uuid.UUID, item *domain.Item)
 	BroadcastItemUpdated(orgID uuid.UUID, item *domain.Item)
 	BroadcastItemArchived(orgID uuid.UUID, item *domain.Item)
 	BroadcastItemDeleted(orgID uuid.UUID, itemID uuid.UUID)
+}
+
+type CommentRepository interface {
+	Create(ctx context.Context, c *domain.ItemComment) error
+	UpdateText(ctx context.Context, commentID uuid.UUID, newText string, mentionedUserIDs []uuid.UUID, editedBy uuid.UUID, now time.Time) (*domain.ItemComment, error)
+	SoftDelete(ctx context.Context, commentID, deletedBy uuid.UUID, now time.Time) error
+	FindByID(ctx context.Context, id uuid.UUID) (*domain.ItemComment, error)
+	ListByItem(ctx context.Context, itemID uuid.UUID) ([]domain.ItemComment, error)
+
+	AddReaction(ctx context.Context, reaction *domain.CommentReaction) error
+	RemoveReaction(ctx context.Context, commentID, userID uuid.UUID, reaction domain.CommentReactionType) error
+	GetReactions(ctx context.Context, commentID uuid.UUID) ([]domain.CommentReaction, error)
+	GetReactionsForComments(ctx context.Context, commentIDs []uuid.UUID) (map[uuid.UUID][]domain.CommentReaction, error)
+}
+
+type CommentBroadcaster interface {
+	BroadcastCommentCreated(orgID uuid.UUID, comment *domain.ItemComment)
+	BroadcastCommentUpdated(orgID uuid.UUID, comment *domain.ItemComment)
+	BroadcastCommentDeleted(orgID uuid.UUID, itemID, commentID uuid.UUID)
+	BroadcastReactionAdded(orgID uuid.UUID, reaction *domain.CommentReaction)
+	BroadcastReactionRemoved(orgID uuid.UUID, commentID, userID uuid.UUID, reaction domain.CommentReactionType)
+}
+
+type ReservationRepository interface {
+	Create(ctx context.Context, reservation *domain.ItemReservation) error
+	Update(ctx context.Context, reservation *domain.ItemReservation) error
+	FindByID(ctx context.Context, id uuid.UUID) (*domain.ItemReservation, error)
+	ListByItem(ctx context.Context, itemID uuid.UUID, status *domain.ReservationStatus) ([]domain.ItemReservation, error)
+	ListByOrganization(ctx context.Context, orgID uuid.UUID, status *domain.ReservationStatus) ([]domain.ItemReservation, error)
+	GetActiveTotalReservedForItem(ctx context.Context, itemID uuid.UUID) (int, error)
+	GetActiveTotalsForItems(ctx context.Context, itemIDs []uuid.UUID) (map[uuid.UUID]int, error)
+	FindExpired(ctx context.Context, now time.Time) ([]domain.ItemReservation, error)
+}
+
+type ReservationBroadcaster interface {
+	BroadcastReservationCreated(orgID uuid.UUID, reservation *domain.ItemReservation)
+	BroadcastReservationFulfilled(orgID uuid.UUID, reservation *domain.ItemReservation)
+	BroadcastReservationCancelled(orgID uuid.UUID, reservation *domain.ItemReservation)
+	BroadcastReservationExpired(orgID uuid.UUID, reservation *domain.ItemReservation)
 }

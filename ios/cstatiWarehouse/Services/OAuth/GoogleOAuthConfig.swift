@@ -9,7 +9,6 @@ import Foundation
 
 enum GoogleOAuthConfig {
 
-    /// Client ID: сначала `GoogleService-Info.plist` (как в консоли Google), иначе `GIDClientID` в Info.plist.
     static var clientID: String {
         if let fromPlist = clientIDFromGoogleServiceInfo(), !fromPlist.isEmpty {
             return fromPlist

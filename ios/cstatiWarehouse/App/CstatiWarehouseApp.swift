@@ -15,6 +15,8 @@ struct CstatiWarehouseApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
+        UITestConfiguration.prepareIfNeeded()
+
         UIWindow.appearance().backgroundColor = .black
 
         Self.configureSharedURLCache()
@@ -28,7 +30,8 @@ struct CstatiWarehouseApp: App {
             )
         }
 
-        UNUserNotificationCenter.current().delegate = NotificationCenterDelegate.shared
+        UNUserNotificationCenter.current().delegate = ExpirationNotificationDelegate.shared
+        ExpirationNotificationActions.register()
     }
 
     private static func configureSharedURLCache() {

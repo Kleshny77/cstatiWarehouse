@@ -13,6 +13,8 @@ struct ItemDetailSheet: View {
     let holderDisplayName: String?
     let onEdit: (() -> Void)?
     let onArchive: (() -> Void)?
+    let onOpenComments: (() -> Void)?
+    let onOpenReservations: (() -> Void)?
     let onDismiss: () -> Void
 
     init(
@@ -21,6 +23,8 @@ struct ItemDetailSheet: View {
         holderDisplayName: String? = nil,
         onEdit: (() -> Void)? = nil,
         onArchive: (() -> Void)? = nil,
+        onOpenComments: (() -> Void)? = nil,
+        onOpenReservations: (() -> Void)? = nil,
         onDismiss: @escaping () -> Void
     ) {
         self.item = item
@@ -28,6 +32,8 @@ struct ItemDetailSheet: View {
         self.holderDisplayName = holderDisplayName
         self.onEdit = onEdit
         self.onArchive = onArchive
+        self.onOpenComments = onOpenComments
+        self.onOpenReservations = onOpenReservations
         self.onDismiss = onDismiss
     }
 
@@ -173,24 +179,58 @@ struct ItemDetailSheet: View {
 
     @ViewBuilder
     private var actionButtons: some View {
-        if let onArchive {
-            Button {
-                onArchive()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "archivebox")
-                    Text("Списать со склада")
+        VStack(spacing: 10) {
+            if let onOpenComments {
+                Button {
+                    onOpenComments()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bubble.left.and.bubble.right.fill")
+                        Text("Комментарии")
+                    }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.red.opacity(0.85))
-                )
+                .buttonStyle(.pressable)
             }
-            .buttonStyle(.pressable)
+            if let onOpenReservations {
+                Button {
+                    onOpenReservations()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.fill")
+                        Text("Резервирование")
+                    }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .appGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.pressable)
+            }
+            if let onArchive {
+                Button {
+                    onArchive()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "archivebox")
+                        Text("Списать со склада")
+                    }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.red.opacity(0.85))
+                    )
+                }
+                .buttonStyle(.pressable)
+            }
         }
     }
 

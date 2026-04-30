@@ -31,18 +31,21 @@ struct TabBarView: View {
                 tabCoordinator: tabCoordinator,
                 presenter: warehousePresenter
             )
+                .accessibilityIdentifier(AccessibilityID.Tab.warehouse)
                 .tabItem {
                     Label("Мой склад", systemImage: "shippingbox")
                 }
                 .tag(MainTabCoordinator.Tab.warehouse)
 
             OrganizationAssembly.assemble(presenter: organizationPresenter)
+                .accessibilityIdentifier(AccessibilityID.Tab.organization)
                 .tabItem {
                     Label("Организация", systemImage: "person.2")
                 }
                 .tag(MainTabCoordinator.Tab.organization)
 
             OverviewAssembly.assemble(presenter: overviewPresenter)
+                .accessibilityIdentifier(AccessibilityID.Tab.overview)
                 .tabItem {
                     Label("Обзор", systemImage: "chart.bar.doc.horizontal")
                 }

@@ -28,6 +28,8 @@ def full_line_comment_kept(stripped: str) -> bool:
         return True
     if re.match(r"^//\s*MARK:", stripped):
         return True
+    if re.match(r"^//\s*nolint\b", stripped):
+        return True
     return False
 
 

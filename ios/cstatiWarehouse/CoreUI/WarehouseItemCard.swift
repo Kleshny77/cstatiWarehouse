@@ -39,7 +39,6 @@ struct WarehouseItemCard: View {
         }
     }
 
-    /// Резервируем место под нижний край стопки (слои смещены вниз).
     private static let stackBottomReserve: CGFloat = 14
 
     private static let cardCornerRadius: CGFloat = 22
@@ -140,9 +139,6 @@ struct WarehouseItemCard: View {
             .appAnimation(AppAnimation.snap, value: isExpanded)
     }
 
-    /// Пластины под группой вариантов: те же скругления и ширина, что у карты,
-    /// только лёгкая заливка без обводки и смещение вниз — виден аккуратный «хвост» колоды,
-    /// без разъехавшихся по горизонтали контуров.
     private var stackBackdrop: some View {
         ZStack {
             ForEach(0 ..< Self.deckLayerSpecs.count, id: \.self) { index in
@@ -154,14 +150,11 @@ struct WarehouseItemCard: View {
     }
 
     private struct DeckLayerSpec {
-        /// Сдвиг вниз относительно карты (чем больше, тем ниже «в колоде»).
         let offsetY: CGFloat
-        /// На сколько уже карты по горизонтали (положительное — уже основной карты).
         let horizontalInset: CGFloat
         let fillOpacity: Double
     }
 
-    /// Дальний слой первым в ZStack (рисуется снизу): ниже и уже по желанию — лёгкая перспектива.
     private static let deckLayerSpecs: [DeckLayerSpec] = [
         DeckLayerSpec(offsetY: 11, horizontalInset: 10, fillOpacity: 0.038),
         DeckLayerSpec(offsetY: 5, horizontalInset: 4, fillOpacity: 0.055),

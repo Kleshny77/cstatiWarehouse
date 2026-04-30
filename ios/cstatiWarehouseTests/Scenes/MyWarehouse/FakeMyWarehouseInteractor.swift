@@ -16,7 +16,7 @@ final class FakeMyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
     private(set) var loadActiveItemsCallCount: Int = 0
     private(set) var loadOrganizationMembersCallCount: Int = 0
     private(set) var loadArchiveEventsCallCount: Int = 0
-    private(set) var archiveCalls: [(UUID, Int, ArchiveReason, String, UUID?)] = []
+    private(set) var archiveCalls: [(UUID, Int, ArchiveReason, String, UUID?, Date)] = []
     private(set) var deleteCalls: [UUID] = []
     private(set) var externalChangeCalls: [(Item, Bool)] = []
 
@@ -48,8 +48,8 @@ final class FakeMyWarehouseInteractor: MyWarehouseInteractorInputProtocol {
         presenter?.archiveReady(item: item, orgEvents: [])
     }
 
-    func archiveItem(id: UUID, quantity: Int, reason: ArchiveReason, reasonDetail: String, eventID: UUID?) {
-        archiveCalls.append((id, quantity, reason, reasonDetail, eventID))
+    func archiveItem(id: UUID, quantity: Int, reason: ArchiveReason, reasonDetail: String, eventID: UUID?, expectedUpdatedAt: Date) {
+        archiveCalls.append((id, quantity, reason, reasonDetail, eventID, expectedUpdatedAt))
     }
 
     func deleteItem(id: UUID) {

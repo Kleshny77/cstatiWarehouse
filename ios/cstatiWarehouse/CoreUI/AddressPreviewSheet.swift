@@ -9,7 +9,6 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
-/// Проверка адреса: геокодинг и точка на карте (без сохранения координаты на сервер).
 struct AddressPreviewSheet: View {
 
     let title: String
@@ -121,7 +120,6 @@ struct AddressPreviewSheet: View {
     }
 }
 
-/// Контекст для `.sheet(item:)` при проверке адреса на карте.
 struct AddressPreviewRouteContext: Identifiable {
     let title: String
     let address: String

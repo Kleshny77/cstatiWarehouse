@@ -25,6 +25,8 @@ import (
 	infrajwt "github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/jwt"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/netutil"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/password"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/pushdispatch"
+	"github.com/Kleshny77/cstatiWarehouse/backend/internal/infra/scheduler"
 	"github.com/Kleshny77/cstatiWarehouse/backend/internal/usecase"
 )
 
@@ -71,6 +73,10 @@ func run() error {
 	eventRepo := repo.NewEventRepo(pool)
 	categoryRepo := repo.NewCategoryRepo(pool)
 	activityRepo := repo.NewActivityRepo(pool)
+	expirationNotifRepo := repo.NewExpirationNotificationRepo(pool)
+	expirationCandidates := repo.NewExpirationCandidateAdapter(expirationNotifRepo)
+	commentRepo := repo.NewCommentRepo(pool)
+	reservationRepo := repo.NewReservationRepo(pool)
 
 	issuer := infrajwt.NewIssuer(cfg.JWTSecret, cfg.JWTAccessTTL)
 	refreshGen := infrajwt.NewRefreshGenerator()
@@ -108,7 +114,6 @@ func run() error {
 		},
 	)
 
-	// WebSocket Hub для real-time обновлений
 	wsHub := websocket.NewHub()
 	go wsHub.Run()
 	wsBroadcaster := websocket.NewBroadcaster(wsHub)
@@ -120,6 +125,23 @@ func run() error {
 	eventsUC := usecase.NewEventsUseCase(eventRepo, memberRepo, activityRepo, clock.Real{})
 	categoriesUC := usecase.NewCategoriesUseCase(categoryRepo, memberRepo, activityRepo, clock.Real{})
 	activityUC := usecase.NewActivityUseCase(activityRepo, memberRepo)
+	analyticsUC := usecase.NewAnalyticsUseCase(itemRepo, memberRepo, activityRepo)
+	pushDispatcher := pushdispatch.NewLoggingDispatcher(slog.Default())
+	expirationNotifUC := usecase.NewExpirationNotificationsUseCase(
+		expirationNotifRepo, expirationCandidates, pushDispatcher, clock.Real{},
+	)
+	commentsUC := usecase.NewCommentsUseCase(commentRepo, itemRepo, memberRepo, clock.Real{}).
+		WithBroadcaster(wsBroadcaster)
+	reservationsUC := usecase.NewReservationsUseCase(reservationRepo, itemRepo, memberRepo, eventRepo, clock.Real{}).
+		WithBroadcaster(wsBroadcaster)
+
+	expirationTicker := scheduler.NewExpirationTicker(expirationNotifUC, 15*time.Minute, slog.Default())
+	expirationTicker.Start(ctx)
+	defer expirationTicker.Stop()
+
+	reservationExpirationTicker := scheduler.NewReservationExpirationTicker(reservationsUC, 5*time.Minute, slog.Default())
+	reservationExpirationTicker.Start(ctx)
+	defer reservationExpirationTicker.Stop()
 
 	uploadSigner := infrajwt.NewUploadURLSigner(cfg.EffectiveUploadSigningSecret(), cfg.UploadURLTTL)
 	uploadsHandler := httpapi.NewUploadsHandler(cfg.UploadsDir, cfg.PublicBaseURL, cfg.MaxUploadBytes, uploadSigner)
@@ -133,23 +155,26 @@ func run() error {
 		clientIP = proxies.ClientIP
 	}
 
-	// User rate limiter: 50 req/sec per user, burst 100, 5min TTL
 	userLimiter := httpapi.NewUserRateLimiter(50, 100, 5*time.Minute)
 
 	handler := httpapi.NewRouter(httpapi.RouterDeps{
-		Auth:               httpapi.NewAuthHandler(authUC),
-		Warehouse:          httpapi.NewWarehouseHandler(warehouseUC),
-		Organizations:      httpapi.NewOrganizationHandler(organizationsUC),
-		Events:             httpapi.NewEventsHandler(eventsUC),
-		Categories:         httpapi.NewCategoriesHandler(categoriesUC),
-		Activity:           httpapi.NewActivityHandler(activityUC),
-		Uploads:            uploadsHandler,
-		Notifications:      httpapi.NewNotificationsHandler(pushTokenRepo),
-		WebSocket:          httpapi.NewWebSocketHandler(wsHub),
-		Tokens:             issuer,
-		ClientIP:           clientIP,
-		UserLimiter:        userLimiter,
-		CORSAllowedOrigins: cfg.ParsedCORSAllowedOrigins(),
+		Auth:                    httpapi.NewAuthHandler(authUC),
+		Warehouse:               httpapi.NewWarehouseHandler(warehouseUC),
+		Organizations:           httpapi.NewOrganizationHandler(organizationsUC),
+		Events:                  httpapi.NewEventsHandler(eventsUC),
+		Categories:              httpapi.NewCategoriesHandler(categoriesUC),
+		Activity:                httpapi.NewActivityHandler(activityUC),
+		Analytics:               httpapi.NewAnalyticsHandler(analyticsUC),
+		Uploads:                 uploadsHandler,
+		Notifications:           httpapi.NewNotificationsHandler(pushTokenRepo),
+		ExpirationNotifications: httpapi.NewExpirationNotificationsHandler(expirationNotifUC),
+		Comments:                httpapi.NewCommentsHandler(commentsUC),
+		Reservations:            httpapi.NewReservationsHandler(reservationsUC),
+		WebSocket:               httpapi.NewWebSocketHandler(wsHub),
+		Tokens:                  issuer,
+		ClientIP:                clientIP,
+		UserLimiter:             userLimiter,
+		CORSAllowedOrigins:      cfg.ParsedCORSAllowedOrigins(),
 	})
 
 	listenAddr := normalizeListenAddrForGoDualStack(cfg.HTTPAddr)
@@ -194,8 +219,6 @@ func run() error {
 	return nil
 }
 
-// normalizeListenAddrForGoDualStack: «0.0.0.0:8080» слушает только IPv4; на macOS/iOS запросы часто идут через dual-stack.
-// «:8080» в Go принимает и IPv4, и IPv6 — меньше обрывов TCP RST со стороны клиента.
 func normalizeListenAddrForGoDualStack(addr string) string {
 	const pfx = "0.0.0.0:"
 	if strings.HasPrefix(addr, pfx) {

@@ -51,8 +51,6 @@ func ParseMeasureUnit(s string) (MeasureUnit, bool) {
 	}
 }
 
-// EffectiveAmountPerUnit возвращает размер одной упаковки в выбранной мере.
-// nil или неположительное значение трактуются как 1 (одна единица меры на упаковку).
 func EffectiveAmountPerUnit(v *float64) float64 {
 	if v == nil {
 		return 1
@@ -63,7 +61,6 @@ func EffectiveAmountPerUnit(v *float64) float64 {
 	return *v
 }
 
-// ValidateVolumePerUnitPointer проверяет явно переданное значение volume_per_unit.
 func ValidateVolumePerUnitPointer(v *float64) error {
 	if v == nil {
 		return nil
@@ -98,8 +95,6 @@ type Item struct {
 	UpdatedAt       time.Time
 }
 
-// ItemVersionConflictError возвращается, если `expected_updated_at` не совпал с текущим
-// значением в БД (другой клиент или устройство успели изменить позицию).
 type ItemVersionConflictError struct {
 	ServerItem Item
 }

@@ -118,7 +118,7 @@ struct MockWarehouseServiceTests {
         let service = MockWarehouseService(seed: [item])
         
         let archived = await run {
-            service.archiveItem(id: item.id, quantity: 1, reason: .usedAtEvent, reasonDetail: "Концерт", eventID: nil, completion: $0)
+            service.archiveItem(id: item.id, quantity: 1, reason: .usedAtEvent, reasonDetail: "Концерт", eventID: nil, expectedUpdatedAt: item.updatedAt, completion: $0)
         }
         let saved = try! archived.get()
         guard case .archived(let reason, _) = saved.item.status else {
@@ -143,7 +143,7 @@ struct MockWarehouseServiceTests {
         let service = MockWarehouseService(seed: [item])
         
         let result = await run {
-            service.archiveItem(id: item.id, quantity: 2, reason: .disposed, reasonDetail: "", eventID: nil, completion: $0)
+            service.archiveItem(id: item.id, quantity: 2, reason: .disposed, reasonDetail: "", eventID: nil, expectedUpdatedAt: item.updatedAt, completion: $0)
         }
         let saved = try! result.get()
         #expect(saved.item.quantity == 3)
@@ -154,7 +154,7 @@ struct MockWarehouseServiceTests {
     func archiveItem_failsWithNotFound_whenMissing() async {
         let service = MockWarehouseService(seed: [])
         let result = await run {
-            service.archiveItem(id: UUID(), quantity: 1, reason: .disposed, reasonDetail: "", eventID: nil, completion: $0)
+            service.archiveItem(id: UUID(), quantity: 1, reason: .disposed, reasonDetail: "", eventID: nil, expectedUpdatedAt: .now, completion: $0)
         }
         
         switch result {

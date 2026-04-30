@@ -9,7 +9,6 @@ import Foundation
 
 extension APIError {
 
-    /// Сообщение для диалогов и пассивных уведомлений (на русском).
     var userFacingMessage: String {
         switch self {
         case .transport(let underlying):

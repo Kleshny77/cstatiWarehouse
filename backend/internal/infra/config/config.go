@@ -16,7 +16,6 @@ type Config struct {
 	HTTPShutdownTimeout time.Duration
 
 	DatabaseURL string
-	// DatabaseRequireTLS — если true, DATABASE_URL не должен использовать sslmode=disable (прод).
 	DatabaseRequireTLS bool
 
 	JWTSecret     string
@@ -36,8 +35,6 @@ type Config struct {
 	UploadURLTTL         time.Duration
 	TrustedProxyCIDRsRaw string
 
-	// CORSAllowedOrigins — список разрешённых origins для CORS (через запятую).
-	// Примеры: "*" (все, только dev), "https://example.com", "http://localhost:*"
 	CORSAllowedOrigins string
 }
 
@@ -49,7 +46,6 @@ func (c Config) GoogleConfigured() bool {
 	return strings.TrimSpace(c.GoogleClientID) != ""
 }
 
-// BindLANWarnings — проблемы привязки HTTP, из‑за которых телефон по Wi‑Fi не достучится до Mac (Safari / приложение).
 func (c Config) BindLANWarnings() []string {
 	if isLoopbackOnlyHTTPAddr(c.HTTPAddr) {
 		return []string{
@@ -65,7 +61,6 @@ func isLoopbackOnlyHTTPAddr(addr string) bool {
 		return false
 	}
 	lower := strings.ToLower(s)
-	// ":8080" — все интерфейсы (IPv4/IPv6).
 	if strings.HasPrefix(lower, ":") && !strings.HasPrefix(lower, "::") {
 		return false
 	}
@@ -151,7 +146,6 @@ func (c Config) validate() error {
 	return nil
 }
 
-// EffectiveUploadSigningSecret — UPLOAD_SIGNING_SECRET или JWT_SECRET.
 func (c Config) EffectiveUploadSigningSecret() string {
 	if strings.TrimSpace(c.UploadSigningSecret) != "" {
 		return strings.TrimSpace(c.UploadSigningSecret)
@@ -159,7 +153,6 @@ func (c Config) EffectiveUploadSigningSecret() string {
 	return c.JWTSecret
 }
 
-// ParsedCORSAllowedOrigins возвращает список разрешённых origins для CORS.
 func (c Config) ParsedCORSAllowedOrigins() []string {
 	raw := strings.TrimSpace(c.CORSAllowedOrigins)
 	if raw == "" {

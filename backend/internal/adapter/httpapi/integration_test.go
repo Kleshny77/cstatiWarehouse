@@ -42,6 +42,7 @@ func newTestServer(t *testing.T) *testServer {
 	categoriesRepo := repo.NewCategoryRepo(pool)
 	activityRepo := repo.NewActivityRepo(pool)
 	itemsRepo := repo.NewItemRepo(pool)
+	reservationRepo := repo.NewReservationRepo(pool)
 	inviteGen := invitecode.NewGenerator(invitecode.DefaultLength)
 	orgsUC := usecase.NewOrganizationsUseCase(orgsRepo, membersRepo, invitesRepo, inviteGen, clock.Real{}).
 		WithActivity(activityRepo)
@@ -59,6 +60,7 @@ func newTestServer(t *testing.T) *testServer {
 	eventsUC := usecase.NewEventsUseCase(eventsRepo, membersRepo, activityRepo, clock.Real{})
 	categoriesUC := usecase.NewCategoriesUseCase(categoriesRepo, membersRepo, activityRepo, clock.Real{})
 	activityUC := usecase.NewActivityUseCase(activityRepo, membersRepo)
+	reservationsUC := usecase.NewReservationsUseCase(reservationRepo, itemsRepo, membersRepo, eventsRepo, clock.Real{})
 
 	handler := httpapi.NewRouter(httpapi.RouterDeps{
 		Auth:              httpapi.NewAuthHandler(authUC),
@@ -67,6 +69,7 @@ func newTestServer(t *testing.T) *testServer {
 		Events:            httpapi.NewEventsHandler(eventsUC),
 		Categories:        httpapi.NewCategoriesHandler(categoriesUC),
 		Activity:          httpapi.NewActivityHandler(activityUC),
+		Reservations:      httpapi.NewReservationsHandler(reservationsUC),
 		Tokens:            issuer,
 		SkipAuthRateLimit: true,
 	})
@@ -293,6 +296,96 @@ func TestIntegrationHTTP_WarehouseCRUD(t *testing.T) {
 	status, _ = s.do("DELETE", "/items/"+itemID, bearer(access), nil)
 	if status != http.StatusNoContent {
 		t.Errorf("delete failed: %d", status)
+	}
+}
+
+func TestIntegrationHTTP_ReservationsFlow(t *testing.T) {
+	s := newTestServer(t)
+	reg := s.registerUser("resv@example.com", "R", "supersecret")
+	access, _ := reg["access_token"].(string)
+	orgID := s.personalOrgID(access)
+
+	status, body := s.do("POST", "/items", bearer(access), map[string]any{
+		"organization_id":  orgID,
+		"name":             "Бронь-товар",
+		"category_name":    "Тест",
+		"quantity":         10,
+		"location_address": "Москва, бронирование интеграция",
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create item failed: %d %+v", status, body)
+	}
+	item, _ := body["item"].(map[string]any)
+	itemID, _ := item["id"].(string)
+	if itemID == "" {
+		t.Fatalf("missing item id: %+v", body)
+	}
+
+	status, body = s.do("POST", "/items/"+itemID+"/reservations", bearer(access), map[string]any{
+		"quantity": 4,
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create reservation failed: %d %+v", status, body)
+	}
+	resID, _ := body["id"].(string)
+	if resID == "" {
+		t.Fatalf("reservation id missing: %+v", body)
+	}
+
+	status, body = s.do("GET", "/items/"+itemID+"/availability", bearer(access), nil)
+	if status != http.StatusOK {
+		t.Fatalf("availability failed: %d %+v", status, body)
+	}
+	if int(body["total"].(float64)) != 10 || int(body["reserved"].(float64)) != 4 || int(body["available"].(float64)) != 6 {
+		t.Fatalf("unexpected availability: %+v", body)
+	}
+
+	status, body = s.do("GET", "/items/"+itemID+"/reservations", bearer(access), nil)
+	if status != http.StatusOK {
+		t.Fatalf("list by item failed: %d %+v", status, body)
+	}
+	items, _ := body["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 reservation, got %+v", body)
+	}
+
+	status, body = s.do("GET", "/organizations/"+orgID+"/reservations", bearer(access), nil)
+	if status != http.StatusOK || len(body["items"].([]any)) != 1 {
+		t.Fatalf("list by org failed: %d %+v", status, body)
+	}
+
+	status, body = s.do("POST", "/reservations/"+resID+"/fulfill", bearer(access), nil)
+	if status != http.StatusOK {
+		t.Fatalf("fulfill failed: %d %+v", status, body)
+	}
+	if body["status"].(string) != "fulfilled" {
+		t.Fatalf("expected fulfilled, got %+v", body)
+	}
+
+	status, body = s.do("GET", "/items/"+itemID+"/availability", bearer(access), nil)
+	if status != http.StatusOK {
+		t.Fatalf("availability after fulfill failed: %d %+v", status, body)
+	}
+	if int(body["reserved"].(float64)) != 0 || int(body["available"].(float64)) != 10 {
+		t.Fatalf("availability after fulfill: %+v", body)
+	}
+
+	status, body = s.do("POST", "/items/"+itemID+"/reservations", bearer(access), map[string]any{
+		"quantity": 2,
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("second reservation failed: %d %+v", status, body)
+	}
+	res2, _ := body["id"].(string)
+
+	status, body = s.do("POST", "/reservations/"+res2+"/cancel", bearer(access), map[string]any{
+		"cancellation_reason": "отмена тест",
+	})
+	if status != http.StatusOK {
+		t.Fatalf("cancel failed: %d %+v", status, body)
+	}
+	if body["status"].(string) != "cancelled" {
+		t.Fatalf("expected cancelled: %+v", body)
 	}
 }
 

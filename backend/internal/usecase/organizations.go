@@ -213,9 +213,7 @@ func (uc *OrganizationsUseCase) ChangeRole(ctx context.Context, in ChangeRoleInp
 
 	switch actorRole {
 	case domain.OrgRoleOwner:
-		// Полный контроль: повышение и понижение (включая admin → member).
 	case domain.OrgRoleAdmin:
-		// Только назначение админов: member → admin. Понижать нельзя.
 		if in.NewRole == domain.OrgRoleMember {
 			return domain.ErrForbidden
 		}

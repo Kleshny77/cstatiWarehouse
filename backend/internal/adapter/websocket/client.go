@@ -10,20 +10,15 @@ import (
 )
 
 const (
-	// Время ожидания записи в WebSocket
 	writeWait = 10 * time.Second
 
-	// Время ожидания pong от клиента
 	pongWait = 60 * time.Second
 
-	// Интервал отправки ping клиенту (должен быть < pongWait)
 	pingPeriod = (pongWait * 9) / 10
 
-	// Максимальный размер сообщения от клиента
 	maxMessageSize = 512
 )
 
-// Client представляет WebSocket клиента
 type Client struct {
 	hub            *Hub
 	conn           *websocket.Conn
@@ -32,7 +27,6 @@ type Client struct {
 	organizationID uuid.UUID
 }
 
-// NewClient создаёт нового клиента
 func NewClient(hub *Hub, conn *websocket.Conn, userID, organizationID uuid.UUID) *Client {
 	return &Client{
 		hub:            hub,
@@ -43,7 +37,6 @@ func NewClient(hub *Hub, conn *websocket.Conn, userID, organizationID uuid.UUID)
 	}
 }
 
-// ReadPump читает сообщения от клиента
 func (c *Client) ReadPump() {
 	defer func() {
 		c.hub.unregister <- c
@@ -66,12 +59,10 @@ func (c *Client) ReadPump() {
 			break
 		}
 
-		// Клиент может отправлять ping сообщения
 		slog.Debug("websocket message received", "message", string(message))
 	}
 }
 
-// WritePump отправляет сообщения клиенту
 func (c *Client) WritePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
@@ -84,7 +75,6 @@ func (c *Client) WritePump() {
 		case message, ok := <-c.send:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// Hub закрыл канал
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}

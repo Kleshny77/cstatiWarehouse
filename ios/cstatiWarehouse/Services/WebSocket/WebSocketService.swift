@@ -2,12 +2,11 @@
 //  WebSocketService.swift
 //  cstatiWarehouse
 //
-//  Created by Артём on 29.04.2026.
+//  Created by Артём on 26.04.2026.
 //
 
 import Foundation
 
-/// WebSocket message types
 enum WebSocketMessageType: String {
     case itemCreated = "item.created"
     case itemUpdated = "item.updated"
@@ -15,7 +14,6 @@ enum WebSocketMessageType: String {
     case itemDeleted = "item.deleted"
 }
 
-/// WebSocket event handler protocol
 protocol WebSocketEventHandler: AnyObject {
     func handleItemCreated(_ item: Item)
     func handleItemUpdated(_ item: Item)
@@ -23,21 +21,20 @@ protocol WebSocketEventHandler: AnyObject {
     func handleItemDeleted(itemID: UUID)
 }
 
-/// WebSocket service for real-time updates
 final class WebSocketService {
     private var webSocketTask: URLSessionWebSocketTask?
     private let session: URLSession
     private let baseURL: String
-    private let tokenStorage: AuthTokenStorageProtocol
-    
+    private let sessionStorage: UserSessionStorageProtocol
+
     private var isConnected = false
     private var currentOrganizationID: UUID?
-    
+
     weak var eventHandler: WebSocketEventHandler?
-    
-    init(baseURL: String, tokenStorage: AuthTokenStorageProtocol) {
+
+    init(baseURL: String, sessionStorage: UserSessionStorageProtocol) {
         self.baseURL = baseURL
-        self.tokenStorage = tokenStorage
+        self.sessionStorage = sessionStorage
         
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
@@ -45,16 +42,14 @@ final class WebSocketService {
         self.session = URLSession(configuration: config)
     }
     
-    /// Connect to WebSocket for specific organization
     func connect(organizationID: UUID) {
         disconnect() // Disconnect previous connection if any
         
-        guard let accessToken = tokenStorage.getAccessToken() else {
+        guard let accessToken = sessionStorage.accessToken else {
             print("[WebSocket] No access token available")
             return
         }
         
-        // Convert http(s):// to ws(s)://
         var wsURL = baseURL.replacingOccurrences(of: "http://", with: "ws://")
         wsURL = wsURL.replacingOccurrences(of: "https://", with: "wss://")
         
@@ -79,14 +74,12 @@ final class WebSocketService {
         webSocketTask?.resume()
         isConnected = true
         currentOrganizationID = organizationID
+
+        print("[WebSocket] Connecting: \(url.absoluteString)")
         
-        print("[WebSocket] Connected to \(url)")
-        
-        // Start receiving messages
         receiveMessage()
     }
     
-    /// Disconnect from WebSocket
     func disconnect() {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
@@ -95,7 +88,6 @@ final class WebSocketService {
         print("[WebSocket] Disconnected")
     }
     
-    /// Receive messages from WebSocket
     private func receiveMessage() {
         webSocketTask?.receive { [weak self] result in
             guard let self = self else { return }
@@ -103,7 +95,6 @@ final class WebSocketService {
             switch result {
             case .success(let message):
                 self.handleMessage(message)
-                // Continue receiving
                 self.receiveMessage()
                 
             case .failure(let error):
@@ -113,7 +104,6 @@ final class WebSocketService {
         }
     }
     
-    /// Handle incoming WebSocket message
     private func handleMessage(_ message: URLSessionWebSocketTask.Message) {
         switch message {
         case .string(let text):
@@ -128,10 +118,8 @@ final class WebSocketService {
         }
     }
     
-    /// Parse and dispatch WebSocket message
     private func parseMessage(_ data: Data) {
         do {
-            // Parse outer message structure
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let type = json["type"] as? String else {
                 print("[WebSocket] Invalid message format")
@@ -145,7 +133,6 @@ final class WebSocketService {
             
             switch messageType {
             case .itemCreated, .itemUpdated, .itemArchived:
-                // Decode item from data field using ItemDTO
                 if let itemData = json["data"],
                    let itemJSON = try? JSONSerialization.data(withJSONObject: itemData),
                    let item = decodeItem(from: itemJSON) {
@@ -177,7 +164,6 @@ final class WebSocketService {
         }
     }
     
-    /// Decode Item using the same decoder as ApiWarehouseService
     private func decodeItem(from data: Data) -> Item? {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
