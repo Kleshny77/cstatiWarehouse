@@ -26,8 +26,8 @@ final class cstatiWarehouseUITestsLaunchTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.descendants(matching: .any).firstMatch.waitForExistence(timeout: 20),
-            "Приложение должно показать UI после запуска"
+            waitForAnyRootScreen(app: app, timeout: 20),
+            "После запуска должен появиться таббар или экран логина"
         )
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
@@ -36,5 +36,20 @@ final class cstatiWarehouseUITestsLaunchTests: XCTestCase {
         add(attachment)
 
         app.terminate()
+    }
+
+    @MainActor
+    private func waitForAnyRootScreen(app: XCUIApplication, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if app.tabBars.firstMatch.exists {
+                return true
+            }
+            if app.descendants(matching: .any)[UITestAccessibilityIDs.Login.emailField].exists {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return false
     }
 }

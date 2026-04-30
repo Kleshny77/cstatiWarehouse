@@ -18,6 +18,7 @@ final class cstatiWarehouseUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = UITestArguments.loginFlowDefaults
         app.launch()
-        XCTAssertTrue(app.descendants(matching: .any).firstMatch.waitForExistence(timeout: 8))
+        let email = app.descendants(matching: .any)[UITestAccessibilityIDs.Login.emailField]
+        XCTAssertTrue(email.waitForExistence(timeout: 12))
     }
 }
