@@ -1,16 +1,18 @@
 //
 //  cstatiWarehouseUITestsLaunchTests.swift
-//  cstatiWarehouseUITests
+//  cstatiWarehouse
 //
-//  Created by Artem Samsonov on 16.01.2026.
+//  Created by Артём on 30.04.2026.
 //
 
 import XCTest
 
+/// Один прогон запуска со скриншотом. Без `runsForEachTargetApplicationUIConfiguration`:
+/// иначе Xcode гоняет тест по нескольким UI-конфигурациям, на CI часто падает teardown с «Failed to terminate».
 final class cstatiWarehouseUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
-        true
+        false
     }
 
     override func setUpWithError() throws {
@@ -20,14 +22,19 @@ final class cstatiWarehouseUITestsLaunchTests: XCTestCase {
     @MainActor
     func testLaunch() throws {
         let app = XCUIApplication()
+        app.launchArguments = UITestArguments.mainTabsDefaults
         app.launch()
 
-        // Insert steps here to perform after app launch but before taking a screenshot,
-        // such as logging into a test account or navigating somewhere in the app
+        XCTAssertTrue(
+            app.descendants(matching: .any).firstMatch.waitForExistence(timeout: 20),
+            "Приложение должно показать UI после запуска"
+        )
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Launch Screen"
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        app.terminate()
     }
 }
